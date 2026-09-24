@@ -86,3 +86,62 @@ g-ps-06	guard	none	-	pass	bash:curl -o out.json https://example.com/a.json
 g-ps-07	guard	none	-	pass	bash:curl -s https://example.com/a.json | jq .
 g-tl-01	guard	none	-	pass	file:Read:/repo/src/app.ts
 g-tl-02	guard	none	-	pass	bash:ls -la
+a-pp-01	ask-gate	feature	-	ask	bash:git push origin main
+a-pp-02	ask-gate	feature	-	ask	bash:git push -u origin main 2>&1 | tail -3
+a-pp-03	ask-gate	feature	-	ask	bash:git push origin HEAD:main
+a-pp-04	ask-gate	feature	-	ask	bash:git push origin refs/heads/main
+a-pp-05	ask-gate	feature	-	ask	bash:git push origin :feature/x
+a-pp-06	ask-gate	feature	-	ask	bash:git push --delete origin feature/x
+a-pp-07	ask-gate	feature	-	ask	bash:git push origin -d feature/x
+a-pp-08	ask-gate	feature	-	ask	bash:git push --all origin
+a-pp-09	ask-gate	feature	-	ask	bash:git push --mirror origin
+a-pp-10	ask-gate	feature	-	ask	bash:echo ok && git push origin main
+a-pp-11	ask-gate	main	-	ask	bash:git push
+a-pp-12	ask-gate	main	-	ask	bash:git push origin
+a-pp-13	ask-gate	main	-	ask	bash:git push origin HEAD
+a-pp-14	ask-gate	feature	HARNESS_PROTECTED_BRANCHES=main release	ask	bash:git push origin release
+a-pp-15	ask-gate	feature	-	ask	bash:git push --prune origin
+a-pp-16	ask-gate	feature	-	pass	bash:git push origin feature/x
+a-pp-17	ask-gate	feature	-	pass	bash:git push -u origin feature/x 2>&1 | tail -3
+a-pp-18	ask-gate	feature	-	pass	bash:git push
+a-pp-19	ask-gate	feature	-	pass	bash:git push origin feature/main
+a-pp-20	ask-gate	feature	-	pass	bash:git push origin v1.0.0
+a-pp-21	ask-gate	main	HARNESS_PROTECTED_BRANCHES=trunk	pass	bash:git push
+a-pp-22	ask-gate	feature	-	ask	bash:gh issue comment 1 --body "run git push origin main later"
+a-wt-01	ask-gate	none	-	ask	bash:git worktree remove --force .claude/worktrees/x
+a-wt-02	ask-gate	none	-	ask	bash:git worktree remove -f x
+a-wt-03	ask-gate	none	-	pass	bash:git worktree remove x
+a-wt-04	ask-gate	none	-	pass	bash:git worktree list
+a-li-01	ask-gate	none	-	ask	bash:pnpm install
+a-li-02	ask-gate	none	-	ask	bash:pnpm i
+a-li-03	ask-gate	none	-	ask	bash:pnpm add zod
+a-li-04	ask-gate	none	-	ask	bash:pnpm install 2>&1 | tail -5
+a-li-05	ask-gate	none	-	ask	bash:pnpm test && pnpm install
+a-li-06	ask-gate	none	-	ask	bash:npm install
+a-li-07	ask-gate	none	-	ask	bash:npm i -D vitest
+a-li-08	ask-gate	none	-	ask	bash:npm uninstall left-pad
+a-li-09	ask-gate	none	-	ask	bash:yarn add zod
+a-li-10	ask-gate	none	-	ask	bash:yarn
+a-li-11	ask-gate	none	-	ask	bash:yarn install
+a-li-12	ask-gate	none	-	ask	bash:bun add zod
+a-li-13	ask-gate	none	-	ask	bash:bun install
+a-li-14	ask-gate	none	-	ask	bash:uv add httpx
+a-li-15	ask-gate	none	-	ask	bash:uv sync
+a-li-16	ask-gate	none	-	ask	bash:uv pip install httpx
+a-li-17	ask-gate	none	-	ask	bash:pip install httpx
+a-li-18	ask-gate	none	-	ask	bash:python -m pip install httpx
+a-li-19	ask-gate	none	-	ask	bash:cargo add serde
+a-li-20	ask-gate	none	-	ask	bash:pnpm -C app add zod
+a-li-21	ask-gate	none	-	pass	bash:pnpm install --frozen-lockfile
+a-li-22	ask-gate	none	-	pass	bash:pnpm i --frozen-lockfile && pnpm test
+a-li-23	ask-gate	none	-	pass	bash:npm ci
+a-li-24	ask-gate	none	-	pass	bash:yarn install --immutable
+a-li-25	ask-gate	none	-	pass	bash:bun install --frozen-lockfile
+a-li-26	ask-gate	none	-	pass	bash:uv sync --locked
+a-li-27	ask-gate	none	-	pass	bash:uv sync --frozen
+a-li-28	ask-gate	none	-	pass	bash:uv run pytest
+a-li-29	ask-gate	none	-	pass	bash:pnpm test
+a-li-30	ask-gate	none	-	pass	bash:yarn test
+a-li-31	ask-gate	none	-	pass	bash:cargo build
+a-li-32	ask-gate	none	-	pass	bash:pnpm exec vitest run
+a-ot-01	ask-gate	none	-	pass	bash:git status

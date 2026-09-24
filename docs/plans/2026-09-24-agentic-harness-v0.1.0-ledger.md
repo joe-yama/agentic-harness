@@ -17,6 +17,11 @@ Rulings made while implementing `docs/plans/2026-09-24-agentic-harness-v0.1.0.md
 - Reason: the plan's `grep -o` regex consumed the trailing boundary character, so the second file in `cat .env.example .env` was never matched (case g-ev-05 failed).
 - Cost if wrong: a quoted string that merely mentions `.env` is blocked (false positive on the safe side).
 
+### 2026-09-25 ask-gate asks for every `uv pip` subcommand and for removals/updates
+- Ruling: `lockfile-install` asks for `uv pip <anything>` and also for remove/update subcommands of pnpm, npm, yarn, bun and cargo, beyond the spec's list of installs.
+- Reason: they change the lockfile or the environment just like installs; the spec's intent is "installs that can change a lockfile".
+- Cost if wrong: an extra confirmation prompt for `uv pip list` / `uv pip show`.
+
 ## Proposals
 
 (Minor findings and out-of-scope ideas deferred to later versions.)
