@@ -17,11 +17,10 @@ file=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_response.fil
 [ -n "$file" ] && [ -f "$file" ] || exit 0
 dir=$(cd "$(dirname "$file")" && pwd -P) || exit 0
 abs="$dir/$(basename "$file")"
-root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
-root=$(cd "$root" && pwd -P) || exit 0
 # rule:lint-outside-repo
-case "$abs" in "$root"/*) ;; *) exit 0 ;; esac
+root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
 # end:lint-outside-repo
+root=$(cd "$root" && pwd -P) || exit 0
 rel=${abs#"$root"/}
 doc=${HARNESS_DOC_PATTERN:-'\.(md|txt)$|^docs/|^openspec/|^\.claude/'}
 # rule:lint-doc-skip

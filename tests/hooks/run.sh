@@ -8,6 +8,7 @@ repo=$(cd "$here/../.." && pwd -P)
 . "$repo/tests/lib.sh"
 setup_git_env
 HOOKS_DIR=${HOOKS_DIR:-$repo/plugins/harness/scripts}
+HOOK_BASH=${HOOK_BASH:-bash} # e.g. /bin/bash to test macOS bash 3.2
 
 for b in main feature; do
   git init -q "$TMP_ROOT/$b"
@@ -34,9 +35,9 @@ while IFS=$'\t' read -r id script where envkv expect payload; do
       continue ;;
   esac
   if [ "$envkv" = "-" ]; then
-    out=$(cd "$cwd" && printf '%s' "$json" | bash "$HOOKS_DIR/$script.sh" 2>/dev/null)
+    out=$(cd "$cwd" && printf '%s' "$json" | "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>/dev/null)
   else
-    out=$(cd "$cwd" && printf '%s' "$json" | env "$envkv" bash "$HOOKS_DIR/$script.sh" 2>/dev/null)
+    out=$(cd "$cwd" && printf '%s' "$json" | env "$envkv" "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>/dev/null)
   fi
   rc=$?
   decision=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // empty' 2>/dev/null)

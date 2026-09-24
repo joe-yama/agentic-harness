@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016 # assertions are single-quoted on purpose: expect() evals them later
 # Behavior tests for lint-on-edit.sh and test-on-stop.sh in throwaway git repositories.
 # HOOKS_DIR overrides the script directory (used by mutate.sh).
 set -u
@@ -8,6 +9,7 @@ repo=$(cd "$here/../.." && pwd -P)
 . "$repo/tests/lib.sh"
 setup_git_env
 HOOKS_DIR=${HOOKS_DIR:-$repo/plugins/harness/scripts}
+HOOK_BASH=${HOOK_BASH:-bash} # e.g. /bin/bash to test macOS bash 3.2
 R="$TMP_ROOT/proj"
 git init -q "$R" && git -C "$R" commit -q --allow-empty -m init
 mkdir -p "$R/src" "$R/docs"
@@ -20,18 +22,20 @@ printf '%s\n' "$1" >> "$(dirname "$0")/lint.log"
 EOF
 chmod +x "$LINTER"
 
-lint() { # <file> [VAR=value ...] -> sets rc, err
+lint() { # <file> [env args: VAR=value | -u VAR ...] -> sets rc, err
   local f=$1
   shift
+  # shellcheck disable=SC2034 # read by the eval in expect()
   err=$(jq -nc --arg p "$f" '{hook_event_name:"PostToolUse",tool_name:"Write",tool_input:{file_path:$p},tool_response:{filePath:$p}}' \
-    | env "$@" bash "$HOOKS_DIR/lint-on-edit.sh" 2>&1 >/dev/null)
+    | env "$@" "$HOOK_BASH" "$HOOKS_DIR/lint-on-edit.sh" 2>&1 >/dev/null)
   rc=$?
 }
-stop() { # <extra-json> [VAR=value ...] -> sets rc, out
+stop() { # <extra-json> [env args: VAR=value | -u VAR ...] -> sets rc, out
   local extra=$1
   shift
+  # shellcheck disable=SC2034 # read by the eval in expect()
   out=$(jq -nc --arg d "$R" --argjson x "$extra" '{hook_event_name:"Stop",cwd:$d} + $x' \
-    | env "$@" bash "$HOOKS_DIR/test-on-stop.sh" 2>/dev/null)
+    | env "$@" "$HOOK_BASH" "$HOOKS_DIR/test-on-stop.sh" 2>/dev/null)
   rc=$?
 }
 expect() { if eval "$2"; then ok; else ng "$1 (rc=$rc)"; fi; }
@@ -40,8 +44,10 @@ echo ok > "$R/src/good.ts"
 echo BAD > "$R/src/bad.ts"
 echo BAD > "$R/docs/x.md"
 
+lint "$R/src/bad.ts" -u HARNESS_LINT_CMD
+expect l-unset '[ $rc = 0 ] && [ -z "$err" ]'
 lint "$R/src/bad.ts" HARNESS_LINT_CMD=
-expect l-unset '[ $rc = 0 ]'
+expect l-empty '[ $rc = 0 ]'
 lint "$R/src/good.ts" HARNESS_LINT_CMD="$LINTER"
 expect l-good '[ $rc = 0 ] && grep -q good.ts "$TMP_ROOT/lint.log"'
 lint "$R/src/bad.ts" HARNESS_LINT_CMD="$LINTER"
@@ -68,8 +74,10 @@ esac
 
 M="$TMP_ROOT/ran"
 T="touch $M"
-stop '{}' HARNESS_TEST_CMD=
+stop '{}' -u HARNESS_TEST_CMD
 expect s-unset '[ $rc = 0 ] && [ -z "$out" ]'
+stop '{}' HARNESS_TEST_CMD=
+expect s-empty '[ $rc = 0 ] && [ -z "$out" ]'
 git -C "$R" add -A && git -C "$R" commit -q -m files
 stop '{}' HARNESS_TEST_CMD="$T"
 expect s-clean '[ $rc = 0 ] && [ ! -e "$M" ]'

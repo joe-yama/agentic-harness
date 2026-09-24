@@ -22,6 +22,16 @@ Rulings made while implementing `docs/plans/2026-09-24-agentic-harness-v0.1.0.md
 - Reason: they change the lockfile or the environment just like installs; the spec's intent is "installs that can change a lockfile".
 - Cost if wrong: an extra confirmation prompt for `uv pip list` / `uv pip show`.
 
+### 2026-09-25 Mutation test found two unguarded rules
+- Ruling: `lint-outside-repo` guarded unreachable code (a file outside any repository already exits at `git rev-parse`), so the dead `case` was removed and the rule markers moved to the `rev-parse` line; `stop-unset` / `lint-unset` were only tested with an empty value, so truly unset (`env -u`) cases were added.
+- Reason: `tests/hooks/mutate.sh` reported `SURVIVED` for both. Checker self-check: deleting the `g-ps-01..05` rows in a copy makes it report `SURVIVED: guard.sh rule:pipe-shell`.
+- Cost if wrong: none; the tests only became stricter.
+
+### 2026-09-25 Hooks are tested under macOS bash 3.2 too
+- Ruling: `run.sh` and `lifecycle.sh` accept `HOOK_BASH`; all hook cases pass with `HOOK_BASH=/bin/bash` (GNU bash 3.2.57).
+- Reason: hooks are started as `bash …`, and on macOS that can resolve to `/bin/bash` 3.2 depending on PATH.
+- Cost if wrong: none.
+
 ## Proposals
 
 (Minor findings and out-of-scope ideas deferred to later versions.)
