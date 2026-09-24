@@ -37,6 +37,11 @@ Rulings made while implementing `docs/plans/2026-09-24-agentic-harness-v0.1.0.md
 - Reason: the SchemaStore Claude Code settings schema (pinned commit) only accepts `"0"` or `"1"`; the empty string portfolio used fails validation.
 - Cost if wrong: none expected; `"0"` is the documented off value.
 
+### 2026-09-25 The marketplace ref accepts exact release tags only
+- Ruling: the rendered `ref` is `_commit` only when it starts with `v` and contains no `-`; otherwise `main`.
+- Reason: rendering from a source repository without tags makes Copier's `_commit` a bare short SHA, and the plan's check (reject `-g`) let it through; the settings schema defines `ref` as a branch or tag. Tests `notag-ref` and `notag-status` went RED, then GREEN.
+- Cost if wrong: a pre-release tag such as `v1.0.0-rc1` pins to `main` instead.
+
 ## Proposals
 
 (Minor findings and out-of-scope ideas deferred to later versions.)

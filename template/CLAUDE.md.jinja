@@ -1,1 +1,38 @@
 @AGENTS.md
+
+# Claude Code specifics
+
+The `harness@agentic-harness` plugin supplies the hooks, subagents and skills below; `superpowers@claude-plugins-official` comes with it as a dependency.
+
+## Which skill when
+
+| Situation | Use |
+|---|---|
+| Starting, resuming or finishing a change; unsure whether to stop | `harness:workflow` |
+| New idea or behavior change | `superpowers:brainstorming` |
+| Proposal, archive | `/opsx:propose`, `/opsx:archive` (call OpenSpec through `/opsx:*`, not the `openspec-*` skills directly) |
+| Implementation plan / execution | `superpowers:writing-plans`, `superpowers:subagent-driven-development` |
+| A task or the branch reaches review | `harness:review-loop` |
+| A new guardian test | `harness:mutation-check` |
+| Harness version update | `harness:adopt` ("Updating") |
+
+## Subagents
+
+- Dispatch only `harness:implementer` and `harness:reviewer`, and always pass `model: "opus"`. An omitted model inherits the session's.
+- The context that implemented something never reviews it. During subagent-driven development the controller distributes, judges and records; it does not write code.
+- Agent definition changes take effect only in a new session. The symptom of a stale definition is `No such tool available`.
+
+## Hooks and permissions
+
+- Hooks block destructive commands and secret access, send pushes to `{{ default_branch }}` and lockfile-changing installs to the PO, lint each edited file, and run tests before the turn ends. They read `HARNESS_*` from `.claude/settings.json` `env`.
+- Under auto mode the agent cannot write `.claude/settings.json`. Put the complete new file in the scratchpad and ask the PO to place it.
+- A hook refusal is a policy decision, not an obstacle: do not rephrase the command to get around it; ask the PO.
+
+## Long and unattended runs
+
+- `/goal <completion condition> or stop after N turns`; always give a turn limit.
+- Headless: `claude -p --permission-mode auto --permission-prompts none --max-turns N`. Prompting operations are denied and skipped; list them in the final report.
+
+## Compact instructions
+
+Always keep: the change name and Issue number, the worktree path and branch, the ledger path (`.superpowers/sdd/<plan>/progress.md`), completed tasks and the current task number, the latest review verdict and open Critical / Important findings, PO decisions and unanswered questions, and the test / lint commands. Drop tool output bodies, exploratory file contents and full subagent reports into summaries.

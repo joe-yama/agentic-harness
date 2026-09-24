@@ -75,6 +75,16 @@ D4="$TMP_ROOT/untagged"
 render "$D4" HEAD
 check untagged-ref '[ "$(settings "$D4" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = main ]'
 
+# A source repository without any tag makes _commit a bare SHA, which is not a branch or tag.
+NOTAG="$TMP_ROOT/notag"
+mkdir -p "$NOTAG"
+(cd "$repo" && git ls-files -co --exclude-standard | tar -c -T -) | tar -x -C "$NOTAG"
+git -C "$NOTAG" init -q && git -C "$NOTAG" add -A && git -C "$NOTAG" commit -q -m snapshot
+D5="$TMP_ROOT/notag-out"
+$COPIER copy --quiet --defaults --vcs-ref HEAD --data project_name=Sample --data github_owner=octo "$NOTAG" "$D5" > "$TMP_ROOT/copier.log" 2>&1
+check notag-ref '[ "$(settings "$D5" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = main ]'
+check notag-status 'grep -q "| agentic-harness | main |" "$D5/docs/status.md"'
+
 # copier update from v9.9.0 to v9.9.1 applies cleanly and moves the pin.
 git -C "$D1" init -q && git -C "$D1" add -A && git -C "$D1" commit -q -m init
 printf '\n<!-- updated -->\n' >> "$SRC/template/CLAUDE.md.jinja"
