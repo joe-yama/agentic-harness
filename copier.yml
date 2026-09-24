@@ -1,0 +1,44 @@
+_min_copier_version: "9.18"
+_subdirectory: template
+_answers_file: .copier-answers.yml
+_templates_suffix: .jinja
+
+project_name:
+  type: str
+  help: Product name (AGENTS.md title)
+  validator: "{% if not project_name.strip() %}Required{% endif %}"
+project_summary:
+  type: str
+  default: ""
+  help: One-paragraph product summary (leave empty to write it at the first brainstorming)
+github_owner:
+  type: str
+  help: GitHub account that owns the repository (checked with `gh api user` before gh writes)
+  validator: "{% if not github_owner.strip() %}Required{% endif %}"
+default_branch:
+  type: str
+  default: main
+  help: Protected default branch (PR-only, required check `check`)
+work_language:
+  type: str
+  default: ja
+  choices:
+    Japanese: ja
+    English: en
+  help: Language for commits, Issues, PRs, OpenSpec artifacts and status docs
+lint_cmd:
+  type: str
+  default: ""
+  help: Per-file lint command; the file path is appended (empty = set in the first change)
+lint_pattern:
+  type: str
+  default: ""
+  help: Extended regex on repo-relative paths to lint (empty = every non-doc file)
+test_cmd:
+  type: str
+  default: ""
+  help: Test command run before Claude stops (empty = set in the first change)
+ui_review:
+  type: bool
+  default: false
+  help: Add Playwright MCP so the reviewer can drive the running UI

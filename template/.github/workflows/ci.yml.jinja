@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [{{ default_branch }}]
+  push:
+    branches: [{{ default_branch }}]
+
+permissions:
+  contents: read
+
+jobs:
+  # The job name `check` is the required status check of the ruleset
+  # (docs/harness/ruleset.json). Renaming it blocks every merge.
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Context budget (AGENTS.md + CLAUDE.md + .claude/rules <= 16000 bytes)
+        run: |
+          bytes=$(cat AGENTS.md CLAUDE.md .claude/rules/*.md | wc -c)
+          echo "context bytes: $bytes"
+          test "$bytes" -le 16000
+      # The first change adds the stack's setup, lint, typecheck, test and build steps here.

@@ -32,6 +32,11 @@ Rulings made while implementing `docs/plans/2026-09-24-agentic-harness-v0.1.0.md
 - Reason: hooks are started as `bash …`, and on macOS that can resolve to `/bin/bash` 3.2 depending on PATH.
 - Cost if wrong: none.
 
+### 2026-09-25 Agent teams are disabled with "0"
+- Ruling: the template sets `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` to `"0"`.
+- Reason: the SchemaStore Claude Code settings schema (pinned commit) only accepts `"0"` or `"1"`; the empty string portfolio used fails validation.
+- Cost if wrong: none expected; `"0"` is the documented off value.
+
 ## Proposals
 
 (Minor findings and out-of-scope ideas deferred to later versions.)
