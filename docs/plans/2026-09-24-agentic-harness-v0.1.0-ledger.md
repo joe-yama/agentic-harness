@@ -12,6 +12,11 @@ Rulings made while implementing `docs/plans/2026-09-24-agentic-harness-v0.1.0.md
 - Reason: the executing-plans workspace (progress ledger, briefs, review packages) is scratch.
 - Cost if wrong: none.
 
+### 2026-09-25 guard env-file rule splits words instead of grep -o
+- Ruling: the Bash `.env` rule splits the command on whitespace, quotes, redirections and separators and matches each word's basename against `^\.env(\.[A-Za-z0-9_-]+)*$` (except `.env.example`).
+- Reason: the plan's `grep -o` regex consumed the trailing boundary character, so the second file in `cat .env.example .env` was never matched (case g-ev-05 failed).
+- Cost if wrong: a quoted string that merely mentions `.env` is blocked (false positive on the safe side).
+
 ## Proposals
 
 (Minor findings and out-of-scope ideas deferred to later versions.)
