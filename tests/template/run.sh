@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2016 # assertions are single-quoted on purpose: check() evals them later
+# shellcheck disable=SC2016,SC2034 # assertions are single-quoted and read variables only inside check()'s eval
 # Renders the Copier template from a committed snapshot of this working tree and checks the output.
 set -u
 repo=$(cd "$(dirname "$0")/../.." && pwd -P)
