@@ -6,8 +6,8 @@ repo=$(cd "$(dirname "$0")/.." && pwd -P)
 # shellcheck source=lib.sh
 . "$repo/tests/lib.sh"
 cd "$repo" || exit 1
-m=.claude-plugin/marketplace.json
-p=plugins/harness/.claude-plugin/plugin.json
+# shellcheck disable=SC2034 # m and p are read only by the evals in check()
+m=.claude-plugin/marketplace.json p=plugins/harness/.claude-plugin/plugin.json
 h=plugins/harness/hooks/hooks.json
 check() { if eval "$2"; then ok; else ng "$1"; fi; }
 
