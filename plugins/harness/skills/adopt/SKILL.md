@@ -66,7 +66,7 @@ Push the branch and open a PR. CI job `check` must be green (it checks the conte
 
 ## 7. Verify in a new session
 
-Start a **new** Claude Code session in the repository (hooks, agents and plugins load at session start) and check:
+Start a **new interactive** Claude Code session in the repository (hooks, agents and plugins load at session start) and accept the workspace trust dialog — until a folder is trusted, `claude -p` ignores the project's `permissions.allow` entries. Then check:
 
 - `rm -rf ./harness-guard-probe` is refused with `BLOCKED by harness guard (rm-rf)`;
 - `git push origin <default branch>` asks for confirmation (`harness ask-gate (protected-push)`) — decline it;

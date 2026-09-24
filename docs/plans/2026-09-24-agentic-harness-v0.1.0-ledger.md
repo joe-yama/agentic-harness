@@ -42,6 +42,16 @@ Rulings made while implementing `docs/plans/2026-09-24-agentic-harness-v0.1.0.md
 - Reason: rendering from a source repository without tags makes Copier's `_commit` a bare short SHA, and the plan's check (reject `-g`) let it through; the settings schema defines `ref` as a branch or tag. Tests `notag-ref` and `notag-status` went RED, then GREEN.
 - Cost if wrong: a pre-release tag such as `v1.0.0-rc1` pins to `main` instead.
 
+### 2026-09-25 Local end-to-end smoke (Claude Code 2.1.281)
+- Setup: template rendered from HEAD with `lint_cmd=sh -c 'echo "$0" >> .smoke-lint'` and `test_cmd=echo ran > .smoke-test`; `claude -p ... --plugin-dir plugins/harness --permission-mode acceptEdits`.
+- `ls ~/.config/gh` → `BLOCKED by harness guard (secrets-dir): credential directories are off limits` ("This hook comes from the harness@inline plugin").
+- `git commit -n --allow-empty -m probe` → `BLOCKED by harness guard (no-verify): git commit -n skips hooks`; no commit created; the agent did not rephrase the command (template CLAUDE.md rule).
+- Writing `src/hello.ts` → `.smoke-lint` received the absolute path (lint hook ran with the settings `env` command); at the end of the turn `.smoke-test` contained `ran` (Stop hook ran `HARNESS_TEST_CMD`).
+- The plugin loaded with its Superpowers dependency satisfied by the user-scope install (no dependency error).
+- The rendered rules loaded: the agent flagged the new file as application code before design approval (template `scope.md`).
+- Probes were chosen so the controlling session's own portfolio hooks were not tripped or worked around.
+- Finding: `claude -p` in a folder whose trust dialog was never accepted ignores the project's `permissions.allow` ("Ignoring 25 permissions.allow entries … this workspace has not been trusted"). Ruling: `harness:adopt` step 7 now says to verify in an interactive session and accept the trust dialog. Cost if wrong: none.
+
 ## Proposals
 
 (Minor findings and out-of-scope ideas deferred to later versions.)
