@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Behavior tests for lint-on-edit.sh and test-on-stop.sh in throwaway git repositories.
+# HOOKS_DIR overrides the script directory (used by mutate.sh).
+set -u
+here=$(cd "$(dirname "$0")" && pwd -P)
+repo=$(cd "$here/../.." && pwd -P)
+# shellcheck source=../lib.sh
+. "$repo/tests/lib.sh"
+setup_git_env
+HOOKS_DIR=${HOOKS_DIR:-$repo/plugins/harness/scripts}
+R="$TMP_ROOT/proj"
+git init -q "$R" && git -C "$R" commit -q --allow-empty -m init
+mkdir -p "$R/src" "$R/docs"
+LINTER="$TMP_ROOT/linter.sh"
+cat > "$LINTER" <<'EOF'
+#!/usr/bin/env bash
+# fake linter: records its argument, fails when the file contains BAD
+printf '%s\n' "$1" >> "$(dirname "$0")/lint.log"
+! grep -q BAD "$1"
+EOF
+chmod +x "$LINTER"
+
+lint() { # <file> [VAR=value ...] -> sets rc, err
+  local f=$1
+  shift
+  err=$(jq -nc --arg p "$f" '{hook_event_name:"PostToolUse",tool_name:"Write",tool_input:{file_path:$p},tool_response:{filePath:$p}}' \
+    | env "$@" bash "$HOOKS_DIR/lint-on-edit.sh" 2>&1 >/dev/null)
+  rc=$?
+}
+stop() { # <extra-json> [VAR=value ...] -> sets rc, out
+  local extra=$1
+  shift
+  out=$(jq -nc --arg d "$R" --argjson x "$extra" '{hook_event_name:"Stop",cwd:$d} + $x' \
+    | env "$@" bash "$HOOKS_DIR/test-on-stop.sh" 2>/dev/null)
+  rc=$?
+}
+expect() { if eval "$2"; then ok; else ng "$1 (rc=$rc)"; fi; }
+
+echo ok > "$R/src/good.ts"
+echo BAD > "$R/src/bad.ts"
+echo BAD > "$R/docs/x.md"
+
+lint "$R/src/bad.ts" HARNESS_LINT_CMD=
+expect l-unset '[ $rc = 0 ]'
+lint "$R/src/good.ts" HARNESS_LINT_CMD="$LINTER"
+expect l-good '[ $rc = 0 ] && grep -q good.ts "$TMP_ROOT/lint.log"'
+lint "$R/src/bad.ts" HARNESS_LINT_CMD="$LINTER"
+expect l-bad '[ $rc = 2 ] && printf "%s" "$err" | grep -q "lint failed"'
+lint "$R/docs/x.md" HARNESS_LINT_CMD="$LINTER"
+expect l-doc-skip '[ $rc = 0 ]'
+lint "$R/src/bad.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_LINT_PATTERN='\.py$'
+expect l-pattern-skip '[ $rc = 0 ]'
+lint "$R/src/bad.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_LINT_PATTERN='\.ts$'
+expect l-pattern-hit '[ $rc = 2 ]'
+evil="$R/src/a\$(touch pwned) b.ts"
+echo ok > "$evil"
+lint "$evil" HARNESS_LINT_CMD="$LINTER"
+expect l-no-injection '[ $rc = 0 ] && [ ! -e "$R/pwned" ] && [ ! -e "$R/src/pwned" ] && grep -qF "a\$(touch pwned) b.ts" "$TMP_ROOT/lint.log"'
+echo BAD > "$TMP_ROOT/outside.ts"
+lint "$TMP_ROOT/outside.ts" HARNESS_LINT_CMD="$LINTER"
+expect l-outside-repo '[ $rc = 0 ]'
+# macOS: /tmp and /var are symlinks into /private; a path through the link must still resolve.
+case "$R" in
+  /private/*)
+    lint "${R#/private}/src/bad.ts" HARNESS_LINT_CMD="$LINTER"
+    expect l-symlinked-path '[ $rc = 2 ]' ;;
+esac
+
+M="$TMP_ROOT/ran"
+T="touch $M"
+stop '{}' HARNESS_TEST_CMD=
+expect s-unset '[ $rc = 0 ] && [ -z "$out" ]'
+git -C "$R" add -A && git -C "$R" commit -q -m files
+stop '{}' HARNESS_TEST_CMD="$T"
+expect s-clean '[ $rc = 0 ] && [ ! -e "$M" ]'
+echo more >> "$R/docs/x.md"
+stop '{}' HARNESS_TEST_CMD="$T"
+expect s-doc-only '[ ! -e "$M" ]'
+echo more >> "$R/src/good.ts"
+stop '{"stop_hook_active":true}' HARNESS_TEST_CMD="$T"
+expect s-active '[ ! -e "$M" ]'
+stop '{}' HARNESS_TEST_CMD="$T"
+expect s-runs '[ -e "$M" ] && [ -z "$out" ]'
+stop '{}' HARNESS_TEST_CMD="echo boom; exit 3"
+expect s-fail-blocks '[ "$(printf "%s" "$out" | jq -r .decision)" = block ] && printf "%s" "$out" | jq -r .reason | grep -q boom'
+rm -f "$M"
+git -C "$R" add -A && git -C "$R" commit -q -m more
+echo new > "$R/src/untracked.ts"
+stop '{}' HARNESS_TEST_CMD="$T"
+expect s-untracked '[ -e "$M" ]'
+
+report "lifecycle"
