@@ -191,17 +191,12 @@ EOF
     # when jq is the command word (grep jq .env reads .env), and never across a separator
     ecmd=$(printf '%s\n' "$cmd" | sed -E "s#((^|[;&|(\`])[[:space:]]*${P}(jq|yq|gojq)([[:space:]]+-[^[:space:];&|<>()]*)*)[[:space:]]+[^[:space:];&|<>()]+#\1#g")
     # end:jq-filter
-    # The candidates are collected and checked by one grep: a grep per word runs past the hook
-    # timeout on a long command.
-    names=''
-    for word in $(printf '%s' "$ecmd" | tr '[:upper:]' '[:lower:]' | tr "=<>();|&\`:\001" '            '); do
-      name=${word##*/}
-      case "$name" in
-        .env.example) ;;
-        .env | .env.* | .env[*?[]*) names=$names$name$'\n' ;;
-      esac
-    done
-    printf '%s' "$names" | grep -Eq '^\.env([.*?[][]a-z0-9_.*?!^[-]*)?$' \
+    # One pipeline, one word per line: a grep per word, or ${word##*/} on a long word (quadratic in
+    # bash), runs past the hook timeout on a long command.
+    # shellcheck disable=SC2020 # tr maps characters one by one on purpose
+    printf '%s\n' "$ecmd" | tr '[:upper:]' '[:lower:]' \
+      | tr "=<>();|&\`:\001 \t" '\n\n\n\n\n\n\n\n\n\n\n\n\n' | sed 's#.*/##' \
+      | grep -Ev '^\.env\.example$' | grep -Eq '^\.env([.*?[][]a-z0-9_.*?!^[-]*)?$' \
       && deny env-file ".env files are off limits; read values from the environment"
     # end:env-file
 
