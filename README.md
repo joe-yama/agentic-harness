@@ -66,8 +66,12 @@ Resolve the conflict markers, restart Claude Code so it reads the new pin, run `
 - `HARNESS_*_CMD` values come from the repository's own committed settings and run with `bash -c`. Treat a change to them like any code change.
 - Do not run `claude -p` over repositories you do not trust without `--bare`: committed hooks run in headless mode.
 - The hooks match command text; they are a tripwire, not a sandbox. The template turns on the Claude Code sandbox (credential directories unreadable, network limited to GitHub and package registries) as the OS-level boundary. Known gaps and false positives:
-  - a quoted string is checked as a command only after `-c` (`sh -c '…'`, `bash -lc "…"`, also with options in between: `bash -c -- '…'`) or `eval`, as a here-string to a shell (`bash <<< '…'`), and as an argument of `watch` or `ssh <host>`; `-c` of `grep`, `wc`, `head` and the like is a flag. Other quoted strings (commit messages, grep patterns, Issue bodies) are data. A quoted `.env` is still treated as a file name, except as the filter of `jq` / `yq` / `gojq` (`jq '.env' …` passes), and heredoc bodies are checked line by line, so pass long bodies with `--body-file`;
-  - commands assembled from variables or run through another interpreter (`python -c`, `node -e`) are not seen;
+  - a quoted string is checked as a command only after `-c` (`sh -c '…'`, `bash -lc "…"`, also with options in between: `bash -c -- '…'`) or `eval`, as a here-string to a shell (`bash <<< '…'`), and as an argument of `watch` or `ssh <host>`; `-c` of `grep`, `wc`, `head` and the like is a flag. Other quoted strings (commit messages, grep patterns, Issue bodies) are data, and so is a command substitution inside double quotes (`echo "$(rm -rf x)"` passes);
+  - commands assembled from variables (`X=rm; $X -rf y`) and code in another language (`node -e`, `perl -e`, `os.system('…')` inside `python -c`) are not seen;
+  - credential directory and `.env` names are refused anywhere in the command text, data included: a commit message that mentions `~/.ssh` or `.env`, `grep -rn ".ssh" docs`, `grep -rn .aws README.md`, and a project's own `.aws/…` path (a word starting with `.aws/`). The exceptions are `.env.example` and the filter of `jq` / `yq` / `gojq` (`jq '.env' …` passes). Heredoc bodies are checked line by line, so pass long bodies with `--body-file`;
+  - not caught: `jq -f .env` (read as a filter, so parts of `.env` can appear in jq's error) and a credential directory after `:` (`git show HEAD:.ssh/id_rsa`);
+  - an unambiguous abbreviation of a guarded long option counts as the option (`git reset --har` is `--hard`);
+  - a command over 64 KiB is not checked: guard refuses it and ask-gate asks; write it to a file and run the file;
   - `uv run` can update `uv.lock` without asking.
 - Third-party components: Superpowers (MIT, pinned by the official marketplace), OpenSpec (MIT, pinned tag via `gh skill`), Playwright MCP (Apache-2.0, exact version, only with `ui_review`). All GitHub Actions are pinned by commit SHA and updated by Dependabot.
 
@@ -82,7 +86,7 @@ Tags `vX.Y.Z` (template) and `harness--vX.Y.Z` (plugin, from `claude plugin tag`
 ## Development
 
 ```sh
-bash tests/all.sh   # shellcheck, 192 hook cases, lifecycle tests, rule mutation test, manifests + claude plugin validate, template renders
+bash tests/all.sh   # shellcheck, hook cases (tests/hooks/cases.tsv), lifecycle tests, rule mutation test, manifests + claude plugin validate, template renders
 claude --plugin-dir plugins/harness   # load the plugin under development
 ```
 

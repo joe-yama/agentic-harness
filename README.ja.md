@@ -81,8 +81,12 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
 - `HARNESS_*_CMD` の値は、リポジトリにコミットされた設定から読み、`bash -c` で実行します。値の変更はコードの変更と同じように扱ってください。
 - 信頼していないリポジトリで `--bare` なしに `claude -p` を実行しないでください。headless モードでもコミット済みの hooks が動きます。
 - hooks はコマンドの文字列を見ているだけで、仕掛け線であってサンドボックスではありません。OS レベルの境界として、テンプレートは Claude Code の sandbox を有効にします（認証情報のディレクトリは読めず、ネットワークは GitHub とパッケージレジストリに限定）。既知の穴と誤検知は次のとおりです。
-  - 引用文字列をコマンドとして検査するのは、`-c`（`sh -c '…'`、`bash -lc "…"`。間にオプションがあってもよい: `bash -c -- '…'`）と `eval` の直後、シェルへの here-string（`bash <<< '…'`）、`watch` と `ssh <host>` の引数だけ。`grep`・`wc`・`head` などの `-c` はフラグとして扱う。それ以外の引用文字列（コミットメッセージ、grep のパターン、Issue 本文）はデータとして扱う。ただし引用された `.env` は、`jq` / `yq` / `gojq` のフィルタ（`jq '.env' …` は通る）を除いてファイル名として扱い、heredoc の本文は行ごとに検査されるので、長い本文は `--body-file` で渡す
-  - 変数から組み立てたコマンドと、別のインタプリタ経由のコマンド（`python -c`、`node -e`）は見えない
+  - 引用文字列をコマンドとして検査するのは、`-c`（`sh -c '…'`、`bash -lc "…"`。間にオプションがあってもよい: `bash -c -- '…'`）と `eval` の直後、シェルへの here-string（`bash <<< '…'`）、`watch` と `ssh <host>` の引数だけ。`grep`・`wc`・`head` などの `-c` はフラグとして扱う。それ以外の引用文字列（コミットメッセージ、grep のパターン、Issue 本文）はデータとして扱い、二重引用符の中のコマンド置換もデータになる（`echo "$(rm -rf x)"` は通る）
+  - 変数から組み立てたコマンド（`X=rm; $X -rf y`）と、別の言語のコード（`node -e`、`perl -e`、`python -c` の中の `os.system('…')`）は見えない
+  - 認証情報のディレクトリ名と `.env` の名前は、データも含めてコマンド文字列のどこにあっても拒否する。`~/.ssh` や `.env` に触れたコミットメッセージ、`grep -rn ".ssh" docs`、`grep -rn .aws README.md`、プロジェクト内の `.aws/…` のパス（`.aws/` で始まる語）も拒否される。例外は `.env.example` と、`jq` / `yq` / `gojq` のフィルタ（`jq '.env' …` は通る）。heredoc の本文は行ごとに検査されるので、長い本文は `--body-file` で渡す
+  - 捕まえないもの: `jq -f .env`（フィルタとして読むので、jq のエラーに `.env` の一部が出うる）と、`:` の後の認証情報のディレクトリ（`git show HEAD:.ssh/id_rsa`）
+  - 守っている長いオプションの一意な省略形は、そのオプションとして扱う（`git reset --har` は `--hard`）
+  - 64 KiB を超えるコマンドは検査しない。guard は拒否し、ask-gate は確認を求めるので、ファイルに書いてそのファイルを実行する
   - `uv run` は確認なしに `uv.lock` を更新することがある
 - 第三者の部品と固定の仕方:
   - Superpowers（MIT、公式マーケットプレイスが固定）
@@ -105,7 +109,7 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
 ## 開発
 
 ```sh
-bash tests/all.sh   # shellcheck、hook の 192 ケース、lifecycle テスト、規則の変異テスト、マニフェスト + claude plugin validate、テンプレートの描画
+bash tests/all.sh   # shellcheck、hook のケース（tests/hooks/cases.tsv）、lifecycle テスト、規則の変異テスト、マニフェスト + claude plugin validate、テンプレートの描画
 claude --plugin-dir plugins/harness   # 開発中のプラグインを読み込む
 ```
 

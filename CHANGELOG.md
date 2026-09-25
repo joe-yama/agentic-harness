@@ -23,6 +23,7 @@ All notable changes to this project are documented here. The plugin version in
 - Template settings: the `.env` deny list is `.env`, `.env.*` and the carve-out `!.env.example` (for `Read` and `Edit`), so every `.env.*` name is denied; the sandbox allows `release-assets.githubusercontent.com` (GitHub release downloads redirect there); the allow rule for the account check is exactly `gh api user --jq .login`.
 - Skills: `workflow` and `review-loop` record rulings in the change's committed `openspec/changes/<name>/` (then `docs/changes.md`), not in the gitignored `.superpowers/sdd/`; the `mutation-check` overlay skips deleted files (and deletes them in the copy) instead of failing in `tar`.
 - `copier.yml` drops `_templates_suffix: .jinja`, Copier's default; renders are unchanged.
+- README "Known gaps" matches the current hooks: credential and `.env` names are refused anywhere in the command text (commit messages, grep patterns), `$(…)` inside double quotes and `jq -f .env` / `git show HEAD:.ssh/…` are not caught, abbreviations count, the 64 KiB cap.
 
 ## [0.1.0] - 2026-09-25
 
