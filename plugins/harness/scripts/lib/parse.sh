@@ -16,25 +16,38 @@ normalize() {
   s=${s//\\$nl/ }
   # end:parse-continuation
   printf '%s\n' "$s" | awk -v sq="'" -v dq='"' '
-    function norm(s, depth,    out, q, inner, extra, i, ch, w, prevw, lead) {
-      out = ""; q = ""; inner = ""; extra = ""; w = ""; prevw = ""; lead = ""
+    function norm(s, depth,    out, q, inner, extra, i, ch, w, prevw, lead, cmdq, cw, cw2) {
+      out = ""; q = ""; inner = ""; extra = ""; w = ""; prevw = ""; lead = ""; cw = ""; cw2 = ""
       for (i = 1; i <= length(s); i++) {
         ch = substr(s, i, 1)
         if (q == "") {
           # rule:parse-dollar-quote
           if (ch == "$" && substr(s, i + 1, 1) == sq) continue
           # end:parse-dollar-quote
-          if (ch == sq || ch == dq) { q = ch; inner = ""; lead = (w != "" ? w : prevw); continue }
+          if (ch == sq || ch == dq) {
+            q = ch; inner = ""; lead = (w != "" ? w : prevw); cmdq = 0
+            # rule:parse-command-string
+            if (lead ~ /^-[A-Za-z]*c$/ || lead == "eval") cmdq = 1
+            # end:parse-command-string
+            # rule:parse-count-flag
+            # -c counts (grep, wc, uniq), selects bytes (head, tail, cut) or complements (tr) here
+            if (lead ~ /^-/ && (cw ~ /^(e|f)?grep$|^(rg|wc|head|tail|cut|uniq|tr)$/ || (cw == "git" && cw2 == "grep"))) cmdq = 0
+            # end:parse-count-flag
+            continue
+          }
           out = out ch
           if (ch == " " || ch == "\t" || ch == "\n" || ch == ";" || ch == "&" || ch == "|") {
-            if (w != "") prevw = w
+            if (w != "") {
+              prevw = w
+              # the command word of the segment (without a path prefix) and the word after it
+              if (cw == "") { cw = w; sub(/.*\//, "", cw) } else if (cw2 == "") cw2 = w
+            }
+            if (ch != " " && ch != "\t") { cw = ""; cw2 = "" }
             w = ""
           } else w = w ch
         } else if (ch == q) {
           q = ""
-          # rule:parse-command-string
-          if (depth < 4 && (lead ~ /^-[A-Za-z]*c$/ || lead == "eval")) extra = extra "\n" norm(inner, depth + 1)
-          # end:parse-command-string
+          if (depth < 4 && cmdq) extra = extra "\n" norm(inner, depth + 1)
           w = w "q"
         } else {
           inner = inner ch

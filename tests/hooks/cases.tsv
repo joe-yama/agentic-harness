@@ -270,3 +270,7 @@ g-jf-03	guard	none	-	pass	bash:yq -r '.env.API_URL' config.yml
 g-jf-04	guard	none	-	pass	bash:gh api repos/o/r | /usr/bin/gojq '.env | keys'
 g-jf-05	guard	none	-	block:env-file	bash:jq -r .env .env.local
 g-jf-06	guard	none	-	block:env-file	bash:jq .a f; cat .env
+g-cf-01	guard	none	-	pass	bash:grep -c "rm -rf" build.sh
+g-cf-02	guard	none	-	pass	bash:git grep -c 'git push -f'
+g-cf-03	guard	none	-	pass	bash:/usr/bin/grep -c -e 'rm -rf' build.sh
+g-cf-04	guard	none	-	block:rm-rf	bash:sudo sh -c 'rm -rf x'
