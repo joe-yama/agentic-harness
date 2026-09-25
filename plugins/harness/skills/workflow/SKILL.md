@@ -46,7 +46,7 @@ For everything else during implementation, **do not stop**. Rule by the spec, re
 
 ## Ruling format
 
-Record each ruling in the ledger (`.superpowers/sdd/<plan>/progress.md` or the change's ledger) and in the Issue:
+Record each ruling in a committed file and in the Issue. The file is the change's `openspec/changes/<name>/` (`tasks.md` or `design.md`); at archive, copy the rulings into `docs/changes.md`. `.superpowers/sdd/` is gitignored scratch: a ruling kept only there is lost.
 
 ```
 ### <date> <title>
