@@ -23,6 +23,7 @@ check h-has-scripts 'jq -r ".. | .command? // empty" $h | grep -q "scripts/"'
 while IFS= read -r s; do
   check "h-exists-$s" "[ -f plugins/harness/$s ]"
 done < <(jq -r '.. | .command? // empty' $h | grep -oE 'scripts/[a-z-]+\.sh')
+check h-monitor '[ "$(jq -r "[.hooks.PreToolUse[] | select(.matcher == \"Bash|Monitor\")] | length" $h)" = 1 ]'
 check h-plugin-root '! jq -r ".. | .command? // empty" $h | grep -vF "\${CLAUDE_PLUGIN_ROOT}" | grep -q .'
 for s in plugins/harness/scripts/*.sh; do
   check "h-wired-$(basename "$s")" "grep -qF 'scripts/$(basename "$s")' $h"

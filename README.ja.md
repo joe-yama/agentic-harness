@@ -19,8 +19,8 @@
 
 | hook | 挙動 |
 |---|---|
-| `guard`（PreToolUse） | 次をブロックする: 再帰 + 強制の `rm`、force push（`+refspec` と `-uf` を含む）、`git reset --hard` / `--merge`、`git clean -f`、ツリー全体の checkout / restore、`git branch -D`、`--no-verify` / `commit -n` / `--no-gpg-sign`、`.env` 系ファイル（`.env.example` は除く）、認証情報のディレクトリ、`curl … \| sh` |
-| `ask-gate`（PreToolUse） | 次を PO の確認に回す: 保護ブランチへの push（保護ブランチ上での refspec 無しの push を含む）、リモートブランチの削除、`--all` / `--mirror` / `--prune`、`git worktree remove --force`、lockfile を変える install（pnpm・npm・yarn・bun・uv・pip・cargo） |
+| `guard`（Bash・Monitor・ファイル操作ツールの PreToolUse） | 次をブロックする: 再帰 + 強制の `rm`、force push（`+refspec` と `-uf` を含む）、`git reset --hard` / `--merge`、`git clean -f`、ツリー全体の checkout / restore、`git branch -D`、`--no-verify` / `commit -n` / `--no-gpg-sign`、`.env` 系ファイル（`.env.example` は除く）、認証情報のディレクトリ、`curl … \| sh` |
+| `ask-gate`（Bash・Monitor の PreToolUse） | 次を PO の確認に回す: 保護ブランチへの push（保護ブランチ上での refspec 無しの push を含む）、リモートブランチの削除、`--all` / `--mirror` / `--prune`、`git worktree remove --force`、lockfile を変える install（pnpm・npm・yarn・bun・uv・pip・cargo） |
 | `lint-on-edit`（PostToolUse） | 編集したファイルごとに `HARNESS_LINT_CMD <file>` を実行し、失敗をその場で直させる |
 | `test-on-stop`（Stop） | ドキュメント以外が変わっていれば、ターンを終える前に `HARNESS_TEST_CMD` を実行する。失敗している間は作業を続けさせる |
 
@@ -29,20 +29,22 @@
 前提: Claude Code 2.1.277 以上、`jq`、`git`、[`uv`](https://docs.astral.sh/uv/)、`gh`、OpenSpec CLI。
 
 ```sh
-# 新しいプロダクトのリポジトリで
+# プロダクトのリポジトリで（既定ブランチが GitHub 上に既にあること）
+git switch -c fix/adopt-agentic-harness
 uvx copier@9.18.2 copy --vcs-ref v0.1.0 gh:joe-yama/agentic-harness .
-claude plugin marketplace add joe-yama/agentic-harness
+claude            # 対話モードで信頼ダイアログを承認する。v0.1.0 に固定されたマーケットプレイスが登録される
 claude plugin install harness@agentic-harness --scope project
-openspec init --tools claude
 ```
 
-続けて Claude に **`harness:adopt`** を実行させてください。このスキルが次を行います。
+`claude plugin marketplace add joe-yama/agentic-harness` は自分で実行しないでください。固定のない既定ブランチが同じ名前で登録されてしまいます。
 
-- OpenSpec のスキルを `gh skill` で固定する
+続けて新しいセッションで、Claude に **`harness:adopt`** の手順 5 以降を実行させてください。このスキルが次を行います。
+
+- OpenSpec を固定したスキルで用意する
 - ブランチの ruleset を適用する（あなたの確認を取ってから）
-- 新しいセッションで guard が効いていることを確かめる
+- guard が効いていることを確かめる
 
-手順の全体はスキルに書いてあります。
+リポジトリの作成も含めた手順の全体はスキルに書いてあります。
 
 ## 設定
 
@@ -61,10 +63,17 @@ openspec init --tools claude
 ```sh
 git switch -c fix/harness-v0.2.0
 uvx copier@9.18.2 update --vcs-ref v0.2.0      # .claude/settings.json のプラグインの固定も新しいタグに移る
-claude plugin marketplace update agentic-harness && claude plugin update harness@agentic-harness
+grep -rnE '^(<<<<<<<|>>>>>>>) ' . --exclude-dir=.git   # 衝突は .rej ではなくファイル内に印として書かれる
 ```
 
-PR を作り、CI とレビューで確かめてください。auto mode の Claude は `.claude/settings.json` を書けません。Claude がマージ済みのファイルを用意し、あなたが置きます。
+次の順に進めてください。
+
+1. 衝突の印を解消する
+2. Claude Code を再起動して新しい固定を読ませる
+3. `claude plugin update harness@agentic-harness` を実行する
+4. PR を作り、CI とレビューで確かめる
+
+auto mode の Claude は `.claude/settings.json` を書けません。Claude がマージ済みのファイルを用意し、あなたが置きます。
 
 ## セキュリティ上の注意
 
@@ -72,8 +81,8 @@ PR を作り、CI とレビューで確かめてください。auto mode の Cla
 - `HARNESS_*_CMD` の値は、リポジトリにコミットされた設定から読み、`bash -c` で実行します。値の変更はコードの変更と同じように扱ってください。
 - 信頼していないリポジトリで `--bare` なしに `claude -p` を実行しないでください。headless モードでもコミット済みの hooks が動きます。
 - hooks はコマンドの文字列を見ているだけで、仕掛け線であってサンドボックスではありません。OS レベルの境界として、テンプレートは Claude Code の sandbox を有効にします（認証情報のディレクトリは読めず、ネットワークは GitHub とパッケージレジストリに限定）。既知の穴と誤検知は次のとおりです。
-  - 守っているコマンドに言及しただけの引用文字列でも反応する（例: `git push origin main` を含む Issue 本文）。長い本文は `--body-file` で渡す
-  - 変数から組み立てたコマンドや、別のインタプリタ経由のコマンドは見えない
+  - 引用文字列もコマンドとして検査する（そのため `sh -c '…'` も捕まる）。守っているコマンドに言及しただけの引用文字列でも反応する（例: `git push origin main` を含む Issue 本文）。長い本文は `--body-file` で渡す
+  - 変数から組み立てたコマンド、別のインタプリタ経由のコマンド（`python -c`、`node -e`）、省略形の長いオプション（`--har`）は見えない
   - `uv run` は確認なしに `uv.lock` を更新することがある
 - 第三者の部品と固定の仕方:
   - Superpowers（MIT、公式マーケットプレイスが固定）
@@ -96,7 +105,7 @@ PR を作り、CI とレビューで確かめてください。auto mode の Cla
 ## 開発
 
 ```sh
-bash tests/all.sh   # shellcheck、hook の 146 ケース、lifecycle テスト、規則の変異テスト、マニフェスト + claude plugin validate、テンプレートの描画
+bash tests/all.sh   # shellcheck、hook の 177 ケース、lifecycle テスト、規則の変異テスト、マニフェスト + claude plugin validate、テンプレートの描画
 claude --plugin-dir plugins/harness   # 開発中のプラグインを読み込む
 ```
 

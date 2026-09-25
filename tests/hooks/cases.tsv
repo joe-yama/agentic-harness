@@ -145,3 +145,34 @@ a-li-30	ask-gate	none	-	pass	bash:yarn test
 a-li-31	ask-gate	none	-	pass	bash:cargo build
 a-li-32	ask-gate	none	-	pass	bash:pnpm exec vitest run
 a-ot-01	ask-gate	none	-	pass	bash:git status
+g-bs-01	guard	none	-	block	bashe:rm -r \\\n -f build
+g-bs-02	guard	none	-	block	bashe:git push \\\n --force origin feature/x
+g-wr-01	guard	none	-	block	bash:/bin/rm -rf x
+g-wr-02	guard	none	-	block	bash:bash -c 'rm -rf x'
+g-wr-03	guard	none	-	block	bash:sh -c "rm -rf x"
+g-wr-04	guard	none	-	block	bash:"rm" -rf x
+g-wr-05	guard	none	-	block	bash:rm "-rf" x
+g-wr-06	guard	none	-	block	bash:\rm -rf x
+g-wr-07	guard	none	-	block	bash:/usr/bin/git push -f
+g-wr-08	guard	none	-	block	bash:git push "-f"
+g-wr-09	guard	none	-	block	bash:git -P push -f
+g-wr-10	guard	none	-	block	bash:git --git-dir .git push -f
+g-wr-11	guard	none	-	block	bash:git -C "my dir" push -f
+g-wr-12	guard	none	-	block	bash:git -P reset --hard
+g-wr-13	guard	none	-	block	bash:git branch -d -f x
+g-wr-14	guard	none	-	block	bash:git branch --delete --force x
+g-wr-15	guard	none	-	block	bash:FOO=1 git push -f
+g-wr-16	guard	none	-	pass	bash:git commit -m "fix: rename -n flag"
+g-wr-17	guard	none	-	pass	bash:git commit -m "docs: explain --no-verify"
+g-wr-18	guard	none	-	pass	bash:git branch -d x
+g-mo-01	guard	none	-	block	monitor:rm -rf build
+g-mo-02	guard	none	-	pass	monitor:tail -f app.log
+a-q-01	ask-gate	feature	-	ask	bash:git push origin 'main'
+a-q-02	ask-gate	feature	-	ask	bash:git push origin "HEAD:main"
+a-q-03	ask-gate	main	-	ask	bash:git push origin @
+a-q-04	ask-gate	feature	-	ask	bash:/usr/bin/git push origin main
+a-bs-01	ask-gate	feature	-	ask	bashe:git push \\\n origin main
+a-bs-02	ask-gate	none	-	ask	bashe:pnpm \\\n add zod
+a-mo-01	ask-gate	feature	-	ask	monitor:git push origin main
+a-mo-02	ask-gate	none	-	ask	monitor:pnpm add zod
+a-mo-03	ask-gate	feature	-	pass	monitor:git push origin feature/x

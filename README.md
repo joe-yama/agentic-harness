@@ -19,8 +19,8 @@ The plugin depends on [Superpowers](https://github.com/obra/superpowers) from th
 
 | Hook | Behavior |
 |---|---|
-| `guard` (PreToolUse) | blocks recursive forced `rm`, force pushes (including `+refspec` and `-uf`), `git reset --hard`/`--merge`, `git clean -f`, whole-tree checkout/restore, `git branch -D`, `--no-verify` / `commit -n` / `--no-gpg-sign`, `.env` files (except `.env.example`), credential directories, `curl … \| sh` |
-| `ask-gate` (PreToolUse) | asks the PO for pushes to protected branches (and refspec-less pushes from them), remote branch deletion, `--all` / `--mirror` / `--prune`, `git worktree remove --force`, and lockfile-changing installs (pnpm, npm, yarn, bun, uv, pip, cargo) |
+| `guard` (PreToolUse on Bash, Monitor and file tools) | blocks recursive forced `rm`, force pushes (including `+refspec` and `-uf`), `git reset --hard`/`--merge`, `git clean -f`, whole-tree checkout/restore, `git branch -D`, `--no-verify` / `commit -n` / `--no-gpg-sign`, `.env` files (except `.env.example`), credential directories, `curl … \| sh` |
+| `ask-gate` (PreToolUse on Bash and Monitor) | asks the PO for pushes to protected branches (and refspec-less pushes from them), remote branch deletion, `--all` / `--mirror` / `--prune`, `git worktree remove --force`, and lockfile-changing installs (pnpm, npm, yarn, bun, uv, pip, cargo) |
 | `lint-on-edit` (PostToolUse) | runs `HARNESS_LINT_CMD <file>` on each edited file and makes Claude fix failures immediately |
 | `test-on-stop` (Stop) | runs `HARNESS_TEST_CMD` before the turn ends when non-doc files changed, and keeps Claude working while it fails |
 
@@ -29,14 +29,14 @@ The plugin depends on [Superpowers](https://github.com/obra/superpowers) from th
 Prerequisites: Claude Code ≥ 2.1.277, `jq`, `git`, [`uv`](https://docs.astral.sh/uv/), `gh`, and the OpenSpec CLI.
 
 ```sh
-# in the new product repository
+# in the product repository (its default branch must already exist on GitHub)
+git switch -c fix/adopt-agentic-harness
 uvx copier@9.18.2 copy --vcs-ref v0.1.0 gh:joe-yama/agentic-harness .
-claude plugin marketplace add joe-yama/agentic-harness
+claude            # interactive: accept the trust dialog; this registers the marketplace pinned to v0.1.0
 claude plugin install harness@agentic-harness --scope project
-openspec init --tools claude
 ```
 
-Then ask Claude to run **`harness:adopt`**. It pins the OpenSpec skills with `gh skill`, applies the branch ruleset (after you confirm), and verifies in a new session that the guard is live. The skill is the full procedure.
+Do not run `claude plugin marketplace add joe-yama/agentic-harness` yourself: that registers the unpinned default branch under the same name. Then, in a new session, ask Claude to run **`harness:adopt`** from step 5 on: it sets up OpenSpec with pinned skills, applies the branch ruleset (after you confirm) and verifies that the guard is live. The skill is the full procedure, including creating the repository.
 
 ## Configuration
 
@@ -55,10 +55,10 @@ The template writes these into `.claude/settings.json` → `env`. The hooks do n
 ```sh
 git switch -c fix/harness-v0.2.0
 uvx copier@9.18.2 update --vcs-ref v0.2.0      # also moves the plugin pin in .claude/settings.json
-claude plugin marketplace update agentic-harness && claude plugin update harness@agentic-harness
+grep -rnE '^(<<<<<<<|>>>>>>>) ' . --exclude-dir=.git   # conflicts are written inline, not as .rej files
 ```
 
-Open a PR and let CI and review check it. Under auto mode, Claude cannot write `.claude/settings.json`; it prepares the merged file and you place it.
+Resolve the conflict markers, restart Claude Code so it reads the new pin, run `claude plugin update harness@agentic-harness`, then open a PR and let CI and review check it. Under auto mode, Claude cannot write `.claude/settings.json`; it prepares the merged file and you place it.
 
 ## Security notes
 
@@ -66,8 +66,8 @@ Open a PR and let CI and review check it. Under auto mode, Claude cannot write `
 - `HARNESS_*_CMD` values come from the repository's own committed settings and run with `bash -c`. Treat a change to them like any code change.
 - Do not run `claude -p` over repositories you do not trust without `--bare`: committed hooks run in headless mode.
 - The hooks match command text; they are a tripwire, not a sandbox. The template turns on the Claude Code sandbox (credential directories unreadable, network limited to GitHub and package registries) as the OS-level boundary. Known gaps and false positives:
-  - a quoted string that merely mentions a guarded command (for example an Issue body containing `git push origin main`) triggers the hook — pass long bodies with `--body-file`;
-  - commands assembled from variables or run through another interpreter are not seen;
+  - quoted strings are checked like commands (so `sh -c '…'` is covered): a quoted string that merely mentions a guarded command, such as an Issue body containing `git push origin main`, triggers the hook — pass long bodies with `--body-file`;
+  - commands assembled from variables, run through another interpreter (`python -c`, `node -e`), or spelled with abbreviated long options (`--har`) are not seen;
   - `uv run` can update `uv.lock` without asking.
 - Third-party components: Superpowers (MIT, pinned by the official marketplace), OpenSpec (MIT, pinned tag via `gh skill`), Playwright MCP (Apache-2.0, exact version, only with `ui_review`). All GitHub Actions are pinned by commit SHA and updated by Dependabot.
 
@@ -82,7 +82,7 @@ Tags `vX.Y.Z` (template) and `harness--vX.Y.Z` (plugin, from `claude plugin tag`
 ## Development
 
 ```sh
-bash tests/all.sh   # shellcheck, 146 hook cases, lifecycle tests, rule mutation test, manifests + claude plugin validate, template renders
+bash tests/all.sh   # shellcheck, 177 hook cases, lifecycle tests, rule mutation test, manifests + claude plugin validate, template renders
 claude --plugin-dir plugins/harness   # load the plugin under development
 ```
 

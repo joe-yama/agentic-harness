@@ -1,5 +1,9 @@
-{#- Only an exact release tag (vX.Y.Z) is a valid marketplace ref; describe output or a bare SHA falls back to main. -#}
-{%- set ref = _commit if ((_commit or '').startswith('v') and '-' not in _commit) else 'main' -%}
+{#- Pin the marketplace to the release tag this file was rendered from. `claude plugin tag` puts
+    harness--vX.Y.Z on the same commit as vX.Y.Z, and Copier may report either; both name the same
+    commit, so strip the prefix. Describe output (v1.0.0-3-gabc) or a bare SHA falls back to main. -#}
+{%- set c = (_commit or '') -%}
+{%- set c = c[9:] if c.startswith('harness--') else c -%}
+{%- set ref = c if (c.startswith('v') and '-' not in c) else 'main' -%}
 {%- set env = {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "0", "HARNESS_PROTECTED_BRANCHES": default_branch} -%}
 {%- if lint_cmd %}{% set _ = env.update({"HARNESS_LINT_CMD": lint_cmd}) %}{% endif -%}
 {%- if lint_pattern %}{% set _ = env.update({"HARNESS_LINT_PATTERN": lint_pattern}) %}{% endif -%}
@@ -77,7 +81,7 @@
   "sandbox": {
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
-    "excludedCommands": ["git", "gh"],
+    "excludedCommands": ["git", "git *", "gh", "gh *"],
     "filesystem": {
       "denyRead": ["~/.ssh", "~/.aws", "~/.gnupg", "~/.config/op", "~/.config/gh"]
     },

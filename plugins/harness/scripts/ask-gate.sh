@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# harness ask-gate — PreToolUse hook (Bash).
+# harness ask-gate — PreToolUse hook (Bash and Monitor).
 # Routes policy-sensitive commands to the human with permissionDecision "ask".
 # Prints nothing otherwise, deferring to permission rules and auto mode. Hooks can only
 # tighten: an "ask" from here cannot be overridden by an allow rule.
@@ -14,17 +14,15 @@ ask() {
 
 input=$(cat)
 command -v jq >/dev/null 2>&1 || ask no-jq "jq is missing, so the command could not be checked"
-[ "$(printf '%s' "$input" | jq -r '.tool_name // ""')" = "Bash" ] || exit 0
-cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
+case "$(printf '%s' "$input" | jq -r '.tool_name // ""')" in Bash | Monitor) ;; *) exit 0 ;; esac
+# shellcheck source=lib/parse.sh
+. "$(dirname "$0")/lib/parse.sh"
+cmd=$(normalize "$(printf '%s' "$input" | jq -r '.tool_input.command // ""')")
 cwd=$(printf '%s' "$input" | jq -r '.cwd // ""')
 [ -n "$cwd" ] || cwd=$(pwd)
 protected=${HARNESS_PROTECTED_BRANCHES:-main}
-B='(^|[;&|(`[:space:]])'
+Q=$(printf '\001')
 
-segments() { printf '%s' "$cmd" | grep -oE "${B}$1([[:space:]]+[^;&|]*)?" || true; }
-git_segments() {
-  printf '%s' "$cmd" | grep -oE "${B}git([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|]+|--[a-z-]+(=[^[:space:];&|]+)?))*[[:space:]]+$1([[:space:]]+[^;&|]*)?" || true
-}
 is_protected() {
   for b in $protected; do [ "$1" = "$b" ] && return 0; done
   return 1
@@ -37,7 +35,8 @@ while IFS= read -r seg; do
   for tok in $seg; do
     if [ "$after" = 0 ]; then
       if [ "$prev" = "-C" ]; then
-        case "$tok" in /*) dir=$tok ;; *) dir=$cwd/$tok ;; esac
+        d=${tok//$Q/ }
+        case "$d" in /*) dir=$d ;; *) dir=$cwd/$d ;; esac
       fi
       [ "$tok" = push ] && after=1
       prev=$tok
@@ -63,7 +62,7 @@ while IFS= read -r seg; do
     target=${target#refs/heads/}
     is_protected "$target" && ask protected-push "push to protected branch $target needs the PO"
   done
-  if [ "$npos" -le 1 ] || [ "$second" = HEAD ]; then
+  if [ "$npos" -le 1 ] || [ "$second" = HEAD ] || [ "$second" = @ ]; then
     cur=$(git -C "$dir" symbolic-ref --short -q HEAD 2>/dev/null || true)
     [ -n "$cur" ] && is_protected "$cur" && ask protected-push "push from protected branch $cur needs the PO"
   fi
@@ -90,9 +89,8 @@ while IFS= read -r seg; do
   [ -n "$seg" ] || continue
   pm='' sub='' skip=0 frozen=0
   for tok in $seg; do
-    tok=${tok#[;&|(\`]}
     if [ -z "$pm" ]; then
-      pm=$tok
+      pm=${tok##*[;&|(\`\\/]}
       continue
     fi
     if [ "$skip" = 1 ]; then

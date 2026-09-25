@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Runs every case in tests/hooks/cases.tsv against guard.sh / ask-gate.sh.
+# Payloads: bash:<command>, bashe:<command with printf %b escapes>, monitor:<command>, file:<Tool>:<path>.
 # HOOKS_DIR overrides the script directory (used by mutate.sh).
 set -u
 here=$(cd "$(dirname "$0")" && pwd -P)
@@ -21,9 +22,16 @@ while IFS=$'\t' read -r id script where envkv expect payload; do
   case "$id" in '' | '#'*) continue ;; esac
   cwd="$TMP_ROOT/$where"
   case "$payload" in
-    bash:*)
-      json=$(jq -nc --arg c "${payload#bash:}" --arg d "$cwd" \
-        '{hook_event_name:"PreToolUse",tool_name:"Bash",tool_input:{command:$c},cwd:$d}') ;;
+    bash:* | bashe:* | monitor:*)
+      # bashe: interprets printf %b escapes (\n for newlines); monitor: sends the Monitor tool
+      tname=Bash
+      case "$payload" in
+        bashe:*) c=$(printf '%b' "${payload#bashe:}") ;;
+        monitor:*) c=${payload#monitor:} tname=Monitor ;;
+        *) c=${payload#bash:} ;;
+      esac
+      json=$(jq -nc --arg c "$c" --arg t "$tname" --arg d "$cwd" \
+        '{hook_event_name:"PreToolUse",tool_name:$t,tool_input:{command:$c},cwd:$d}') ;;
     file:*)
       rest=${payload#file:}
       tool=${rest%%:*}

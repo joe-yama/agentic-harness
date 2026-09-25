@@ -15,7 +15,9 @@ check() { if eval "$2"; then ok; else ng "$1"; fi; }
 SRC="$TMP_ROOT/src"
 mkdir -p "$SRC"
 (cd "$repo" && git ls-files -co --exclude-standard | tar -c -T -) | tar -x -C "$SRC"
-git -C "$SRC" init -q && git -C "$SRC" add -A && git -C "$SRC" commit -q -m snapshot && git -C "$SRC" tag v9.9.0
+git -C "$SRC" init -q && git -C "$SRC" add -A && git -C "$SRC" commit -q -m snapshot
+# Release tagging as documented: annotated vX.Y.Z, then `claude plugin tag` adds annotated harness--vX.Y.Z.
+git -C "$SRC" tag -a v9.9.0 -m v9.9.0 && sleep 1 && git -C "$SRC" tag -a harness--v9.9.0 -m harness--v9.9.0
 
 render() { # <dest> <vcs-ref> [--data k=v ...]
   local dest=$1 ref=$2
@@ -46,6 +48,7 @@ render "$D1" v9.9.0
 common defaults "$D1"
 check defaults-ref '[ "$(settings "$D1" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = v9.9.0 ]'
 check defaults-no-lint '[ "$(settings "$D1" ".env.HARNESS_LINT_CMD // \"unset\"")" = unset ]'
+check defaults-sandbox-excludes '[ "$(settings "$D1" ".sandbox.excludedCommands | sort | join(\",\")")" = "gh,gh *,git,git *" ]'
 check defaults-teams-off '[ "$(settings "$D1" .env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS)" = 0 ]'
 check defaults-branch '[ "$(settings "$D1" .env.HARNESS_PROTECTED_BRANCHES)" = main ]'
 check defaults-no-mcp '[ ! -e "$D1/.mcp.json" ]'
@@ -83,17 +86,16 @@ git -C "$NOTAG" init -q && git -C "$NOTAG" add -A && git -C "$NOTAG" commit -q -
 D5="$TMP_ROOT/notag-out"
 $COPIER copy --quiet --defaults --vcs-ref HEAD --data project_name=Sample --data github_owner=octo "$NOTAG" "$D5" > "$TMP_ROOT/copier.log" 2>&1
 check notag-ref '[ "$(settings "$D5" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = main ]'
-check notag-status 'grep -q "| agentic-harness | main |" "$D5/docs/status.md"'
 
 # copier update from v9.9.0 to v9.9.1 applies cleanly and moves the pin.
 git -C "$D1" init -q && git -C "$D1" add -A && git -C "$D1" commit -q -m init
 printf '\n<!-- updated -->\n' >> "$SRC/template/CLAUDE.md.jinja"
-git -C "$SRC" commit -q -am update && git -C "$SRC" tag v9.9.1
+git -C "$SRC" commit -q -am update && git -C "$SRC" tag -a v9.9.1 -m v9.9.1 && sleep 1 && git -C "$SRC" tag -a harness--v9.9.1 -m harness--v9.9.1
 if ! (cd "$D1" && $COPIER update --quiet --defaults --vcs-ref v9.9.1 > "$TMP_ROOT/update.log" 2>&1); then
   tail -20 "$TMP_ROOT/update.log" >&2
 fi
 check update-ref '[ "$(settings "$D1" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = v9.9.1 ]'
 check update-applied 'grep -q "<!-- updated -->" "$D1/CLAUDE.md"'
-check update-no-rej '! find "$D1" -name "*.rej" | grep -q .'
+check update-no-conflict '! grep -rlE "^(<<<<<<<|>>>>>>>) " "$D1" --exclude-dir=.git | grep -q .'
 
 report template

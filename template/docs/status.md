@@ -24,7 +24,7 @@ Last updated: <date> (<event, e.g. "change X merged and archived">). Update this
 
 | Component | Version |
 |---|---|
-| agentic-harness | {{ _commit if ((_commit or '').startswith('v') and '-' not in _commit) else 'main' }} |
+| agentic-harness | |
 | Superpowers | |
 | OpenSpec CLI / skills | |
 | Claude Code | |

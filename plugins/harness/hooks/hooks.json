@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Monitor",
         "hooks": [
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guard.sh\"", "timeout": 10 },
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ask-gate.sh\"", "timeout": 10 }

@@ -52,6 +52,34 @@ Rulings made while implementing `docs/plans/2026-09-24-agentic-harness-v0.1.0.md
 - Probes were chosen so the controlling session's own portfolio hooks were not tripped or worked around.
 - Finding: `claude -p` in a folder whose trust dialog was never accepted ignores the project's `permissions.allow` ("Ignoring 25 permissions.allow entries … this workspace has not been trusted"). Ruling: `harness:adopt` step 7 now says to verify in an interactive session and accept the trust dialog. Cost if wrong: none.
 
+### 2026-09-25 Final review round 1 (context-free Opus reviewer): Needs fixes → fix pass
+All Critical and Important findings were fixed in one pass, each with a test that failed first.
+- C1 release tags pinned the plugin to `main`: `claude plugin tag` adds an annotated `harness--vX.Y.Z` on the release commit and Copier's `_commit` reports it. The template now strips the `harness--` prefix. Tests `defaults-ref` / `update-ref` now use annotated `v9.9.0` + `harness--v9.9.0` (RED → GREEN). `docs/status.md` no longer renders the version (adopt fills it), removing the duplicated expression.
+- I1 backslash-newline continuations bypassed every rule; I2 `/bin/rm`, `sh -c '…'`, quoted words, `\rm`, `git -P` / `--git-dir x` / `-C "my dir"`, `git branch -d -f`, `git push origin 'main'` / `"HEAD:main"` / `@`: new `scripts/lib/parse.sh` normalizes commands (joins continuations, removes quotes while keeping quoted arguments as one token, checks quoted strings as commands, accepts a path prefix, skips git global options); cases `g-bs-*`, `g-wr-*`, `a-q-*`, `a-bs-*` (RED → GREEN). This also removed the `git commit -m "… -n …"` false positive (`g-wr-16`).
+- I3 the Monitor tool bypassed both PreToolUse hooks: matcher `Bash|Monitor`, both scripts accept `Monitor`; cases `g-mo-*`, `a-mo-*`, manifest `h-monitor` (RED → GREEN).
+- I4 `excludedCommands: ["git","gh"]` did not match `git commit`: now `git`, `git *`, `gh`, `gh *` (sandboxing docs: "Add `docker *` to excludedCommands"); test `defaults-sandbox-excludes` (RED → GREEN).
+- I5 unpinned `claude plugin marketplace add` in quick start / adopt: removed; the pinned `extraKnownMarketplaces` entry is registered by accepting the trust dialog.
+- I6 Copier writes conflicts inline, not as `.rej`: adopt and README now grep for conflict markers; test `update-no-conflict` replaces the never-failing `update-no-rej`.
+- I7 adopt could not start from an empty repository: new step 2 creates the repository and default branch; the ruleset is applied after rendering.
+- Spec updated for §5.1 (matcher, parsing), D10 (`excludedCommands` syntax), §5.4 adopt.
+
+### 2026-09-25 Spec deviations accepted by ruling
+- Ruling: `git clean -d` / `-x` without `-f` are not blocked (spec §5.1 listed `-f/-d/-x`).
+- Reason: git refuses to clean without `-f` under the default `clean.requireForce`, so they cannot delete anything.
+- Cost if wrong: a repository with `clean.requireForce=false` can lose untracked files via `git clean -d`.
+
+- Ruling: `lint-on-edit` skips files outside any git repository instead of falling back to `CLAUDE_PROJECT_DIR` (spec §5.1).
+- Reason: a file outside every repository is not project code (scratch files, other checkouts); linting it from the project root produced errors in the controlling session during this very build.
+- Cost if wrong: a project that is not a git repository gets no lint hook.
+
 ## Proposals
 
-(Minor findings and out-of-scope ideas deferred to later versions.)
+Deferred Minor findings from the final review (none start a fix round):
+- Abbreviated long options (`git reset --har`, `git clean --forc`, `git commit --no-verif`, `rm --rec --for`, `git worktree remove --forc`) and `git -c core.hooksPath=/dev/null`, `HUSKY=0` pass the guard.
+- `pipe-shell` misses `bash <(curl …)`, `| /bin/bash`, `| sudo -E bash`, `| tee x | sh`, backticks, `source <(curl …)` (the template's `ask: Bash(curl:*)` still prompts).
+- `secrets-dir` / `env-file` miss spelling variants (`cd ~ && cat .ssh/…`, `/root/.ssh`, `~user/.ssh`, `.env*`, `git show HEAD:.env`, case variants on case-insensitive filesystems); the sandbox `denyRead` and Read deny rules cover sandboxed Bash.
+- `guard.sh` fails open on malformed hook input JSON; an invalid `HARNESS_LINT_PATTERN` / `HARNESS_DOC_PATTERN` silently disables lint/tests.
+- Tests: no case for the jq-missing paths; `run.sh` does not assert which rule blocked; `l-symlinked-path` runs only on macOS; the bash 3.2 run is not in CI.
+- Template: `allowedDomains` lacks `release-assets.githubusercontent.com`; `Bash(gh api user:*)` also allows `gh api user -X PATCH`; the `.env` deny list is enumerated (`.env.staging` not denied; `Read(.env.*)` + `Read(!.env.example)` is simpler); the workflow skill's `.superpowers/` ledger is gitignored, so rulings recorded only there are not committed; `git ls-files -m` in mutation-check lists deleted files.
+- Hooks docs: exec form (`"command":"bash","args":[…]`) is recommended when a path placeholder is used; the Stop hook could use `additionalContext` instead of `decision:block`.
+- Over-engineering: `copier.yml` `_templates_suffix: .jinja` is Copier's default.

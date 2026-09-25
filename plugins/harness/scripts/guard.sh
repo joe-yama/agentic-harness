@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# harness guard — PreToolUse hook (Bash and file tools).
+# harness guard — PreToolUse hook (Bash, Monitor and file tools).
 # Hard-blocks destructive commands and secret access: exit 2, reason on stderr.
 # Each rule sits between "# rule:<id>" and "# end:<id>"; tests/hooks/mutate.sh disables
 # one rule at a time and expects a test case to fail.
@@ -11,20 +11,12 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "BLOCKED by harness guard: jq is required (brew install jq / apt-get install jq)" >&2
   exit 2
 fi
+# shellcheck source=lib/parse.sh
+. "$(dirname "$0")/lib/parse.sh"
 
 deny() {
   printf 'BLOCKED by harness guard (%s): %s\n' "$1" "$2" >&2
   exit 2
-}
-
-tool=$(printf '%s' "$input" | jq -r '.tool_name // ""')
-B='(^|[;&|(`[:space:]])' # command-word boundary
-
-# Print each "<word> ..." segment of the command up to the next ; & | separator.
-segments() { printf '%s' "$cmd" | grep -oE "${B}$1([[:space:]]+[^;&|]*)?" || true; }
-# Same for git subcommands, allowing global options (-C dir, -c k=v, --no-pager ...).
-git_segments() {
-  printf '%s' "$cmd" | grep -oE "${B}git([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|]+|--[a-z-]+(=[^[:space:];&|]+)?))*[[:space:]]+$1([[:space:]]+[^;&|]*)?" || true
 }
 
 check_path() {
@@ -45,9 +37,10 @@ check_path() {
   return 0
 }
 
+tool=$(printf '%s' "$input" | jq -r '.tool_name // ""')
 case "$tool" in
-  Bash)
-    cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
+  Bash | Monitor)
+    cmd=$(normalize "$(printf '%s' "$input" | jq -r '.tool_input.command // ""')")
 
     # rule:rm-rf
     while IFS= read -r seg; do
@@ -91,75 +84,56 @@ EOF
     # rule:discard
     while IFS= read -r seg; do
       [ -n "$seg" ] || continue
+      sub='' whole=0 staged=0 worktree=0 del=0 force=0
       for tok in $seg; do
-        case "$tok" in --hard | --merge) deny discard "git reset $tok discards work" ;; esac
-      done
-    done <<EOF
-$(git_segments reset)
-EOF
-    while IFS= read -r seg; do
-      [ -n "$seg" ] || continue
-      for tok in $seg; do
-        case "$tok" in
-          --force) deny discard "git clean --force deletes untracked files" ;;
-          --*) ;;
-          -*f*) deny discard "git clean -f deletes untracked files" ;;
+        case "$tok" in reset | clean | checkout | restore | branch) [ -z "$sub" ] && sub=$tok && continue ;; esac
+        [ -n "$sub" ] || continue
+        case "$sub:$tok" in
+          reset:--hard | reset:--merge) deny discard "git reset $tok discards work" ;;
+          clean:--force | clean:-*f*) deny discard "git clean -f deletes untracked files" ;;
+          checkout:. | checkout:./ | restore:. | restore:./) whole=1 ;;
+          restore:--staged | restore:-S) staged=1 ;;
+          restore:--worktree | restore:-W) worktree=1 ;;
+          branch:--delete) del=1 ;;
+          branch:--force) force=1 ;;
+          branch:--*) ;;
+          branch:-*D*) deny discard "git branch -D drops unmerged work" ;;
+          branch:-*)
+            case "$tok" in *d*) del=1 ;; esac
+            case "$tok" in *f*) force=1 ;; esac
+            ;;
         esac
       done
-    done <<EOF
-$(git_segments clean)
-EOF
-    while IFS= read -r seg; do
-      [ -n "$seg" ] || continue
-      for tok in $seg; do
-        case "$tok" in . | ./) deny discard "git checkout of the whole tree discards changes" ;; esac
-      done
-    done <<EOF
-$(git_segments checkout)
-EOF
-    while IFS= read -r seg; do
-      [ -n "$seg" ] || continue
-      whole=0 staged=0 worktree=0
-      for tok in $seg; do
-        case "$tok" in
-          . | ./) whole=1 ;;
-          --staged | -S) staged=1 ;;
-          --worktree | -W) worktree=1 ;;
-        esac
-      done
-      if [ "$whole" = 1 ] && { [ "$staged" = 0 ] || [ "$worktree" = 1 ]; }; then
+      [ "$sub" = checkout ] && [ "$whole" = 1 ] && deny discard "git checkout of the whole tree discards changes"
+      if [ "$sub" = restore ] && [ "$whole" = 1 ] && { [ "$staged" = 0 ] || [ "$worktree" = 1 ]; }; then
         deny discard "git restore of the whole tree discards changes"
       fi
+      [ "$del" = 1 ] && [ "$force" = 1 ] && deny discard "git branch --delete --force drops unmerged work"
     done <<EOF
-$(git_segments restore)
-EOF
-    while IFS= read -r seg; do
-      [ -n "$seg" ] || continue
-      for tok in $seg; do
-        case "$tok" in --*) ;; -*D*) deny discard "git branch -D drops unmerged work" ;; esac
-      done
-    done <<EOF
-$(git_segments branch)
+$(git_segments '(reset|clean|checkout|restore|branch)')
 EOF
     # end:discard
 
     # rule:no-verify
-    if printf '%s' "$cmd" | grep -Eq "${B}git[[:space:]][^;&|]*--no-(verify|gpg-sign)([[:space:]=]|$)"; then
-      deny no-verify "skipping hooks or signing is not allowed"
-    fi
     while IFS= read -r seg; do
       [ -n "$seg" ] || continue
+      commit=0
       for tok in $seg; do
-        case "$tok" in --*) ;; -*n*) deny no-verify "git commit -n skips hooks" ;; esac
+        case "$tok" in
+          commit) commit=1 ;;
+          --no-verify | --no-gpg-sign) deny no-verify "skipping hooks or signing is not allowed" ;;
+          --*) ;;
+          -*n*) [ "$commit" = 1 ] && deny no-verify "git commit -n skips hooks" ;;
+        esac
       done
     done <<EOF
-$(git_segments commit)
+$(git_segments '[a-z][a-z-]*')
 EOF
     # end:no-verify
 
     # rule:env-file
-    # Split on whitespace, quotes, redirections and separators; judge each word's basename.
-    for word in $(printf '%s' "$cmd" | tr "=<>\"'();|&\`" '           '); do
+    # Split on whitespace, the quote marker, redirections and separators; judge each word's basename.
+    for word in $(printf '%s' "$cmd" | tr "=<>();|&\`\001" '           '); do
       name=${word##*/}
       case "$name" in
         .env.example) ;;
@@ -171,20 +145,21 @@ EOF
     # end:env-file
 
     # rule:secrets-dir
-    if printf '%s' "$cmd" | grep -Eq "(~|\\\$HOME|\\\$\\{HOME\\}|/Users/[^/[:space:]]+|/home/[^/[:space:]]+)/\.(ssh|aws|gnupg|config/op|config/gh)([/[:space:]\"']|$)"; then
+    if printf '%s' "$cmd" | tr '\001' ' ' | grep -Eq "(~|\\\$HOME|\\\$\\{HOME\\}|/Users/[^/[:space:]]+|/home/[^/[:space:]]+)/\.(ssh|aws|gnupg|config/op|config/gh)([/[:space:]]|$)"; then
       deny secrets-dir "credential directories are off limits"
     fi
     # end:secrets-dir
 
     # rule:pipe-shell
-    if printf '%s' "$cmd" | grep -Eq "(curl|wget)[^|]*\|[[:space:]]*(sudo[[:space:]]+)?(ba|z|da|k)?sh([[:space:]]|$)" \
-      || printf '%s' "$cmd" | grep -Eq "(ba|z|da|k)?sh[[:space:]]+-c[[:space:]]+[\"']?\\\$\((curl|wget)"; then
+    flat=$(printf '%s' "$cmd" | tr '\001' ' ')
+    if printf '%s' "$flat" | grep -Eq "(curl|wget)[^|]*\|[[:space:]]*(sudo[[:space:]]+)?(ba|z|da|k)?sh([[:space:]]|$)" \
+      || printf '%s' "$flat" | grep -Eq "(ba|z|da|k)?sh[[:space:]]+-c[[:space:]]+\\\$\((curl|wget)"; then
       deny pipe-shell "piping a download into a shell is not allowed"
     fi
     # end:pipe-shell
     ;;
   Read | Edit | Write | MultiEdit | NotebookEdit)
-    check_path "$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // ""')"
+    check_path "$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""')"
     ;;
 esac
 exit 0
