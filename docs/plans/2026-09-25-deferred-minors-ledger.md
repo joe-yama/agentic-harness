@@ -119,3 +119,17 @@ Plan: `docs/plans/2026-09-25-deferred-minors.md`. Branch `fix/deferred-minors`.
 - Ruling: from df09b84 on, commits ran `tests/lint.sh`, `tests/hooks/run.sh`, `tests/hooks/lifecycle.sh` (plus `tests/template/run.sh` for template changes); the full `bash tests/all.sh` ran once after the fixes (exit 0, 293 s: timing pass=13, mutation rules=49 survived=0, template pass=53) and `HOOK_BASH=/bin/bash bash tests/hooks/run.sh` pass=296. AGENTS.md says so (f18e1ff).
 - Reason: PO instruction relayed by the controller; the fast checks take about 16 s here, and run.sh dominates (15 s for 296 cases; lint under 1 s, lifecycle about 1 s).
 - Cost if wrong: a surviving mutant is found only at the pre-review run; the fix is a case added before review.
+
+### 2026-09-25 Task 2 review: Needs fixes (2 Important) → fixes queued with Task 3–5
+- I1 guard per-word forks exceed 10 s under the cap; I2 jq-filter let `grep jq .env` through; controller ruling: M5 minimum prefix lowered to 3 characters (git 2.55 runs `git reset --h`).
+- Minors (proposals, no fix round):
+  - pipe-shell: `bash < <(curl x)`, `bash -s < <(curl x)`, `curl x | env sh`, `| exec sh`, `| (sh)` pass.
+  - secrets-dir: `cat ./.ssh/x`, `/Users/joe//.ssh/x`, `~/.ssh*/id_rsa` pass.
+  - HUSKY: `echo HUSKY=0 git log` false positive; `export HUSKY=0; git commit`, `git --config-env=core.hooksPath=X commit`, `git config core.hooksPath /dev/null` pass.
+  - parse.sh command word is the first word after a separator: `sudo bash <<< '…'`, `sudo ssh h '…'`, `(ssh h '…')` pass; `LC_ALL=C grep -c 'rm -rf' f`, `git -C d grep -c 'rm -rf'` are false positives.
+  - `bash -cx 'rm -rf x'` passes (pre-existing: lead must end in `c`).
+  - `"$(…)"` inside double quotes is never checked (pre-existing).
+  - `jq -e` reads only the last JSON value (two concatenated objects); Claude Code never sends that.
+  - mutate.sh counts a syntax-error mutant as killed; `bash -n` the mutant first to tell them apart.
+  - `jq -f .env`, `git show HEAD:.ssh/…` pass (implementer).
+  - `tests/template/run.sh` fails in a `git archive` copy (uses `git ls-files`).
