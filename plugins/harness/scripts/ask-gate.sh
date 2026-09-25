@@ -31,7 +31,7 @@ fi
 # end:bad-parser
 raw=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
 # rule:too-large
-[ "$(($(printf '%s' "$raw" | wc -c)))" -le 65536 ] \
+[ "${#raw}" -le 65536 ] \
   || ask too-large "the command is over 64 KiB and was not checked; write it to a file and run the file"
 # end:too-large
 cmd=$(normalize "$raw")

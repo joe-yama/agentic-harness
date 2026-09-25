@@ -60,7 +60,7 @@ case "$tool" in
     raw=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
     # rule:too-large
     # the parser is quadratic in the length; a timed-out hook would let the command through
-    [ "$(($(printf '%s' "$raw" | wc -c)))" -le 65536 ] \
+    [ "${#raw}" -le 65536 ] \
       || deny too-large "the command is over 64 KiB; write it to a file and run the file"
     # end:too-large
     cmd=$(normalize "$raw")
@@ -157,6 +157,10 @@ EOF
               [Cc][Oo][Rr][Ee].[Hh][Oo][Oo][Kk][Ss][Pp][Aa][Tt][Hh])
                 deny no-verify "git -c core.hooksPath skips the repository's hooks" ;;
             esac
+            # rule:git-alias
+            # git -c alias.<name>=!<command> defines a shell alias, which hides the command it runs
+            case "$tok" in [Aa][Ll][Ii][Aa][Ss].*=!*) deny git-alias "git -c alias.<name>=!... hides the command it runs" ;; esac
+            # end:git-alias
           fi
           # the subcommand is the first word after git that is neither an option nor an option's value
           case "$prev:$tok" in
@@ -176,22 +180,6 @@ EOF
       deny no-verify "HUSKY=0 skips the repository's hooks"
     fi
     # end:no-verify
-
-    # rule:git-alias
-    # git -c alias.<name>=!<command> defines a shell alias, which hides the command it runs
-    while IFS= read -r seg; do
-      [ -n "$seg" ] || continue
-      prev=''
-      for tok in $seg; do
-        if [ "$prev" = -c ]; then
-          case "$tok" in [Aa][Ll][Ii][Aa][Ss].*=!*) deny git-alias "git -c alias.<name>=!... hides the command it runs" ;; esac
-        fi
-        prev=$tok
-      done
-    done <<EOF
-$(git_segments '[a-z][a-z-]*')
-EOF
-    # end:git-alias
 
     # rule:env-file
     # Lowercase, split on whitespace, the quote marker, redirections, separators and ":" (HEAD:.env),
