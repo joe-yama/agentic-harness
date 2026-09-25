@@ -81,6 +81,11 @@ All Critical and Important findings were fixed in one pass, each with a test tha
 ### 2026-09-25 Final review round 3: Approved
 - The reviewer re-ran 253 earlier probe lines (no regression), confirmed the -c/eval heuristic on docker/find/xargs/su/nohup/timeout forms, and mutated `lib/parse.sh` nine ways (each caught by a case). Remaining findings are Minor (below). mawk compatibility was reasoned, not run: the first green CI `check` on Ubuntu is the evidence.
 
+### 2026-09-25 Publishing order: private first, ruleset after going public
+- Ruling: the repository was created private, CI `check` ran on PR #1 (green on Ubuntu with mawk), then the PO approved switching it public, applying the ruleset, merging and tagging.
+- Reason: the reviewer asked not to publish before CI proved the awk parser on mawk; GitHub Free returns 403 "Upgrade to GitHub Pro or make this repository public" for rulesets on private repositories, so the ruleset is applied right after the switch to public and before the merge.
+- Cost if wrong: none; the ruleset is in place before the first merge to `main`.
+
 ## Proposals
 
 Deferred Minor findings from the final review (none start a fix round):
