@@ -151,3 +151,12 @@ Plan: `docs/plans/2026-09-25-deferred-minors.md`. Branch `fix/deferred-minors`.
   - Fast checks take ~16 s (run.sh dominates); the PO target is ~10 s.
   - Ponytail: ask-gate's per-directory cache is redundant with the 16-lookup cap; timing.sh duplicates run.sh's verdict parsing.
   - Implementer: rename "ledger path" in `template/CLAUDE.md.jinja` to the SDD progress file; check the repo's own CI file (job `check` exists) in `all.sh`.
+
+### 2026-09-25 CI run 36110079952: two timing failures, both fixed
+- `check` (ubuntu): `t-utf8` / `t-utf8-rm` got `bad-input`. Cause, from the log: `timing.sh: line 33: /usr/bin/jq: Argument list too long`. Linux caps a single argument at 128 KiB (MAX_ARG_STRLEN) and the multibyte shapes are 196 608 bytes, so jq never built the input and the hook read an empty stdin. A test bug: real hook input arrives on stdin. bea2d03 pipes the command into `jq -Rs`; the hook order (bad-input before too-large) is right, since a valid large input still reaches the cap and answers `too-large`.
+- `bash32` (macos-latest): `t-pad` took 5 s (bound < 5 s). Profile of guard on that shape (one 65 KB word): normalize 0.41 s, every grep/sed under 0.02 s, the env-file loop 2.24 s: `${word##*/}` is quadratic in bash on a long word. 2e9b99a checks the names in one pipeline (`tr` to one word per line, `sed 's#.*/##'`, one grep). `t-pad` 2.96 s → 0.52 s here; the other guard shapes 0.39–0.71 s.
+
+### 2026-09-25 Ruling: the timing bound stays at 5 s
+- Ruling: `LIMIT=5` is kept; guard was made faster instead.
+- Reason: the slowest shape is now 0.71 s here; the macOS runner was about 1.7× slower (5 s vs 2.96 s), which leaves a wide margin under the bound and the 10 s hook timeout.
+- Cost if wrong: a slower runner fails `timing.sh`; the log shows which shape, and the fix is in the hook, not the bound.
