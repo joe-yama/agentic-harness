@@ -44,7 +44,6 @@ normalize() {
           out = out ch
         }
       }
-      if (q != "" && depth < 4 && (lead ~ /^-[A-Za-z]*c$/ || lead == "eval")) extra = extra "\n" norm(inner, depth + 1)
       return out extra
     }
     { all = all $0 "\n" }
@@ -60,6 +59,8 @@ B='(^|[;&|(`[:space:]\\])'
 P='([^[:space:];&|(`]*/)?'
 # end:parse-path-prefix
 # git global options that may precede the subcommand: -C <dir>, -c <k=v>, --git-dir <dir>, -P, --no-pager, --x=y.
+# Long options that take a separate value are named: a generic "--x <value>" would swallow the
+# subcommand (git --no-pager push would read "push" as the value of --no-pager).
 # rule:parse-git-options
 GOPT='([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|]+|--(git-dir|work-tree|namespace|super-prefix|config-env)[[:space:]]+[^[:space:];&|]+|-[A-Za-z]+|--[a-z-]+(=[^[:space:];&|]+)?))*'
 # end:parse-git-options
