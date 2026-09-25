@@ -10,6 +10,12 @@ trap 'rm -rf "$work"' EXIT
 suite() {
   HOOKS_DIR=$1 bash "$here/run.sh" >/dev/null 2>&1 && HOOKS_DIR=$1 bash "$here/lifecycle.sh" >/dev/null 2>&1
 }
+# A mutant only needs one failing case: stop at the first failure, and run the short lifecycle
+# suite first. The verdict (both suites pass or not) is the same as suite's.
+mutant_suite() {
+  HOOKS_DIR=$1 MUTATE_FAIL_FAST=1 bash "$here/lifecycle.sh" >/dev/null 2>&1 \
+    && HOOKS_DIR=$1 MUTATE_FAIL_FAST=1 bash "$here/run.sh" >/dev/null 2>&1
+}
 
 if ! suite "$src"; then
   echo "control run failed: fix the tests before mutating" >&2
@@ -26,7 +32,7 @@ for script in "$src"/*.sh "$src"/lib/*.sh; do
       $0 ~ "# rule:" id "$" { skip = 1; next }
       $0 ~ "# end:" id "$" { skip = 0; next }
       !skip' "$script" > "$work/s/$rel"
-    if suite "$work/s"; then
+    if mutant_suite "$work/s"; then
       echo "SURVIVED: $rel rule:$id (no test fails without it)" >&2
       survivors=$((survivors + 1))
     fi
