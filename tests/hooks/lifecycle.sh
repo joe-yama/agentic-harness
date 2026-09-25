@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016 # assertions are single-quoted on purpose: expect() evals them later
-# Behavior tests for lint-on-edit.sh and test-on-stop.sh in throwaway git repositories.
+# Behavior tests for lint-on-edit.sh and test-on-stop.sh in throwaway git repositories,
+# and for every hook when jq is missing.
 # HOOKS_DIR overrides the script directory (used by mutate.sh).
 set -u
 here=$(cd "$(dirname "$0")" && pwd -P)
@@ -96,5 +97,32 @@ git -C "$R" add -A && git -C "$R" commit -q -m more
 echo new > "$R/src/untracked.ts"
 stop '{}' HARNESS_TEST_CMD="$T"
 expect s-untracked '[ -e "$M" ]'
+
+# jq missing: a PATH with only the tools the hooks need, minus jq.
+NOJQ="$TMP_ROOT/nojq-bin"
+mkdir -p "$NOJQ"
+for t in bash cat dirname basename git grep sed awk tr sort tail head env pwd; do
+  p=$(command -v "$t") && ln -s "$p" "$NOJQ/$t"
+done
+hb=$(command -v "$HOOK_BASH")
+if env PATH="$NOJQ" "$hb" -c 'command -v jq' >/dev/null 2>&1; then ng "nojq PATH still finds jq"; else ok; fi
+nojq() { # <script> <stdin> [env args] -> sets rc, out, err
+  local s=$1 in=$2
+  shift 2
+  # shellcheck disable=SC2034 # read by the eval in expect()
+  out=$(printf '%s' "$in" | env PATH="$NOJQ" "$@" "$hb" "$HOOKS_DIR/$s.sh" 2>"$TMP_ROOT/nojq.err")
+  rc=$?
+  # shellcheck disable=SC2034 # read by the eval in expect()
+  err=$(cat "$TMP_ROOT/nojq.err")
+}
+nojq guard '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
+expect nj-guard-blocks '[ $rc = 2 ] && printf "%s" "$err" | grep -q "jq is required"'
+nojq ask-gate '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
+expect nj-ask-gate-asks '[ $rc = 0 ] && printf "%s" "$out" | grep -q "\"permissionDecision\":\"ask\"" && printf "%s" "$out" | grep -q "harness ask-gate (no-jq)"'
+nojq lint-on-edit "{\"tool_input\":{\"file_path\":\"$R/src/bad.ts\"}}" HARNESS_LINT_CMD="$LINTER"
+expect nj-lint-skips '[ $rc = 0 ] && printf "%s" "$err" | grep -q "jq not found; lint skipped"'
+rm -f "$M"
+nojq test-on-stop "{\"cwd\":\"$R\"}" HARNESS_TEST_CMD="$T"
+expect nj-stop-skips '[ $rc = 0 ] && [ -z "$out" ] && [ ! -e "$M" ] && printf "%s" "$err" | grep -q "jq not found; tests skipped"'
 
 report "lifecycle"
