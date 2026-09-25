@@ -29,7 +29,9 @@ fill() {
 timed() {
   local id=$1 script=$2 expect=$3 c=$4 start took out rc got
   start=$SECONDS
-  out=$(jq -nc --arg c "$c" --arg d "$F" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' \
+  # the command goes to jq on stdin: Linux caps one argument at 128 KiB (MAX_ARG_STRLEN), and
+  # the multibyte shapes are 192 KiB; real hook input arrives on stdin too
+  out=$(printf '%s' "$c" | jq -Rsc --arg d "$F" '{tool_name:"Bash",tool_input:{command:.},cwd:$d}' \
     | "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>"$TMP_ROOT/err")
   rc=$?
   took=$((SECONDS - start))
