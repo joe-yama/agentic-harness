@@ -115,7 +115,7 @@ nojq() { # <script> <stdin> [env args] -> sets rc, out, err
   err=$(cat "$TMP_ROOT/nojq.err")
 }
 nojq guard '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
-expect nj-guard-blocks '[ $rc = 2 ] && printf "%s" "$err" | grep -q "jq is required"'
+expect nj-guard-blocks '[ $rc = 2 ] && printf "%s" "$err" | grep -q "BLOCKED by harness guard (no-jq): jq is required"'
 nojq ask-gate '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
 expect nj-ask-gate-asks '[ $rc = 0 ] && printf "%s" "$out" | grep -q "\"permissionDecision\":\"ask\"" && printf "%s" "$out" | grep -q "harness ask-gate (no-jq)"'
 nojq lint-on-edit "{\"tool_input\":{\"file_path\":\"$R/src/bad.ts\"}}" HARNESS_LINT_CMD="$LINTER"

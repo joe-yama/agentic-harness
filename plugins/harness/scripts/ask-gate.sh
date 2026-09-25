@@ -13,7 +13,9 @@ ask() {
 }
 
 input=$(cat)
+# rule:no-jq
 command -v jq >/dev/null 2>&1 || ask no-jq "jq is missing, so the command could not be checked"
+# end:no-jq
 case "$(printf '%s' "$input" | jq -r '.tool_name // ""')" in Bash | Monitor) ;; *) exit 0 ;; esac
 # shellcheck source=lib/parse.sh
 . "$(dirname "$0")/lib/parse.sh"

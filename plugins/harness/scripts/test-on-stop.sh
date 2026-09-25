@@ -7,10 +7,12 @@ set -u
 # rule:stop-unset
 [ -n "${HARNESS_TEST_CMD:-}" ] || exit 0
 # end:stop-unset
+# rule:no-jq
 if ! command -v jq >/dev/null 2>&1; then
   echo "harness test-on-stop: jq not found; tests skipped" >&2
   exit 0
 fi
+# end:no-jq
 input=$(cat)
 # rule:stop-active
 [ "$(printf '%s' "$input" | jq -r '.stop_hook_active // false')" = true ] && exit 0

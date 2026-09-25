@@ -8,10 +8,12 @@ set -u
 # rule:lint-unset
 [ -n "${HARNESS_LINT_CMD:-}" ] || exit 0
 # end:lint-unset
+# rule:no-jq
 if ! command -v jq >/dev/null 2>&1; then
   echo "harness lint-on-edit: jq not found; lint skipped" >&2
   exit 0
 fi
+# end:no-jq
 input=$(cat)
 file=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_response.filePath // ""')
 [ -n "$file" ] && [ -f "$file" ] || exit 0

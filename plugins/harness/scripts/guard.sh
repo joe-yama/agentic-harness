@@ -7,10 +7,12 @@ set -u
 set -f # tokens are split on whitespace below; never glob-expand them
 
 input=$(cat)
+# rule:no-jq
 if ! command -v jq >/dev/null 2>&1; then
-  echo "BLOCKED by harness guard: jq is required (brew install jq / apt-get install jq)" >&2
+  echo "BLOCKED by harness guard (no-jq): jq is required (brew install jq / apt-get install jq)" >&2
   exit 2
 fi
+# end:no-jq
 # shellcheck source=lib/parse.sh
 . "$(dirname "$0")/lib/parse.sh"
 
