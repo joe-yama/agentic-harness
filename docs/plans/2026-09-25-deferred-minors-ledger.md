@@ -160,3 +160,7 @@ Plan: `docs/plans/2026-09-25-deferred-minors.md`. Branch `fix/deferred-minors`.
 - Ruling: `LIMIT=5` is kept; guard was made faster instead.
 - Reason: the slowest shape is now 0.71 s here; the macOS runner was about 1.7× slower (5 s vs 2.96 s), which leaves a wide margin under the bound and the 10 s hook timeout.
 - Cost if wrong: a slower runner fails `timing.sh`; the log shows which shape, and the fix is in the hook, not the bound.
+
+### 2026-09-25 Re-review of the CI fixes: Approved
+- 2e9b99a (env-file as one pipeline) matched the previous per-word loop on 79 probe inputs (separators, `.env.example` edges, case, globs, prefixes, jq-filter, ordinary commands); a68af08's byte cap is a guardian (reverting to `${#raw}` fails `t-utf8`). CI run 36111325280 green (`check`, `bash32`).
+- Minor (proposal): `cat \.env` passes — the shell reads `\.env` as `.env`, the normalized word keeps the backslash (pre-existing since c9fb6c7); strip a leading `\` in the sed stage.
