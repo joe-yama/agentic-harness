@@ -24,6 +24,7 @@ All notable changes to this project are documented here. The plugin version in
 - Skills: `workflow` and `review-loop` record rulings in the change's committed `openspec/changes/<name>/` (then `docs/changes.md`), not in the gitignored `.superpowers/sdd/`; the `mutation-check` overlay skips deleted files (and deletes them in the copy) instead of failing in `tar`.
 - `copier.yml` drops `_templates_suffix: .jinja`, Copier's default; renders are unchanged.
 - README "Known gaps" matches the current hooks: credential and `.env` names are refused anywhere in the command text (commit messages, grep patterns), `$(…)` inside double quotes and `jq -f .env` / `git show HEAD:.ssh/…` are not caught, abbreviations count, the 64 KiB cap.
+- CI job `bash32` runs the hook cases and lifecycle tests with macOS `/bin/bash` 3.2 on `macos-latest` (not a required check).
 
 ## [0.1.0] - 2026-09-25
 
