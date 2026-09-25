@@ -220,3 +220,15 @@ g-ab-15	guard	none	-	pass	bash:git branch --del x
 g-ab-16	guard	none	-	pass	bash:rm --rec dir
 a-ab-01	ask-gate	none	-	ask:worktree-force	bash:git worktree remove --forc x
 a-ab-02	ask-gate	none	-	pass	bash:git worktree remove --help
+g-hk-01	guard	none	-	block:no-verify	bash:git -c core.hooksPath=/dev/null commit -m x
+g-hk-02	guard	none	-	block:no-verify	bash:git -c CORE.HOOKSPATH=x commit -m x
+g-hk-03	guard	none	-	block:no-verify	bash:git -c 'core.hooksPath=/dev/null' push origin feature/x
+g-hk-04	guard	none	-	block:no-verify	bash:HUSKY=0 git commit -m x
+g-hk-05	guard	none	-	block:no-verify	bash:FOO=1 HUSKY=0 git commit -m x
+g-hk-06	guard	none	-	block:no-verify	bash:env HUSKY=0 /usr/bin/git push origin feature/x
+g-hk-07	guard	none	-	pass	bash:git -c user.name=x commit -m x
+g-hk-08	guard	none	-	pass	bash:HUSKY=1 git commit -m x
+g-hk-09	guard	none	-	pass	bash:echo HUSKY=0
+g-al-01	guard	none	-	block:git-alias	bash:git -c 'alias.p=!echo hi' p
+g-al-02	guard	none	-	block:git-alias	bash:git -c Alias.p=!true p
+g-al-03	guard	none	-	pass	bash:git -c alias.st=status st
