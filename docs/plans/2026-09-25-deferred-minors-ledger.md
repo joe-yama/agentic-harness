@@ -133,3 +133,8 @@ Plan: `docs/plans/2026-09-25-deferred-minors.md`. Branch `fix/deferred-minors`.
   - mutate.sh counts a syntax-error mutant as killed; `bash -n` the mutant first to tell them apart.
   - `jq -f .env`, `git show HEAD:.ssh/…` pass (implementer).
   - `tests/template/run.sh` fails in a `git archive` copy (uses `git ls-files`).
+
+### 2026-09-25 Ruling: the size cap counts bytes (E shrink reverted)
+- Ruling: a68af08 restores `$(($(printf '%s' "$raw" | wc -c)))` in guard and ask-gate; the `${#raw}` shrink from 4d9756e is reverted. `tests/hooks/timing.sh` now runs under `LC_ALL=C.UTF-8` (present on macOS and Ubuntu) with `t-utf8` (65536 × `日`, guard `block:too-large`, ask-gate `ask:too-large`) and `t-utf8-rm` (the same with `' ; rm -rf ~/work'` appended).
+- Reason: in a UTF-8 locale `${#raw}` counts characters (bash 3.2.57 and 5.3 both give 2 for `日日`, 6 under `LC_ALL=C`), so 196 608 bytes passed the cap and the byte-based awk took 39–40 s (guard), 38 s (ask-gate) here, past the 10 s timeout, so the command runs. After the fix all three answer in under 1 s. Full `bash tests/all.sh` exit 0 (timing pass=16, mutation rules=49 survived=0); `HOOK_BASH=/bin/bash` run.sh pass=296.
+- Cost if wrong: none known; the byte count costs one `wc` per command.
