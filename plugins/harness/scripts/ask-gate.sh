@@ -40,6 +40,7 @@ is_protected() {
 }
 
 # rule:protected-push
+looked='' # directories whose current branch was already looked up (and is not protected)
 while IFS= read -r seg; do
   [ -n "$seg" ] || continue
   dir=$cwd after=0 skip=0 prev='' npos=0 second=''
@@ -74,6 +75,11 @@ while IFS= read -r seg; do
     is_protected "$target" && ask protected-push "push to protected branch $target needs the PO"
   done
   if [ "$npos" -le 1 ] || [ "$second" = HEAD ] || [ "$second" = @ ]; then
+    # rule:push-branch-cache
+    # one git call per directory: a git call per segment runs past the hook timeout on a long command
+    case "$looked" in *"$Q$dir$Q"*) continue ;; esac
+    looked=$looked$Q$dir$Q
+    # end:push-branch-cache
     cur=$(git -C "$dir" symbolic-ref --short -q HEAD 2>/dev/null || true)
     [ -n "$cur" ] && is_protected "$cur" && ask protected-push "push from protected branch $cur needs the PO"
   fi

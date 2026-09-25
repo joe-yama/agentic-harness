@@ -97,6 +97,18 @@ echo new > "$R/src/untracked.ts"
 stop '{}' HARNESS_TEST_CMD="$T"
 expect s-untracked '[ -e "$M" ]'
 
+# ask-gate looks up the current branch once per directory: 16 KiB of bare `git push;` on a
+# feature branch took 8 s with one lookup per segment (29 s at 64 KiB, over the 10 s timeout).
+F="$TMP_ROOT/feat"
+git init -q "$F" && git -C "$F" commit -q --allow-empty -m init && git -C "$F" checkout -q -b feature/x
+pushes=$(printf 'git push;%.0s' $(seq 1 1820))
+start=$SECONDS
+out=$(jq -nc --arg c "$pushes" --arg d "$F" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' \
+  | "$HOOK_BASH" "$HOOKS_DIR/ask-gate.sh" 2>/dev/null)
+rc=$?
+took=$((SECONDS - start))
+expect "a-push-cache (took ${took}s)" '[ $rc = 0 ] && [ -z "$out" ] && [ "$took" -le 3 ]'
+
 # jq missing: a PATH with only the tools the hooks need, minus jq.
 NOJQ="$TMP_ROOT/nojq-bin"
 mkdir -p "$NOJQ"

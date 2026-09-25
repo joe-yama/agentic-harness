@@ -16,6 +16,7 @@ All notable changes to this project are documented here. The plugin version in
 - The first non-option argument of `jq` / `yq` / `gojq` is a filter, not a file: `jq '.env' .claude/settings.json` passes, `jq . .env` is still blocked.
 - `-c` after `grep`, `egrep`, `fgrep`, `rg`, `wc`, `head`, `tail`, `cut`, `uniq`, `tr` or `git grep` is a flag, so its quoted argument is not read as a command (`grep -c "rm -rf" f` passes).
 - More quoted strings are checked as commands: after `-c` with options in between (`bash -c -- '…'`, `bash -c -x '…'`), a here-string to a shell (`bash <<< '…'`), and the quoted arguments of `watch` and `ssh <host>`. `node -e`, `perl -e` and code inside `python -c` stay out of reach.
+- ask-gate looks up the current branch once per directory, so a long command of bare `git push` segments no longer runs past the hook timeout (64 KiB: 29 s → 0.6 s).
 
 ## [0.1.0] - 2026-09-25
 
