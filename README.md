@@ -31,8 +31,8 @@ Prerequisites: Claude Code ≥ 2.1.277, `jq`, `git`, [`uv`](https://docs.astral.
 ```sh
 # in the product repository (its default branch must already exist on GitHub)
 git switch -c fix/adopt-agentic-harness
-uvx copier@9.18.2 copy --vcs-ref v0.1.0 gh:joe-yama/agentic-harness .
-claude            # interactive: accept the trust dialog; this registers the marketplace pinned to v0.1.0
+uvx copier@9.18.2 copy --vcs-ref v0.2.0 gh:joe-yama/agentic-harness .
+claude            # interactive: accept the trust dialog; this registers the marketplace pinned to v0.2.0
 claude plugin install harness@agentic-harness --scope project
 ```
 
