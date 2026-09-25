@@ -3,6 +3,11 @@
 All notable changes to this project are documented here. The plugin version in
 `plugins/harness/.claude-plugin/plugin.json` and the git tags `vX.Y.Z` / `harness--vX.Y.Z` follow this file.
 
+## [0.2.1] - 2026-09-25
+
+- Template: `.claude/settings.json` is rendered exactly as `claude plugin install --scope project` writes it — JSON.stringify with 2-space indent, Claude Code's key order (top level `$schema`, `env`, `permissions`, `enabledMcpjsonServers`, `enabledPlugins`, `extraKnownMarketplaces`, `sandbox`; inside `sandbox`: `enabled`, `autoAllowBashIfSandboxed`, `network`, `filesystem`, `excludedCommands`), no HTML escaping in string values (`&&`, `'`, `<` stay literal) — and enables the `superpowers@claude-plugins-official` dependency. The install in `harness:adopt` step 5 now leaves the file byte-identical (checked with Claude Code 2.1.282 for `ui_review` true and false); before, it reformatted the whole file and left an uncommitted diff. `tests/template/run.sh` checks the layout, and `harness:adopt` step 5 checks `git diff --exit-code .claude/settings.json`.
+- Updating from 0.2.0: if you committed the file the install rewrote, `copier update` applies cleanly; if you kept the 0.2.0 layout, expect a conflict in `.claude/settings.json` — take the new layout and re-add your own entries.
+
 ## [0.2.0] - 2026-09-25
 
 - Tests: hook cases assert which rule fired (`block:<id>` / `ask:<id>`), cover a missing `jq`, and the mutation check covers `lib/parse.sh`.

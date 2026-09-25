@@ -56,7 +56,7 @@ Start an **interactive** Claude Code session in the repository and accept the wo
 claude plugin install harness@agentic-harness --scope project
 ```
 
-This also installs the `superpowers@claude-plugins-official` dependency. Restart the session so hooks, agents and skills load. Plugins run with your user privileges; read `plugins/harness/scripts/` at `<tag>` before installing. Until a folder is trusted, `claude -p` also ignores the project's `permissions.allow` entries.
+This also installs the `superpowers@claude-plugins-official` dependency. The template already renders `.claude/settings.json` the way the install writes it, so `git diff --exit-code .claude/settings.json` must stay clean; a diff means the file drifted from the template — commit it only after reading it. Restart the session so hooks, agents and skills load. Plugins run with your user privileges; read `plugins/harness/scripts/` at `<tag>` before installing. Until a folder is trusted, `claude -p` also ignores the project's `permissions.allow` entries.
 
 ## 6. OpenSpec
 
