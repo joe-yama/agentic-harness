@@ -78,6 +78,9 @@ All Critical and Important findings were fixed in one pass, each with a test tha
 - Ruling: `a-pp-22` (Issue body quoting `git push origin main`) now expects `pass` instead of `ask`. It documented a known false positive, which this fix removes; the protected-push rule itself is unchanged. Cost if wrong: none.
 - `no-verify` now finds git's real subcommand before looking for `-n`, so `git log --grep commit -n 5` passes (`g-fq-06`).
 
+### 2026-09-25 Final review round 3: Approved
+- The reviewer re-ran 253 earlier probe lines (no regression), confirmed the -c/eval heuristic on docker/find/xargs/su/nohup/timeout forms, and mutated `lib/parse.sh` nine ways (each caught by a case). Remaining findings are Minor (below). mawk compatibility was reasoned, not run: the first green CI `check` on Ubuntu is the evidence.
+
 ## Proposals
 
 Deferred Minor findings from the final review (none start a fix round):
@@ -91,3 +94,4 @@ Deferred Minor findings from the final review (none start a fix round):
 - Over-engineering: `copier.yml` `_templates_suffix: .jinja` is Copier's default; `lib/parse.sh` GOPT lists value-taking long options by name.
 - `tests/hooks/mutate.sh` does not mutate `scripts/lib/parse.sh` (the reviewer mutated it by hand; each mutation failed at least one case).
 - A quoted `.env` is treated as a file name, so `jq '.env' .claude/settings.json` is refused.
+- Round 3 Minors: very large commands (≈400 KB) make the character-by-character parser exceed the 10 s hook timeout, and a timed-out hook does not block — cap the size or build with `split()`; `bash -c -- '…'`, `bash -c -x '…'`, `bash <<< '…'`, `watch '…'`, `ssh host '…'`, `python3 -c "…os.system(…)"`, `node -e`, `git -c 'alias.x=!…'` are not seen; `grep -c "rm -rf" f` is a new false positive; `~/.ssh` mentioned inside a commit message is refused (undocumented); the unterminated-quote branch in `normalize` (lib/parse.sh) is unneeded.
