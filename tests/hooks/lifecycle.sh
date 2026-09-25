@@ -71,6 +71,10 @@ expect l-outside-repo '[ $rc = 0 ]'
 ln -s "$R" "$TMP_ROOT/proj-link"
 lint "$TMP_ROOT/proj-link/src/bad.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_LINT_PATTERN="^src/"
 expect l-symlinked-path '[ $rc = 2 ]'
+lint "$R/src/good.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_LINT_PATTERN='('
+expect l-bad-lint-pattern '[ $rc = 2 ] && printf "%s" "$err" | grep -q "invalid HARNESS_LINT_PATTERN"'
+lint "$R/src/good.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_DOC_PATTERN='('
+expect l-bad-doc-pattern '[ $rc = 2 ] && printf "%s" "$err" | grep -q "invalid HARNESS_DOC_PATTERN"'
 
 M="$TMP_ROOT/ran"
 T="touch $M"
@@ -96,6 +100,9 @@ git -C "$R" add -A && git -C "$R" commit -q -m more
 echo new > "$R/src/untracked.ts"
 stop '{}' HARNESS_TEST_CMD="$T"
 expect s-untracked '[ -e "$M" ]'
+rm -f "$M"
+stop '{}' HARNESS_TEST_CMD="$T" HARNESS_DOC_PATTERN='('
+expect s-bad-doc-pattern '[ ! -e "$M" ] && [ "$(printf "%s" "$out" | jq -r .decision)" = block ] && printf "%s" "$out" | jq -r .reason | grep -q "invalid HARNESS_DOC_PATTERN"'
 
 # ask-gate looks up the current branch once per directory: 16 KiB of bare `git push;` on a
 # feature branch took 8 s with one lookup per segment (29 s at 64 KiB, over the 10 s timeout).

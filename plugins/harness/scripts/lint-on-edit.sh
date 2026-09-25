@@ -14,6 +14,18 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 # end:no-jq
+doc=${HARNESS_DOC_PATTERN:-'\.(md|txt)$|^docs/|^openspec/|^\.claude/'}
+# rule:lint-bad-pattern
+# grep exits 2 on an invalid regex; unchecked, every file would be skipped (or linted) silently
+check_pattern() { # <name> <regex>
+  grep -Eq -- "$2" </dev/null
+  [ $? != 2 ] && return 0
+  echo "harness lint-on-edit: invalid $1 (not an extended regex): $2" >&2
+  exit 2
+}
+check_pattern HARNESS_LINT_PATTERN "${HARNESS_LINT_PATTERN:-}"
+check_pattern HARNESS_DOC_PATTERN "$doc"
+# end:lint-bad-pattern
 input=$(cat)
 file=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_response.filePath // ""')
 [ -n "$file" ] && [ -f "$file" ] || exit 0
@@ -24,7 +36,6 @@ root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
 # end:lint-outside-repo
 root=$(cd "$root" && pwd -P) || exit 0
 rel=${abs#"$root"/}
-doc=${HARNESS_DOC_PATTERN:-'\.(md|txt)$|^docs/|^openspec/|^\.claude/'}
 # rule:lint-doc-skip
 printf '%s' "$rel" | grep -Eq -- "$doc" && exit 0
 # end:lint-doc-skip

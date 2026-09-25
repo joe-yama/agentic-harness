@@ -21,6 +21,15 @@ cwd=$(printf '%s' "$input" | jq -r '.cwd // ""')
 [ -n "$cwd" ] || cwd=$(pwd)
 root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || exit 0
 doc=${HARNESS_DOC_PATTERN:-'\.(md|txt)$|^docs/|^openspec/|^\.claude/'}
+# rule:stop-bad-pattern
+# grep exits 2 on an invalid regex; unchecked, no change would count as code and tests would be skipped silently
+grep -Eq -- "$doc" </dev/null
+if [ $? = 2 ]; then
+  jq -n --arg r "invalid HARNESS_DOC_PATTERN (not an extended regex): $doc. Fix it in .claude/settings.json; tests were not run." \
+    '{decision:"block",reason:$r}'
+  exit 0
+fi
+# end:stop-bad-pattern
 changed=$(
   {
     git -C "$root" diff --name-only HEAD 2>/dev/null || git -C "$root" diff --name-only
