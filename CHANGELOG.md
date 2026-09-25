@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The plugin version in
 - Tests: hook cases assert which rule fired (`block:<id>` / `ask:<id>`), cover a missing `jq`, and the mutation check covers `lib/parse.sh`.
 - guard's missing-`jq` message carries the id `no-jq`, like ask-gate's.
 - guard blocks and ask-gate asks (`bad-input`) when the hook input is not a JSON object, instead of letting the command through.
+- A command over 64 KiB is blocked by guard and asked by ask-gate (`too-large`) before parsing, so the hooks cannot time out on it.
 
 ## [0.1.0] - 2026-09-25
 

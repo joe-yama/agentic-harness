@@ -197,3 +197,8 @@ g-bi-02	guard	none	-	block:bad-input	raw:not json
 g-bi-03	guard	none	-	block:bad-input	raw:["Bash"]
 a-bi-01	ask-gate	feature	-	ask:bad-input	raw:{"tool_name":"Bash","tool_input":{"command":"git push origin main"}
 a-bi-02	ask-gate	none	-	ask:bad-input	raw:not json
+g-tl-03	guard	none	-	block:too-large	bashpad:65537:ls
+g-tl-04	guard	none	-	pass	bashpad:65536:ls
+g-tl-05	guard	none	-	block:too-large	bashpad:65537:rm -rf x
+a-tl-01	ask-gate	none	-	ask:too-large	bashpad:65537:ls
+a-tl-02	ask-gate	none	-	pass	bashpad:65536:ls

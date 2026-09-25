@@ -23,7 +23,12 @@ printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1 \
 case "$(printf '%s' "$input" | jq -r '.tool_name // ""')" in Bash | Monitor) ;; *) exit 0 ;; esac
 # shellcheck source=lib/parse.sh
 . "$(dirname "$0")/lib/parse.sh"
-cmd=$(normalize "$(printf '%s' "$input" | jq -r '.tool_input.command // ""')")
+raw=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
+# rule:too-large
+[ "$(($(printf '%s' "$raw" | wc -c)))" -le 65536 ] \
+  || ask too-large "the command is over 64 KiB and was not checked; write it to a file and run the file"
+# end:too-large
+cmd=$(normalize "$raw")
 cwd=$(printf '%s' "$input" | jq -r '.cwd // ""')
 [ -n "$cwd" ] || cwd=$(pwd)
 protected=${HARNESS_PROTECTED_BRANCHES:-main}

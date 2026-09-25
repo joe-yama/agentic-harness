@@ -47,7 +47,13 @@ check_path() {
 tool=$(printf '%s' "$input" | jq -r '.tool_name // ""')
 case "$tool" in
   Bash | Monitor)
-    cmd=$(normalize "$(printf '%s' "$input" | jq -r '.tool_input.command // ""')")
+    raw=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
+    # rule:too-large
+    # the parser is quadratic in the length; a timed-out hook would let the command through
+    [ "$(($(printf '%s' "$raw" | wc -c)))" -le 65536 ] \
+      || deny too-large "the command is over 64 KiB; write it to a file and run the file"
+    # end:too-large
+    cmd=$(normalize "$raw")
 
     # rule:rm-rf
     while IFS= read -r seg; do
