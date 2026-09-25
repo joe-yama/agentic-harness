@@ -3,6 +3,9 @@
 # Runs HARNESS_TEST_CMD before Claude ends its turn when non-doc files have uncommitted
 # changes; on failure returns {"decision":"block"} so Claude keeps working.
 # stop_hook_active (set after a previous block) ends the loop.
+# {"decision":"block"} rather than hookSpecificOutput.additionalContext: both keep the turn going
+# under the same stop_hook_active protection, but every Claude Code version honors decision:block,
+# while a client that ignores additionalContext would let the turn end with failing tests.
 set -u
 # rule:stop-unset
 [ -n "${HARNESS_TEST_CMD:-}" ] || exit 0
