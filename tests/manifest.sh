@@ -19,12 +19,15 @@ check p-name '[ "$(jq -r .name $p)" = harness ]'
 check p-semver 'jq -r .version $p | grep -Eq "^[0-9]+\.[0-9]+\.[0-9]+$"'
 check p-dep '[ "$(jq -r ".dependencies[] | select(.name==\"superpowers\") | .marketplace" $p)" = claude-plugins-official ]'
 check p-changelog 'grep -q "^## \[$(jq -r .version $p)\]" CHANGELOG.md'
-check h-has-scripts 'jq -r ".. | .command? // empty" $h | grep -q "scripts/"'
+# exec form: command "bash" and the script path as the only argument, never spliced into a string
+hooks='[.hooks[][].hooks[]]'
+check h-has-scripts 'jq -r "${hooks}[].args[]?" $h | grep -q "scripts/"'
+check h-exec-form 'jq -e "$hooks | all(.type == \"command\" and .command == \"bash\" and (.args | length) == 1)" $h >/dev/null'
 while IFS= read -r s; do
   check "h-exists-$s" "[ -f plugins/harness/$s ]"
-done < <(jq -r '.. | .command? // empty' $h | grep -oE 'scripts/[a-z-]+\.sh')
+done < <(jq -r "${hooks}[].args[]?" $h | grep -oE 'scripts/[a-z-]+\.sh')
 check h-monitor '[ "$(jq -r "[.hooks.PreToolUse[] | select(.matcher == \"Bash|Monitor\")] | length" $h)" = 1 ]'
-check h-plugin-root '! jq -r ".. | .command? // empty" $h | grep -vF "\${CLAUDE_PLUGIN_ROOT}" | grep -q .'
+check h-plugin-root '! jq -r "${hooks}[].args[]?" $h | grep -vE "^\\\$\{CLAUDE_PLUGIN_ROOT\}/scripts/[a-z-]+\.sh\$" | grep -q .'
 for s in plugins/harness/scripts/*.sh; do
   check "h-wired-$(basename "$s")" "grep -qF 'scripts/$(basename "$s")' $h"
 done
