@@ -1,0 +1,111 @@
+{#- Pin the marketplace to the release tag this file was rendered from. `claude plugin tag` puts
+    harness--vX.Y.Z on the same commit as vX.Y.Z, and Copier may report either; both name the same
+    commit, so strip the prefix. Describe output (v1.0.0-3-gabc) or a bare SHA falls back to main. -#}
+{%- set c = (_commit or '') -%}
+{%- set c = c[9:] if c.startswith('harness--') else c -%}
+{%- set ref = c if (c.startswith('v') and '-' not in c) else 'main' -%}
+{%- set env = {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "0", "HARNESS_PROTECTED_BRANCHES": default_branch} -%}
+{%- if lint_cmd %}{% set _ = env.update({"HARNESS_LINT_CMD": lint_cmd}) %}{% endif -%}
+{%- if lint_pattern %}{% set _ = env.update({"HARNESS_LINT_PATTERN": lint_pattern}) %}{% endif -%}
+{%- if test_cmd %}{% set _ = env.update({"HARNESS_TEST_CMD": test_cmd}) %}{% endif -%}
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {{ env | tojson }},
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git worktree list:*)",
+      "Bash(git fetch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh api user:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run watch:*)",
+      "Bash(openspec:*)"{% if ui_review %},
+      "mcp__playwright__*"{% endif %}
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.local)",
+      "Read(.env.*.local)",
+      "Read(.env.development)",
+      "Read(.env.production)",
+      "Read(.env.test)",
+      "Edit(.env)",
+      "Edit(.env.local)",
+      "Edit(.env.*.local)",
+      "Edit(.env.development)",
+      "Edit(.env.production)",
+      "Edit(.env.test)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.config/op/**)",
+      "Read(~/.config/gh/**)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --force-with-lease:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(sudo:*)"
+    ],
+    "ask": [
+      "Bash(rm:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh repo create:*)",
+      "Bash(gh repo delete:*)",
+      "Bash(gh issue close:*)",
+      "Bash(gh issue edit:*)",
+      "Bash(gh release:*)",
+      "Bash(gh workflow run:*)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "excludedCommands": ["git", "git *", "gh", "gh *"],
+    "filesystem": {
+      "denyRead": ["~/.ssh", "~/.aws", "~/.gnupg", "~/.config/op", "~/.config/gh"]
+    },
+    "network": {
+      "allowedDomains": [
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        "objects.githubusercontent.com",
+        "registry.npmjs.org",
+        "pypi.org",
+        "files.pythonhosted.org",
+        "crates.io",
+        "static.crates.io",
+        "index.crates.io"
+      ],
+      "allowLocalBinding": true
+    }
+  },
+  "extraKnownMarketplaces": {
+    "agentic-harness": {
+      "source": { "source": "github", "repo": "joe-yama/agentic-harness", "ref": {{ ref | tojson }} }
+    }
+  },
+  "enabledPlugins": { "harness@agentic-harness": true }{% if ui_review %},
+  "enabledMcpjsonServers": ["playwright"]{% endif %}
+}

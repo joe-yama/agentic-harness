@@ -1,0 +1,11 @@
+{
+  "name": "harness",
+  "version": "0.1.0",
+  "description": "Guard hooks, implementer/reviewer subagents and workflow skills for spec-driven, test-first development with adversarial review.",
+  "author": { "name": "joe-yama", "url": "https://github.com/joe-yama" },
+  "homepage": "https://github.com/joe-yama/agentic-harness",
+  "repository": "https://github.com/joe-yama/agentic-harness",
+  "license": "MIT",
+  "keywords": ["harness", "hooks", "tdd", "code-review", "openspec", "superpowers"],
+  "dependencies": [{ "name": "superpowers", "marketplace": "claude-plugins-official" }]
+}

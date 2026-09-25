@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agentic-harness",
+  "description": "A PO-steered, agent-executed product development harness for Claude Code.",
+  "owner": { "name": "joe-yama", "url": "https://github.com/joe-yama" },
+  "allowCrossMarketplaceDependenciesOn": ["claude-plugins-official"],
+  "plugins": [
+    {
+      "name": "harness",
+      "source": "./plugins/harness",
+      "description": "Guard hooks, implementer/reviewer subagents and workflow skills for spec-driven, test-first development with adversarial review.",
+      "category": "development"
+    }
+  ]
+}

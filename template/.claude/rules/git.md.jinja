@@ -1,0 +1,22 @@
+# Git and GitHub rules
+
+## Issues
+
+- One Issue per change, created at `/opsx:propose`, before implementation starts. Title: the change name. Body: goal, scope (in / out), `openspec/changes/<name>/`, completion criteria.
+- Comment only at: design / proposal approval, implementation start, change of direction, blocker or question, final review result, PR created. No per-task comments.
+- Pass long bodies with `--body-file <file>`.
+- The PR body contains `Closes #<number>`. After the merge closes the Issue, run `/opsx:archive`.
+- Harness-only or docs-only edits that belong to no change: a `fix/<description>` branch and PR, no Issue.
+
+## Branches and commits
+
+- Feature work happens in a git worktree, never directly on `{{ default_branch }}`. Branch names: `feature/<change-name>` or `fix/<short-description>`.
+- One commit = one meaningful change, with a type prefix. No commit with failing tests.
+- Check a task in `tasks.md` in the same commit as its implementation. Check-only commits are allowed only for verification tasks with no code (mutation checks, running all commands).
+
+## Pushes and destructive operations
+
+- Pushes to `feature/*` and `fix/*` are automatic. Pushes to `{{ default_branch }}`, remote branch deletion, `--all` / `--mirror` and `git worktree remove --force` go to the PO (hooks ask). Wait for the PO; never work around the prompt.
+- Force pushes, `git reset --hard`, `git clean -f`, `git checkout -- .` and `git branch -D` are blocked. If uncommitted work must be discarded, ask the PO.
+- Never rewrite pushed history. `git commit --amend` and `rebase -i` on pushed commits are not caught by hooks — avoid them yourself and ask the PO if a redo is needed.
+- If a push fails because of the SSH agent or signing, do not retry in a loop; ask the PO to run it with `! git push ...`.

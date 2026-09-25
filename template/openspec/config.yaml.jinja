@@ -1,0 +1,6 @@
+schema: spec-driven
+
+context: |
+  Language: {{ work_language }}
+  All artifacts must be written in {{ 'Japanese' if work_language == 'ja' else 'English' }}.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.

@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+.claude/worktrees/
+.playwright-mcp/
+.superpowers/
+.DS_Store
