@@ -138,3 +138,16 @@ Plan: `docs/plans/2026-09-25-deferred-minors.md`. Branch `fix/deferred-minors`.
 - Ruling: a68af08 restores `$(($(printf '%s' "$raw" | wc -c)))` in guard and ask-gate; the `${#raw}` shrink from 4d9756e is reverted. `tests/hooks/timing.sh` now runs under `LC_ALL=C.UTF-8` (present on macOS and Ubuntu) with `t-utf8` (65536 × `日`, guard `block:too-large`, ask-gate `ask:too-large`) and `t-utf8-rm` (the same with `' ; rm -rf ~/work'` appended).
 - Reason: in a UTF-8 locale `${#raw}` counts characters (bash 3.2.57 and 5.3 both give 2 for `日日`, 6 under `LC_ALL=C`), so 196 608 bytes passed the cap and the byte-based awk took 39–40 s (guard), 38 s (ask-gate) here, past the 10 s timeout, so the command runs. After the fix all three answer in under 1 s. Full `bash tests/all.sh` exit 0 (timing pass=16, mutation rules=49 survived=0); `HOOK_BASH=/bin/bash` run.sh pass=296.
 - Cost if wrong: none known; the byte count costs one `wc` per command.
+
+### 2026-09-25 Whole-branch review: Needs fixes (1 Important) → fixed, Approved by controller check
+- Important: `${#raw}` counted characters, so the cap let ~192 KiB of UTF-8 through and the hooks timed out; fixed in a68af08 (byte count, `t-utf8` timing cases). Mechanical fix verified by the controller from the diff and `tests/hooks/timing.sh` (pass=16), no re-review.
+- Minors (proposals, no fix round):
+  - ask-gate `protected-push` matches `--delete` / `--mirror` / `--all` / `--prune` only in full: `git push --del origin x`, `--mir`, `--al` do not ask.
+  - 3-character prefixes refuse `git log --n 3` (git rejects it as ambiguous anyway).
+  - `jq --arg k .env . f` is refused (the filter position shifts after `--arg`).
+  - AGENTS.md and CHANGELOG describe the `bash32` job as run.sh + lifecycle.sh; it also runs timing.sh.
+  - The plan's Global constraints still say "all.sh before every commit" (superseded by the PO instruction in f18e1ff).
+  - `timing.sh` `t-pad` takes ~3 s locally against a 5 s bound; a slow runner may turn `check` red.
+  - Fast checks take ~16 s (run.sh dominates); the PO target is ~10 s.
+  - Ponytail: ask-gate's per-directory cache is redundant with the 16-lookup cap; timing.sh duplicates run.sh's verdict parsing.
+  - Implementer: rename "ledger path" in `template/CLAUDE.md.jinja` to the SDD progress file; check the repo's own CI file (job `check` exists) in `all.sh`.
