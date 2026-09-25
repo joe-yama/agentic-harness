@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The plugin version in
 ## [0.2.1] - 2026-09-25
 
 - Template: `.claude/settings.json` is rendered exactly as `claude plugin install --scope project` writes it — JSON.stringify with 2-space indent, Claude Code's key order (top level `$schema`, `env`, `permissions`, `enabledMcpjsonServers`, `enabledPlugins`, `extraKnownMarketplaces`, `sandbox`; inside `sandbox`: `enabled`, `autoAllowBashIfSandboxed`, `network`, `filesystem`, `excludedCommands`), no HTML escaping in string values (`&&`, `'`, `<` stay literal) — and enables the `superpowers@claude-plugins-official` dependency. The install in `harness:adopt` step 5 now leaves the file byte-identical (checked with Claude Code 2.1.282 for `ui_review` true and false); before, it reformatted the whole file and left an uncommitted diff. `tests/template/run.sh` checks the layout, and `harness:adopt` step 5 checks `git diff --exit-code .claude/settings.json`.
-- Updating from 0.2.0: if you committed the file the install rewrote, `copier update` applies cleanly; if you kept the 0.2.0 layout, expect a conflict in `.claude/settings.json` — take the new layout and re-add your own entries.
+- Updating from 0.2.0: if `.claude/settings.json` still has the 0.2.0 layout, `copier update` applies cleanly. If you committed the file the install rewrote, Copier reads the reformatting as your change and writes conflict markers into `.claude/settings.json` (two hunks for an otherwise unchanged file): keep the "after updating" side and re-add your own entries in the new layout. Checked with Copier 9.18.2 from `v0.2.0` renders.
 
 ## [0.2.0] - 2026-09-25
 
