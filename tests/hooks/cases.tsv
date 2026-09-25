@@ -264,3 +264,9 @@ g-ev-21	guard	none	-	block:env-file	bash:cat .Env.Local
 g-ev-22	guard	none	-	pass	bash:cat .ENV.example
 g-ev-23	guard	none	-	block:env-file	file:Read:/repo/.ENV
 g-ev-24	guard	none	-	pass	file:Read:/repo/.Env.Example
+g-jf-01	guard	none	-	pass	bash:jq '.env' .claude/settings.json
+g-jf-02	guard	none	-	block:env-file	bash:jq . .env
+g-jf-03	guard	none	-	pass	bash:yq -r '.env.API_URL' config.yml
+g-jf-04	guard	none	-	pass	bash:gh api repos/o/r | /usr/bin/gojq '.env | keys'
+g-jf-05	guard	none	-	block:env-file	bash:jq -r .env .env.local
+g-jf-06	guard	none	-	block:env-file	bash:jq .a f; cat .env

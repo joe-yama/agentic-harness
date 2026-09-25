@@ -188,7 +188,12 @@ EOF
     # rule:env-file
     # Lowercase, split on whitespace, the quote marker, redirections, separators and ":" (HEAD:.env),
     # and judge each word's basename. A glob (.env*, .env.?) counts: the shell expands it to the file.
-    for word in $(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]' | tr "=<>();|&\`:\001" '            '); do
+    ecmd=$cmd
+    # rule:jq-filter
+    # the first non-option argument of jq / yq / gojq is a filter (jq '.env' f), not a file
+    ecmd=$(printf '%s\n' "$cmd" | sed -E "s#((^|[;&|(\`[:space:]])${P}(jq|yq|gojq)([[:space:]]+-[^[:space:]]*)*)[[:space:]]+[^[:space:]]+#\1#g")
+    # end:jq-filter
+    for word in $(printf '%s' "$ecmd" | tr '[:upper:]' '[:lower:]' | tr "=<>();|&\`:\001" '            '); do
       name=${word##*/}
       case "$name" in
         .env.example) ;;
