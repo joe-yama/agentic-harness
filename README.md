@@ -36,7 +36,7 @@ claude            # interactive: accept the trust dialog; this registers the mar
 claude plugin install harness@agentic-harness --scope project
 ```
 
-Do not run `claude plugin marketplace add joe-yama/agentic-harness` yourself: that registers the unpinned default branch under the same name. Then, in a new session, ask Claude to run **`harness:adopt`** from step 5 on: it sets up OpenSpec with pinned skills, applies the branch ruleset (after you confirm) and verifies that the guard is live. The skill is the full procedure, including creating the repository.
+Do not run `claude plugin marketplace add joe-yama/agentic-harness` yourself: that registers the unpinned default branch under the same name. Then, in a new session, ask Claude to run **`harness:adopt`** from step 4 on: it sets up OpenSpec with pinned skills, applies the branch ruleset (after you confirm) and verifies that the guard is live. The skill is the full procedure, including creating the repository.
 
 ## Configuration
 
@@ -66,7 +66,7 @@ Resolve the conflict markers, restart Claude Code so it reads the new pin, run `
 - `HARNESS_*_CMD` values come from the repository's own committed settings and run with `bash -c`. Treat a change to them like any code change.
 - Do not run `claude -p` over repositories you do not trust without `--bare`: committed hooks run in headless mode.
 - The hooks match command text; they are a tripwire, not a sandbox. The template turns on the Claude Code sandbox (credential directories unreadable, network limited to GitHub and package registries) as the OS-level boundary. Known gaps and false positives:
-  - quoted strings are checked like commands (so `sh -c '…'` is covered): a quoted string that merely mentions a guarded command, such as an Issue body containing `git push origin main`, triggers the hook — pass long bodies with `--body-file`;
+  - a quoted string is checked as a command only after `-c` (`sh -c '…'`, `bash -lc "…"`) or `eval`; other quoted strings (commit messages, grep patterns, Issue bodies) are data. A quoted `.env` is still treated as a file name (`jq '.env' …` is refused), and heredoc bodies are checked line by line, so pass long bodies with `--body-file`;
   - commands assembled from variables, run through another interpreter (`python -c`, `node -e`), or spelled with abbreviated long options (`--har`) are not seen;
   - `uv run` can update `uv.lock` without asking.
 - Third-party components: Superpowers (MIT, pinned by the official marketplace), OpenSpec (MIT, pinned tag via `gh skill`), Playwright MCP (Apache-2.0, exact version, only with `ui_review`). All GitHub Actions are pinned by commit SHA and updated by Dependabot.
@@ -82,7 +82,7 @@ Tags `vX.Y.Z` (template) and `harness--vX.Y.Z` (plugin, from `claude plugin tag`
 ## Development
 
 ```sh
-bash tests/all.sh   # shellcheck, 177 hook cases, lifecycle tests, rule mutation test, manifests + claude plugin validate, template renders
+bash tests/all.sh   # shellcheck, 192 hook cases, lifecycle tests, rule mutation test, manifests + claude plugin validate, template renders
 claude --plugin-dir plugins/harness   # load the plugin under development
 ```
 

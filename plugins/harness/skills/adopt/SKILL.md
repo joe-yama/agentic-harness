@@ -86,7 +86,8 @@ In a new interactive session on the default branch, check:
 - `git push origin <default branch>` asks for confirmation (`harness ask-gate (protected-push)`) — decline it;
 - `/plugin` shows `harness` and `superpowers` enabled;
 - `gh skill list --agent claude-code --scope project` lists the six OpenSpec skills with their pinned tag;
-- `/agents` lists `harness:implementer` and `harness:reviewer`.
+- `/agents` lists `harness:implementer` and `harness:reviewer`;
+- `gh api repos/<owner>/<repo>/rulesets --jq '.[].name'` lists `default-branch`.
 
 ## 9. Record
 

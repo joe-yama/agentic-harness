@@ -72,6 +72,12 @@ All Critical and Important findings were fixed in one pass, each with a test tha
 - Reason: a file outside every repository is not project code (scratch files, other checkouts); linting it from the project root produced errors in the controlling session during this very build.
 - Cost if wrong: a project that is not a git repository gets no lint hook.
 
+### 2026-09-25 Final review round 2: Needs fixes (I8) + re-graded false-positive regression
+- I8 (README skipped the ruleset step): README / README.ja now start `harness:adopt` from step 4; adopt step 8 also checks the ruleset. Verified by grep (mechanical).
+- Ruling: the reviewer graded the new false positives Minor; re-graded to Important by effect — code search, commit messages and Issue bodies that mention a guarded command were refused, and the template tells the agent not to rephrase but to ask the PO, so ordinary work would stop repeatedly. Fix: a quoted string is treated as a command only after `-c` or `eval`, normalized recursively (nested quotes), with quote state tracked across newlines and `$'…'` unwrapped. Cases `g-fq-*`, `a-fq-01` (false positives) and `g-nq-*`, `a-nq-01` (nested quotes) went RED → GREEN. Cost if wrong: a guarded command inside a quoted string passed to another interpreter flag (`python -c` is also `-c` and is covered; `node -e`, `ssh host '…'` are not).
+- Ruling: `a-pp-22` (Issue body quoting `git push origin main`) now expects `pass` instead of `ask`. It documented a known false positive, which this fix removes; the protected-push rule itself is unchanged. Cost if wrong: none.
+- `no-verify` now finds git's real subcommand before looking for `-n`, so `git log --grep commit -n 5` passes (`g-fq-06`).
+
 ## Proposals
 
 Deferred Minor findings from the final review (none start a fix round):
@@ -82,4 +88,6 @@ Deferred Minor findings from the final review (none start a fix round):
 - Tests: no case for the jq-missing paths; `run.sh` does not assert which rule blocked; `l-symlinked-path` runs only on macOS; the bash 3.2 run is not in CI.
 - Template: `allowedDomains` lacks `release-assets.githubusercontent.com`; `Bash(gh api user:*)` also allows `gh api user -X PATCH`; the `.env` deny list is enumerated (`.env.staging` not denied; `Read(.env.*)` + `Read(!.env.example)` is simpler); the workflow skill's `.superpowers/` ledger is gitignored, so rulings recorded only there are not committed; `git ls-files -m` in mutation-check lists deleted files.
 - Hooks docs: exec form (`"command":"bash","args":[…]`) is recommended when a path placeholder is used; the Stop hook could use `additionalContext` instead of `decision:block`.
-- Over-engineering: `copier.yml` `_templates_suffix: .jinja` is Copier's default.
+- Over-engineering: `copier.yml` `_templates_suffix: .jinja` is Copier's default; `lib/parse.sh` GOPT lists value-taking long options by name.
+- `tests/hooks/mutate.sh` does not mutate `scripts/lib/parse.sh` (the reviewer mutated it by hand; each mutation failed at least one case).
+- A quoted `.env` is treated as a file name, so `jq '.env' .claude/settings.json` is refused.

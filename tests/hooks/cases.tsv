@@ -107,7 +107,7 @@ a-pp-18	ask-gate	feature	-	pass	bash:git push
 a-pp-19	ask-gate	feature	-	pass	bash:git push origin feature/main
 a-pp-20	ask-gate	feature	-	pass	bash:git push origin v1.0.0
 a-pp-21	ask-gate	main	HARNESS_PROTECTED_BRANCHES=trunk	pass	bash:git push
-a-pp-22	ask-gate	feature	-	ask	bash:gh issue comment 1 --body "run git push origin main later"
+a-pp-22	ask-gate	feature	-	pass	bash:gh issue comment 1 --body "run git push origin main later"
 a-wt-01	ask-gate	none	-	ask	bash:git worktree remove --force .claude/worktrees/x
 a-wt-02	ask-gate	none	-	ask	bash:git worktree remove -f x
 a-wt-03	ask-gate	none	-	pass	bash:git worktree remove x
@@ -176,3 +176,18 @@ a-bs-02	ask-gate	none	-	ask	bashe:pnpm \\\n add zod
 a-mo-01	ask-gate	feature	-	ask	monitor:git push origin main
 a-mo-02	ask-gate	none	-	ask	monitor:pnpm add zod
 a-mo-03	ask-gate	feature	-	pass	monitor:git push origin feature/x
+g-fq-01	guard	none	-	pass	bash:grep -rn "rm -rf" scripts/
+g-fq-02	guard	none	-	pass	bash:git commit -m "fix: stop using rm -rf in the build script"
+g-fq-03	guard	none	-	pass	bash:gh issue create --body "Remove the rm -rf step from CI"
+g-fq-04	guard	none	-	pass	bash:sed -i "s/rm -rf/rm -r/" build.sh
+g-fq-05	guard	none	-	pass	bash:rg -n "git reset --hard" .
+g-fq-06	guard	none	-	pass	bash:git log --grep commit -n 5
+g-nq-01	guard	none	-	block	bash:sh -c "rm '-rf' x"
+g-nq-02	guard	none	-	block	bash:sh -c "sh -c 'rm -rf x'"
+g-nq-03	guard	none	-	block	bash:bash -c "git push '-f'"
+g-nq-04	guard	none	-	block	bashe:echo "a\nb" ; rm '-rf' x
+g-nq-05	guard	none	-	block	bash:rm $'-rf' x
+g-nq-06	guard	none	-	block	bash:bash -lc 'rm -rf x'
+g-nq-07	guard	none	-	block	bash:eval "rm -rf x"
+a-fq-01	ask-gate	feature	-	pass	bash:rg "git push origin main" docs
+a-nq-01	ask-gate	feature	-	ask	bash:bash -c "git push origin 'main'"

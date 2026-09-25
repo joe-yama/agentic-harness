@@ -4,31 +4,41 @@
 # The hooks match command text: they are a tripwire for agent mistakes, not a sandbox.
 
 # normalize <command>
-# Prints the command with backslash-newline continuations joined and quotes removed, where
-# blanks inside quotes become \001 so a quoted argument stays one token ("my dir", "-m msg").
-# Then prints the content of every quoted string on its own line, so command strings passed
-# to `sh -c '...'` or `bash -c "..."` are checked like commands too.
+# Prints the command with backslash-newline continuations joined and quotes removed ($'...' too),
+# where blanks inside quotes become \001 so a quoted argument stays one token ("my dir", "-m msg").
+# A quoted string that follows `-c` (sh -c, bash -lc) or `eval` is a command itself: its content is
+# normalized the same way (recursively, for nested quotes) and printed on extra lines, so it is
+# checked like any other command. Other quoted strings (commit messages, grep patterns, Issue
+# bodies) stay data. Quote state is tracked across newlines.
 normalize() {
   local nl=$'\n'
   printf '%s\n' "${1//\\$nl/ }" | awk -v sq="'" -v dq='"' '
-    {
-      out = ""; q = ""; inner = ""; extra = ""
-      for (i = 1; i <= length($0); i++) {
-        ch = substr($0, i, 1)
+    function norm(s, depth,    out, q, inner, extra, i, ch, w, prevw, lead) {
+      out = ""; q = ""; inner = ""; extra = ""; w = ""; prevw = ""; lead = ""
+      for (i = 1; i <= length(s); i++) {
+        ch = substr(s, i, 1)
         if (q == "") {
-          if (ch == sq || ch == dq) { q = ch; inner = ""; continue }
+          if (ch == "$" && substr(s, i + 1, 1) == sq) continue
+          if (ch == sq || ch == dq) { q = ch; inner = ""; lead = (w != "" ? w : prevw); continue }
           out = out ch
+          if (ch == " " || ch == "\t" || ch == "\n" || ch == ";" || ch == "&" || ch == "|") {
+            if (w != "") prevw = w
+            w = ""
+          } else w = w ch
         } else if (ch == q) {
           q = ""
-          extra = extra inner "\n"
+          if (depth < 4 && (lead ~ /^-[A-Za-z]*c$/ || lead == "eval")) extra = extra "\n" norm(inner, depth + 1)
+          w = w "q"
         } else {
           inner = inner ch
-          out = out ((ch == " " || ch == "\t") ? "\001" : ch)
+          out = out ((ch == " " || ch == "\t" || ch == "\n") ? "\001" : ch)
         }
       }
-      if (q != "") extra = extra inner "\n"
-      printf "%s\n%s", out, extra
-    }'
+      if (q != "" && depth < 4 && (lead ~ /^-[A-Za-z]*c$/ || lead == "eval")) extra = extra "\n" norm(inner, depth + 1)
+      return out extra
+    }
+    { all = all $0 "\n" }
+    END { printf "%s\n", norm(all, 0) }'
 }
 
 # Command-word boundary, and an optional path prefix on the command word (/bin/rm, /usr/bin/git).

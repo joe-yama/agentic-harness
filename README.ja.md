@@ -38,7 +38,7 @@ claude plugin install harness@agentic-harness --scope project
 
 `claude plugin marketplace add joe-yama/agentic-harness` は自分で実行しないでください。固定のない既定ブランチが同じ名前で登録されてしまいます。
 
-続けて新しいセッションで、Claude に **`harness:adopt`** の手順 5 以降を実行させてください。このスキルが次を行います。
+続けて新しいセッションで、Claude に **`harness:adopt`** の手順 4 以降を実行させてください。このスキルが次を行います。
 
 - OpenSpec を固定したスキルで用意する
 - ブランチの ruleset を適用する（あなたの確認を取ってから）
@@ -81,7 +81,7 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
 - `HARNESS_*_CMD` の値は、リポジトリにコミットされた設定から読み、`bash -c` で実行します。値の変更はコードの変更と同じように扱ってください。
 - 信頼していないリポジトリで `--bare` なしに `claude -p` を実行しないでください。headless モードでもコミット済みの hooks が動きます。
 - hooks はコマンドの文字列を見ているだけで、仕掛け線であってサンドボックスではありません。OS レベルの境界として、テンプレートは Claude Code の sandbox を有効にします（認証情報のディレクトリは読めず、ネットワークは GitHub とパッケージレジストリに限定）。既知の穴と誤検知は次のとおりです。
-  - 引用文字列もコマンドとして検査する（そのため `sh -c '…'` も捕まる）。守っているコマンドに言及しただけの引用文字列でも反応する（例: `git push origin main` を含む Issue 本文）。長い本文は `--body-file` で渡す
+  - 引用文字列をコマンドとして検査するのは `-c`（`sh -c '…'`、`bash -lc "…"`）と `eval` の直後だけ。それ以外の引用文字列（コミットメッセージ、grep のパターン、Issue 本文）はデータとして扱う。ただし引用された `.env` はファイル名として扱い（`jq '.env' …` は拒否される）、heredoc の本文は行ごとに検査されるので、長い本文は `--body-file` で渡す
   - 変数から組み立てたコマンド、別のインタプリタ経由のコマンド（`python -c`、`node -e`）、省略形の長いオプション（`--har`）は見えない
   - `uv run` は確認なしに `uv.lock` を更新することがある
 - 第三者の部品と固定の仕方:
@@ -105,7 +105,7 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
 ## 開発
 
 ```sh
-bash tests/all.sh   # shellcheck、hook の 177 ケース、lifecycle テスト、規則の変異テスト、マニフェスト + claude plugin validate、テンプレートの描画
+bash tests/all.sh   # shellcheck、hook の 192 ケース、lifecycle テスト、規則の変異テスト、マニフェスト + claude plugin validate、テンプレートの描画
 claude --plugin-dir plugins/harness   # 開発中のプラグインを読み込む
 ```
 

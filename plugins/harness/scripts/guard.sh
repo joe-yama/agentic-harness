@@ -117,14 +117,19 @@ EOF
     # rule:no-verify
     while IFS= read -r seg; do
       [ -n "$seg" ] || continue
-      commit=0
+      sub='' prev=''
       for tok in $seg; do
-        case "$tok" in
-          commit) commit=1 ;;
-          --no-verify | --no-gpg-sign) deny no-verify "skipping hooks or signing is not allowed" ;;
-          --*) ;;
-          -*n*) [ "$commit" = 1 ] && deny no-verify "git commit -n skips hooks" ;;
-        esac
+        case "$tok" in --no-verify | --no-gpg-sign) deny no-verify "skipping hooks or signing is not allowed" ;; esac
+        if [ -z "$sub" ]; then
+          # the subcommand is the first word after git that is neither an option nor an option's value
+          case "$prev:$tok" in
+            *:*git | *:-* | -C:* | -c:* | --git-dir:* | --work-tree:* | --namespace:* | --super-prefix:* | --config-env:*) ;;
+            *) sub=$tok ;;
+          esac
+          prev=$tok
+          continue
+        fi
+        case "$sub:$tok" in commit:--*) ;; commit:-*n*) deny no-verify "git commit -n skips hooks" ;; esac
       done
     done <<EOF
 $(git_segments '[a-z][a-z-]*')
