@@ -22,7 +22,13 @@ printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1 \
 # end:bad-input
 case "$(printf '%s' "$input" | jq -r '.tool_name // ""')" in Bash | Monitor) ;; *) exit 0 ;; esac
 # shellcheck source=lib/parse.sh
-. "$(dirname "$0")/lib/parse.sh"
+. "$(dirname "$0")/lib/parse.sh" 2>/dev/null
+parsed=$?
+# rule:bad-parser
+if [ "$parsed" != 0 ] || ! declare -F normalize is_abbrev segments git_segments >/dev/null; then
+  ask bad-parser "lib/parse.sh is missing or broken, so the command could not be checked; reinstall the plugin"
+fi
+# end:bad-parser
 raw=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
 # rule:too-large
 [ "$(($(printf '%s' "$raw" | wc -c)))" -le 65536 ] \

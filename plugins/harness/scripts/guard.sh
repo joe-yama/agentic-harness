@@ -13,13 +13,19 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 # end:no-jq
-# shellcheck source=lib/parse.sh
-. "$(dirname "$0")/lib/parse.sh"
-
 deny() {
   printf 'BLOCKED by harness guard (%s): %s\n' "$1" "$2" >&2
   exit 2
 }
+
+# shellcheck source=lib/parse.sh
+. "$(dirname "$0")/lib/parse.sh" 2>/dev/null
+parsed=$?
+# rule:bad-parser
+if [ "$parsed" != 0 ] || ! declare -F normalize is_abbrev segments git_segments >/dev/null; then
+  deny bad-parser "lib/parse.sh is missing or broken, so the command could not be checked; reinstall the plugin"
+fi
+# end:bad-parser
 
 # rule:bad-input
 printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1 \

@@ -109,6 +109,28 @@ rc=$?
 took=$((SECONDS - start))
 expect "a-push-cache (took ${took}s)" '[ $rc = 0 ] && [ -z "$out" ] && [ "$took" -le 3 ]'
 
+# lib/parse.sh missing, failing to source, or not defining the parser: guard blocks, ask-gate asks.
+BP="$TMP_ROOT/bad-parser"
+badparser() { # <missing|broken|empty> <script> -> sets rc, out, err
+  rm -rf "$BP" && cp -R "$HOOKS_DIR" "$BP"
+  case "$1" in
+    missing) rm "$BP/lib/parse.sh" ;;
+    broken) printf 'normalize() {\n' > "$BP/lib/parse.sh" ;;
+    empty) : > "$BP/lib/parse.sh" ;;
+  esac
+  # shellcheck disable=SC2034 # read by the eval in expect()
+  out=$(printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | "$HOOK_BASH" "$BP/$2.sh" 2>"$TMP_ROOT/bp.err")
+  rc=$?
+  # shellcheck disable=SC2034 # read by the eval in expect()
+  err=$(cat "$TMP_ROOT/bp.err")
+}
+for v in missing broken empty; do
+  badparser "$v" guard
+  expect "bp-guard-$v" '[ $rc = 2 ] && printf "%s" "$err" | grep -q "BLOCKED by harness guard (bad-parser)"'
+  badparser "$v" ask-gate
+  expect "bp-ask-gate-$v" '[ $rc = 0 ] && printf "%s" "$out" | grep -q "harness ask-gate (bad-parser)"'
+done
+
 # jq missing: a PATH with only the tools the hooks need, minus jq.
 NOJQ="$TMP_ROOT/nojq-bin"
 mkdir -p "$NOJQ"
