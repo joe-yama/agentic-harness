@@ -27,8 +27,12 @@ printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1 \
 # end:bad-input
 
 check_path() {
-  p=$1
-  base=${p##*/}
+  p=$1 lp=$1
+  # rule:path-case
+  # names match case-insensitively, as on macOS and Windows filesystems
+  lp=$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')
+  # end:path-case
+  base=${lp##*/}
   # rule:env-file-path
   case "$base" in
     .env.example) ;;
@@ -36,7 +40,7 @@ check_path() {
   esac
   # end:env-file-path
   # rule:secrets-dir-path
-  case "$p" in
+  case "$lp" in
     */.ssh | */.ssh/* | */.aws | */.aws/* | */.gnupg | */.gnupg/* | */.config/op | */.config/op/* | */.config/gh | */.config/gh/*)
       deny secrets-dir "credential directories are off limits: $p" ;;
   esac
@@ -182,20 +186,24 @@ EOF
     # end:git-alias
 
     # rule:env-file
-    # Split on whitespace, the quote marker, redirections and separators; judge each word's basename.
-    for word in $(printf '%s' "$cmd" | tr "=<>();|&\`\001" '           '); do
+    # Lowercase, split on whitespace, the quote marker, redirections, separators and ":" (HEAD:.env),
+    # and judge each word's basename. A glob (.env*, .env.?) counts: the shell expands it to the file.
+    for word in $(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]' | tr "=<>();|&\`:\001" '            '); do
       name=${word##*/}
       case "$name" in
         .env.example) ;;
-        .env | .env.*)
-          printf '%s' "$name" | grep -Eq '^\.env(\.[A-Za-z0-9_-]+)*$' \
+        .env | .env.* | .env[*?[]*)
+          printf '%s' "$name" | grep -Eq '^\.env([.*?[][]a-z0-9_.*?!^[-]*)?$' \
             && deny env-file ".env files are off limits; read values from the environment" ;;
       esac
     done
     # end:env-file
 
     # rule:secrets-dir
-    if printf '%s' "$cmd" | tr '\001' ' ' | grep -Eq "(~|\\\$HOME|\\\$\\{HOME\\}|/Users/[^/[:space:]]+|/home/[^/[:space:]]+)/\.(ssh|aws|gnupg|config/op|config/gh)([/[:space:]]|$)"; then
+    # Case-insensitive, after ~/, ~user/, $HOME/, ${HOME}/, /root/, /Users/<u>/, /home/<u>/, or at
+    # the start of a word (cd ~ && cat .ssh/id_rsa). So a word starting with .aws/ inside a project
+    # is refused too (accepted false positive); project/.aws/config passes.
+    if printf '%s' "$cmd" | tr '\001' ' ' | grep -Eiq "(~[^/[:space:]]*/|\\\$HOME/|\\\$\\{HOME\\}/|/root/|/Users/[^/[:space:]]+/|/home/[^/[:space:]]+/|(^|[[:space:]=<>();|&\`]))\.(ssh|aws|gnupg|config/op|config/gh)([/[:space:]]|$)"; then
       deny secrets-dir "credential directories are off limits"
     fi
     # end:secrets-dir
