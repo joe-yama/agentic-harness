@@ -90,7 +90,7 @@ bash tests/all.sh   # shellcheck, hook cases (tests/hooks/cases.tsv), lifecycle 
 claude --plugin-dir plugins/harness   # load the plugin under development
 ```
 
-Requires `jq`, `git`, `uv` and the `claude` CLI. Every hook rule sits between `# rule:<id>` and `# end:<id>`; `tests/hooks/mutate.sh` deletes each rule in turn and fails if no test notices.
+Before each commit, `tests/lint.sh`, `tests/hooks/run.sh` and `tests/hooks/lifecycle.sh` (and `tests/template/run.sh` for template changes) are enough; run `all.sh` before review and before a PR. Requires `jq`, `git`, `uv` and the `claude` CLI. Every hook rule sits between `# rule:<id>` and `# end:<id>`; `tests/hooks/mutate.sh` deletes each rule in turn and fails if no test notices.
 
 ## Credits
 

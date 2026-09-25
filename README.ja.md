@@ -113,7 +113,7 @@ bash tests/all.sh   # shellcheck、hook のケース（tests/hooks/cases.tsv）�
 claude --plugin-dir plugins/harness   # 開発中のプラグインを読み込む
 ```
 
-`jq`・`git`・`uv`・`claude` CLI が必要です。hook の規則はそれぞれ `# rule:<id>` と `# end:<id>` の間に置きます。`tests/hooks/mutate.sh` が規則を 1 つずつ消し、どのテストも落ちなければ失敗します。
+コミットの前は `tests/lint.sh`・`tests/hooks/run.sh`・`tests/hooks/lifecycle.sh`（テンプレートを変えたときは `tests/template/run.sh` も）で足ります。レビューの依頼前と PR の前に `all.sh` を実行します。`jq`・`git`・`uv`・`claude` CLI が必要です。hook の規則はそれぞれ `# rule:<id>` と `# end:<id>` の間に置きます。`tests/hooks/mutate.sh` が規則を 1 つずつ消し、どのテストも落ちなければ失敗します。
 
 ## クレジット
 
