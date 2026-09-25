@@ -219,8 +219,13 @@ g-ab-13	guard	none	-	pass	bash:rm --help
 g-ab-14	guard	none	-	pass	bash:git push --fol origin feature/x
 g-ab-15	guard	none	-	pass	bash:git branch --del x
 g-ab-16	guard	none	-	pass	bash:rm --rec dir
+g-ab-17	guard	none	-	block:discard	bash:git reset --h
+g-ab-18	guard	none	-	block:discard	bash:git clean --f -n
+g-ab-19	guard	none	-	block:rm-rf	bash:rm --r --f build
+g-ab-20	guard	none	-	block:force-push	bash:git push --f origin feature/x
 a-ab-01	ask-gate	none	-	ask:worktree-force	bash:git worktree remove --forc x
 a-ab-02	ask-gate	none	-	pass	bash:git worktree remove --help
+a-ab-03	ask-gate	none	-	ask:worktree-force	bash:git worktree remove --f x
 g-hk-01	guard	none	-	block:no-verify	bash:git -c core.hooksPath=/dev/null commit -m x
 g-hk-02	guard	none	-	block:no-verify	bash:git -c CORE.HOOKSPATH=x commit -m x
 g-hk-03	guard	none	-	block:no-verify	bash:git -c 'core.hooksPath=/dev/null' push origin feature/x

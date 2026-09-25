@@ -93,12 +93,14 @@ GOPT='([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|]+|--(git-dir|work-tree|names
 # end:parse-git-options
 
 # is_abbrev <token> <long option>...: git and GNU tools accept an unambiguous prefix of a long
-# option (--har for --hard). True when the token, without any =value, is at least 4 characters
-# ("--" + 2) and a prefix of one of the options.
+# option (--h for --hard: git 2.55 runs `git reset --h` as a hard reset). True when the token,
+# without any =value, is at least 3 characters ("--" + 1) and a prefix of one of the options.
+# A prefix shared with another option of the command (--fo: --force, --follow-tags) is refused by
+# git as ambiguous, so matching it too costs nothing.
 is_abbrev() {
   local t=${1%%=*} o
   shift
-  case "$t" in --??*) ;; *) return 1 ;; esac
+  case "$t" in --?*) ;; *) return 1 ;; esac
   for o in "$@"; do
     case "$o" in "$t"*) return 0 ;; esac
   done
