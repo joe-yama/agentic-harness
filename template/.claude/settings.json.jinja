@@ -1,3 +1,4 @@
+{#- Layout and key order match what `claude plugin install --scope project` writes (tests/template/run.sh). -#}
 {#- Pin the marketplace to the release tag this file was rendered from. `claude plugin tag` puts
     harness--vX.Y.Z on the same commit as vX.Y.Z, and Copier may report either; both name the same
     commit, so strip the prefix. Describe output (v1.0.0-3-gabc) or a bare SHA falls back to main. -#}
@@ -10,7 +11,11 @@
 {%- if test_cmd %}{% set _ = env.update({"HARNESS_TEST_CMD": test_cmd}) %}{% endif -%}
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "env": {{ env | tojson }},
+  "env": {
+{%- for k, v in env | dictsort %}
+    "{{ k }}": {{ v | to_json(ensure_ascii=False) }}{{ "," if not loop.last }}
+{%- endfor %}
+  },
   "permissions": {
     "allow": [
       "Read",
@@ -72,13 +77,27 @@
       "Bash(gh workflow run:*)"
     ]
   },
+{%- if ui_review %}
+  "enabledMcpjsonServers": [
+    "playwright"
+  ],
+{%- endif %}
+  "enabledPlugins": {
+    "harness@agentic-harness": true,
+    "superpowers@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "agentic-harness": {
+      "source": {
+        "source": "github",
+        "repo": "joe-yama/agentic-harness",
+        "ref": {{ ref | to_json(ensure_ascii=False) }}
+      }
+    }
+  },
   "sandbox": {
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
-    "excludedCommands": ["git", "git *", "gh", "gh *"],
-    "filesystem": {
-      "denyRead": ["~/.ssh", "~/.aws", "~/.gnupg", "~/.config/op", "~/.config/gh"]
-    },
     "network": {
       "allowedDomains": [
         "github.com",
@@ -94,13 +113,21 @@
         "index.crates.io"
       ],
       "allowLocalBinding": true
-    }
-  },
-  "extraKnownMarketplaces": {
-    "agentic-harness": {
-      "source": { "source": "github", "repo": "joe-yama/agentic-harness", "ref": {{ ref | tojson }} }
-    }
-  },
-  "enabledPlugins": { "harness@agentic-harness": true }{% if ui_review %},
-  "enabledMcpjsonServers": ["playwright"]{% endif %}
+    },
+    "filesystem": {
+      "denyRead": [
+        "~/.ssh",
+        "~/.aws",
+        "~/.gnupg",
+        "~/.config/op",
+        "~/.config/gh"
+      ]
+    },
+    "excludedCommands": [
+      "git",
+      "git *",
+      "gh",
+      "gh *"
+    ]
+  }
 }

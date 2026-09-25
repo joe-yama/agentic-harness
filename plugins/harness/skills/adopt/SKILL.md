@@ -54,9 +54,10 @@ Start an **interactive** Claude Code session in the repository and accept the wo
 
 ```sh
 claude plugin install harness@agentic-harness --scope project
+git diff --exit-code .claude/settings.json
 ```
 
-This also installs the `superpowers@claude-plugins-official` dependency. Restart the session so hooks, agents and skills load. Plugins run with your user privileges; read `plugins/harness/scripts/` at `<tag>` before installing. Until a folder is trusted, `claude -p` also ignores the project's `permissions.allow` entries.
+This also installs the `superpowers@claude-plugins-official` dependency. The template renders `.claude/settings.json` the way the install writes it, so the diff must be empty. A diff means this Claude Code version writes a different layout, or the file was edited after rendering; read it before committing. Restart the session so hooks, agents and skills load. Plugins run with your user privileges; read `plugins/harness/scripts/` at `<tag>` before installing. Until a folder is trusted, `claude -p` also ignores the project's `permissions.allow` entries.
 
 ## 6. OpenSpec
 
@@ -102,4 +103,4 @@ uvx copier@9.18.2 update --vcs-ref <new tag>
 grep -rnE '^(<<<<<<<|>>>>>>>) ' . --exclude-dir=.git     # Copier writes conflicts inline, not as .rej files
 ```
 
-`copier update` three-way-merges template changes and moves the marketplace pin in `.claude/settings.json` to the new tag. Resolve every conflict marker (a conflicted `.claude/settings.json` is not valid JSON until you do). Under auto mode the agent cannot write `.claude/settings.json`; prepare the merged file in the scratchpad and ask the PO to place it. Then restart the session so the new pin is read, run `claude plugin update harness@agentic-harness`, run the checks and open a PR.
+`copier update` three-way-merges template changes and moves the marketplace pin in `.claude/settings.json` to the new tag. Before resolving conflicts, read the agentic-harness changelog entries between the old and the new tag (`https://github.com/joe-yama/agentic-harness/blob/<new tag>/CHANGELOG.md`, not the product's own changelog); they say how to resolve the conflicts a release is known to cause. Resolve every conflict marker (a conflicted `.claude/settings.json` is not valid JSON until you do). Under auto mode the agent cannot write `.claude/settings.json`; prepare the merged file in the scratchpad and ask the PO to place it. Then restart the session so the new pin is read, run `claude plugin update harness@agentic-harness`, run the checks and open a PR.

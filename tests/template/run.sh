@@ -39,6 +39,16 @@ common() { # <name> <dest>
   check "$n-dependabot-schema" '$CJS --builtin-schema vendor.dependabot "$d/.github/dependabot.yml" >/dev/null 2>&1'
   check "$n-budget" '[ "$(cat "$d/AGENTS.md" "$d/CLAUDE.md" "$d"/.claude/rules/*.md | wc -c)" -le 16000 ]'
   check "$n-plugin" '[ "$(settings "$d" ".enabledPlugins[\"harness@agentic-harness\"]")" = true ]'
+  # `claude plugin install --scope project` rewrites settings.json as JSON.stringify(v, null, 2) with
+  # its own key order and enables the dependency. Rendering that exact form keeps the install a no-op
+  # (checked by hand with Claude Code 2.1.282: the file stays byte-identical). `jq --indent 2` matches
+  # JSON.stringify for these inputs (it differs only for DEL, which jq escapes).
+  check "$n-superpowers" '[ "$(settings "$d" ".enabledPlugins[\"superpowers@claude-plugins-official\"]")" = true ]'
+  check "$n-install-format" 'jq --indent 2 . "$d/.claude/settings.json" | cmp -s - "$d/.claude/settings.json"'
+  local top='$schema,env,permissions,enabledPlugins,extraKnownMarketplaces,sandbox'
+  [ -e "$d/.mcp.json" ] && top='$schema,env,permissions,enabledMcpjsonServers,enabledPlugins,extraKnownMarketplaces,sandbox'
+  check "$n-install-order" '[ "$(settings "$d" "keys_unsorted | join(\",\")")" = "$top" ] &&
+    [ "$(settings "$d" ".sandbox | keys_unsorted | join(\",\")")" = enabled,autoAllowBashIfSandboxed,network,filesystem,excludedCommands ]'
   check "$n-answers" '[ -f "$d/.copier-answers.yml" ]'
   check "$n-claude-imports" '[ "$(head -1 "$d/CLAUDE.md")" = "@AGENTS.md" ]'
 }
@@ -69,7 +79,7 @@ check node-lang 'grep -q "English" "$D2/AGENTS.md"'
 check node-commands 'grep -qF "pnpm test" "$D2/AGENTS.md"'
 
 D3="$TMP_ROOT/python"
-render "$D3" v9.9.0 --data 'test_cmd=uv run pytest -q' --data ui_review=true --data 'lint_cmd=uv run ruff check' --data 'lint_pattern=\.py$'
+render "$D3" v9.9.0 --data "test_cmd=uv run pytest -q 'tests/' && uv run mypy <src> # ü" --data ui_review=true --data 'lint_cmd=uv run ruff check' --data 'lint_pattern=\.py$'
 common python "$D3"
 check python-mcp 'jq -e ".mcpServers.playwright.args | index(\"@playwright/mcp@0.0.82\")" "$D3/.mcp.json" >/dev/null'
 check python-mcp-enabled '[ "$(settings "$D3" ".enabledMcpjsonServers[0]")" = playwright ]'
