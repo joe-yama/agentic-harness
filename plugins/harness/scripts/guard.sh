@@ -151,9 +151,11 @@ EOF
         is_abbrev "$tok" --no-verify --no-gpg-sign && deny no-verify "skipping hooks or signing is not allowed"
         if [ -z "$sub" ]; then
           if [ "$prev" = -c ]; then
-            # git -c core.hooksPath=<dir> (keys are case-insensitive) replaces the hooks
-            case "$(printf '%s' "${tok%%=*}" | tr '[:upper:]' '[:lower:]')" in
-              core.hookspath) deny no-verify "git -c core.hooksPath skips the repository's hooks" ;;
+            # git -c core.hooksPath=<dir> (keys are case-insensitive) replaces the hooks; a case
+            # pattern, not a tr per value: a fork per word runs past the hook timeout on a long command
+            case "${tok%%=*}" in
+              [Cc][Oo][Rr][Ee].[Hh][Oo][Oo][Kk][Ss][Pp][Aa][Tt][Hh])
+                deny no-verify "git -c core.hooksPath skips the repository's hooks" ;;
             esac
           fi
           # the subcommand is the first word after git that is neither an option nor an option's value
@@ -200,15 +202,18 @@ EOF
     # when jq is the command word (grep jq .env reads .env), and never across a separator
     ecmd=$(printf '%s\n' "$cmd" | sed -E "s#((^|[;&|(\`])[[:space:]]*${P}(jq|yq|gojq)([[:space:]]+-[^[:space:];&|<>()]*)*)[[:space:]]+[^[:space:];&|<>()]+#\1#g")
     # end:jq-filter
+    # The candidates are collected and checked by one grep: a grep per word runs past the hook
+    # timeout on a long command.
+    names=''
     for word in $(printf '%s' "$ecmd" | tr '[:upper:]' '[:lower:]' | tr "=<>();|&\`:\001" '            '); do
       name=${word##*/}
       case "$name" in
         .env.example) ;;
-        .env | .env.* | .env[*?[]*)
-          printf '%s' "$name" | grep -Eq '^\.env([.*?[][]a-z0-9_.*?!^[-]*)?$' \
-            && deny env-file ".env files are off limits; read values from the environment" ;;
+        .env | .env.* | .env[*?[]*) names=$names$name$'\n' ;;
       esac
     done
+    printf '%s' "$names" | grep -Eq '^\.env([.*?[][]a-z0-9_.*?!^[-]*)?$' \
+      && deny env-file ".env files are off limits; read values from the environment"
     # end:env-file
 
     # rule:secrets-dir

@@ -86,7 +86,7 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
   - 認証情報のディレクトリ名と `.env` の名前は、データも含めてコマンド文字列のどこにあっても拒否する。`~/.ssh` や `.env` に触れたコミットメッセージ、`grep -rn ".ssh" docs`、`grep -rn .aws README.md`、プロジェクト内の `.aws/…` のパス（`.aws/` で始まる語）も拒否される。例外は `.env.example` と、`jq` / `yq` / `gojq` のフィルタ（`jq '.env' …` は通る）。heredoc の本文は行ごとに検査されるので、長い本文は `--body-file` で渡す
   - 捕まえないもの: `jq -f .env`（フィルタとして読むので、jq のエラーに `.env` の一部が出うる）と、`:` の後の認証情報のディレクトリ（`git show HEAD:.ssh/id_rsa`）
   - 守っている長いオプションの前方一致は、そのオプションとして扱う（git 2.55 と同じく `git reset --h` は `--hard`）。git が曖昧として拒む前方一致（`git push --fo`）も拒否する
-  - 64 KiB を超えるコマンドは検査しない。guard は拒否し、ask-gate は確認を求めるので、ファイルに書いてそのファイルを実行する
+  - 64 KiB を超えるコマンドは検査しない。guard は拒否し、ask-gate は確認を求めるので、ファイルに書いてそのファイルを実行する。1 つのコマンドが 16 を超えるディレクトリから push するときも、ask-gate は確認を求める
   - `uv run` は確認なしに `uv.lock` を更新することがある
 - 第三者の部品と固定の仕方:
   - Superpowers（MIT、公式マーケットプレイスが固定）
@@ -109,7 +109,7 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
 ## 開発
 
 ```sh
-bash tests/all.sh   # shellcheck、hook のケース（tests/hooks/cases.tsv）、lifecycle テスト、規則の変異テスト、マニフェスト + claude plugin validate、テンプレートの描画
+bash tests/all.sh   # shellcheck、hook のケース（tests/hooks/cases.tsv）、lifecycle テスト、hook の所要時間、規則の変異テスト、マニフェスト + claude plugin validate、テンプレートの描画
 claude --plugin-dir plugins/harness   # 開発中のプラグインを読み込む
 ```
 

@@ -46,7 +46,7 @@ is_protected() {
 }
 
 # rule:protected-push
-looked='' # directories whose current branch was already looked up (and is not protected)
+looked='' lookups=0 # directories whose current branch was already looked up (and is not protected)
 while IFS= read -r seg; do
   [ -n "$seg" ] || continue
   dir=$cwd after=0 skip=0 prev='' npos=0 second=''
@@ -86,6 +86,11 @@ while IFS= read -r seg; do
     case "$looked" in *"$Q$dir$Q"*) continue ;; esac
     looked=$looked$Q$dir$Q
     # end:push-branch-cache
+    # rule:push-lookup-cap
+    # each lookup is a git call; thousands of distinct -C directories would run past the timeout
+    lookups=$((lookups + 1))
+    [ "$lookups" -le 16 ] || ask protected-push "more than 16 directories to check for a protected branch"
+    # end:push-lookup-cap
     cur=$(git -C "$dir" symbolic-ref --short -q HEAD 2>/dev/null || true)
     [ -n "$cur" ] && is_protected "$cur" && ask protected-push "push from protected branch $cur needs the PO"
   fi

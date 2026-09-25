@@ -3,7 +3,7 @@
 set -u
 here=$(cd "$(dirname "$0")" && pwd -P)
 status=0
-for t in lint.sh hooks/run.sh hooks/lifecycle.sh hooks/mutate.sh manifest.sh template/run.sh; do
+for t in lint.sh hooks/run.sh hooks/lifecycle.sh hooks/timing.sh hooks/mutate.sh manifest.sh template/run.sh; do
   echo "== $t"
   bash "$here/$t" || status=1
 done

@@ -38,3 +38,4 @@ jobs:
       - run: /bin/bash --version && jq --version
       - run: HOOK_BASH=/bin/bash bash tests/hooks/run.sh
       - run: HOOK_BASH=/bin/bash bash tests/hooks/lifecycle.sh
+      - run: HOOK_BASH=/bin/bash bash tests/hooks/timing.sh

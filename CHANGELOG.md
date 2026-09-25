@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The plugin version in
 - Tests: hook cases assert which rule fired (`block:<id>` / `ask:<id>`), cover a missing `jq`, and the mutation check covers `lib/parse.sh`.
 - guard's missing-`jq` message carries the id `no-jq`, like ask-gate's.
 - guard blocks and ask-gate asks (`bad-input`) when the hook input is not a JSON object, instead of letting the command through.
-- A command over 64 KiB is blocked by guard and asked by ask-gate (`too-large`) before parsing, so the hooks cannot time out on it.
+- A command over 64 KiB is blocked by guard and asked by ask-gate (`too-large`) before parsing. Below the cap, guard no longer forks per word (`git -c` keys, `.env`-like words; up to 16 s before) and ask-gate asks when a command needs the branch of more than 16 directories; `tests/hooks/timing.sh` checks that every hook answers within 5 s on commands up to the cap.
 - Abbreviated long options, down to one letter after `--`, count as the full option (`git reset --h`, `git clean --f`, `rm --r --f`, `git commit --no-verif`, `git worktree remove --f`).
 - guard blocks hook bypass by configuration: `git -c core.hooksPath=…` and `HUSKY=0 git …` (`no-verify`), and shell aliases `git -c alias.<x>=!…` (`git-alias`).
 - `pipe-shell` catches more spellings: `bash <(curl …)`, `source <(curl …)`, `| /bin/bash`, `| sudo -E bash`, `| tee x | sh`, and backticks or `$(curl …)` given to `sh -c` or `eval`.

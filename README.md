@@ -71,7 +71,7 @@ Resolve the conflict markers, restart Claude Code so it reads the new pin, run `
   - credential directory and `.env` names are refused anywhere in the command text, data included: a commit message that mentions `~/.ssh` or `.env`, `grep -rn ".ssh" docs`, `grep -rn .aws README.md`, and a project's own `.aws/…` path (a word starting with `.aws/`). The exceptions are `.env.example` and the filter of `jq` / `yq` / `gojq` (`jq '.env' …` passes). Heredoc bodies are checked line by line, so pass long bodies with `--body-file`;
   - not caught: `jq -f .env` (read as a filter, so parts of `.env` can appear in jq's error) and a credential directory after `:` (`git show HEAD:.ssh/id_rsa`);
   - any prefix of a guarded long option counts as the option (`git reset --h` is `--hard`, as git 2.55 reads it); a prefix git rejects as ambiguous (`git push --fo`) is refused too;
-  - a command over 64 KiB is not checked: guard refuses it and ask-gate asks; write it to a file and run the file;
+  - a command over 64 KiB is not checked: guard refuses it and ask-gate asks; write it to a file and run the file. ask-gate also asks when one command pushes from more than 16 directories;
   - `uv run` can update `uv.lock` without asking.
 - Third-party components: Superpowers (MIT, pinned by the official marketplace), OpenSpec (MIT, pinned tag via `gh skill`), Playwright MCP (Apache-2.0, exact version, only with `ui_review`). All GitHub Actions are pinned by commit SHA and updated by Dependabot.
 
@@ -86,7 +86,7 @@ Tags `vX.Y.Z` (template) and `harness--vX.Y.Z` (plugin, from `claude plugin tag`
 ## Development
 
 ```sh
-bash tests/all.sh   # shellcheck, hook cases (tests/hooks/cases.tsv), lifecycle tests, rule mutation test, manifests + claude plugin validate, template renders
+bash tests/all.sh   # shellcheck, hook cases (tests/hooks/cases.tsv), lifecycle tests, hook timing, rule mutation test, manifests + claude plugin validate, template renders
 claude --plugin-dir plugins/harness   # load the plugin under development
 ```
 

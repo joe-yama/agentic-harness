@@ -110,6 +110,8 @@ a-pp-20	ask-gate	feature	-	pass	bash:git push origin v1.0.0
 a-pp-21	ask-gate	main	HARNESS_PROTECTED_BRANCHES=trunk	pass	bash:git push
 a-pp-22	ask-gate	feature	-	pass	bash:gh issue comment 1 --body "run git push origin main later"
 a-pp-23	ask-gate	feature	-	ask:protected-push	bash:git push; git push; git -C ../main push
+a-pp-24	ask-gate	feature	-	pass	bash:git -C d0 push;git -C d1 push;git -C d2 push;git -C d3 push;git -C d4 push;git -C d5 push;git -C d6 push;git -C d7 push;git -C d8 push;git -C d9 push;git -C d10 push;git -C d11 push;git -C d12 push;git -C d13 push;git -C d14 push;git -C d15 push
+a-pp-25	ask-gate	feature	-	ask:protected-push	bash:git -C d0 push;git -C d1 push;git -C d2 push;git -C d3 push;git -C d4 push;git -C d5 push;git -C d6 push;git -C d7 push;git -C d8 push;git -C d9 push;git -C d10 push;git -C d11 push;git -C d12 push;git -C d13 push;git -C d14 push;git -C d15 push;git -C d16 push
 a-wt-01	ask-gate	none	-	ask:worktree-force	bash:git worktree remove --force .claude/worktrees/x
 a-wt-02	ask-gate	none	-	ask:worktree-force	bash:git worktree remove -f x
 a-wt-03	ask-gate	none	-	pass	bash:git worktree remove x
