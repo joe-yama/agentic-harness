@@ -196,8 +196,9 @@ EOF
     # and judge each word's basename. A glob (.env*, .env.?) counts: the shell expands it to the file.
     ecmd=$cmd
     # rule:jq-filter
-    # the first non-option argument of jq / yq / gojq is a filter (jq '.env' f), not a file
-    ecmd=$(printf '%s\n' "$cmd" | sed -E "s#((^|[;&|(\`[:space:]])${P}(jq|yq|gojq)([[:space:]]+-[^[:space:]]*)*)[[:space:]]+[^[:space:]]+#\1#g")
+    # the first non-option argument of jq / yq / gojq is a filter (jq '.env' f), not a file; only
+    # when jq is the command word (grep jq .env reads .env), and never across a separator
+    ecmd=$(printf '%s\n' "$cmd" | sed -E "s#((^|[;&|(\`])[[:space:]]*${P}(jq|yq|gojq)([[:space:]]+-[^[:space:];&|<>()]*)*)[[:space:]]+[^[:space:];&|<>()]+#\1#g")
     # end:jq-filter
     for word in $(printf '%s' "$ecmd" | tr '[:upper:]' '[:lower:]' | tr "=<>();|&\`:\001" '            '); do
       name=${word##*/}

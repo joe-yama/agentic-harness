@@ -276,6 +276,11 @@ g-jf-03	guard	none	-	pass	bash:yq -r '.env.API_URL' config.yml
 g-jf-04	guard	none	-	pass	bash:gh api repos/o/r | /usr/bin/gojq '.env | keys'
 g-jf-05	guard	none	-	block:env-file	bash:jq -r .env .env.local
 g-jf-06	guard	none	-	block:env-file	bash:jq .a f; cat .env
+g-jf-07	guard	none	-	block:env-file	bash:grep jq .env
+g-jf-08	guard	none	-	block:env-file	bash:grep -n yq .env
+g-jf-09	guard	none	-	block:env-file	bash:rg jq .env
+g-jf-10	guard	none	-	block:env-file	bash:cat jq .env
+g-jf-11	guard	none	-	block:env-file	bash:jq -n 1;cat<.env
 g-cf-01	guard	none	-	pass	bash:grep -c "rm -rf" build.sh
 g-cf-02	guard	none	-	pass	bash:git grep -c 'git push -f'
 g-cf-03	guard	none	-	pass	bash:/usr/bin/grep -c -e 'rm -rf' build.sh
