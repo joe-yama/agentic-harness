@@ -11,30 +11,66 @@
 # checked like any other command. Other quoted strings (commit messages, grep patterns, Issue
 # bodies) stay data. Quote state is tracked across newlines.
 normalize() {
-  local nl=$'\n'
-  printf '%s\n' "${1//\\$nl/ }" | awk -v sq="'" -v dq='"' '
-    function norm(s, depth,    out, q, inner, extra, i, ch, w, prevw, lead) {
-      out = ""; q = ""; inner = ""; extra = ""; w = ""; prevw = ""; lead = ""
+  local nl=$'\n' s=$1
+  # rule:parse-continuation
+  s=${s//\\$nl/ }
+  # end:parse-continuation
+  printf '%s\n' "$s" | awk -v sq="'" -v dq='"' '
+    function norm(s, depth,    out, q, inner, extra, i, ch, w, prevw, lead, cmdq, cw, cw2, copt) {
+      out = ""; q = ""; inner = ""; extra = ""; w = ""; prevw = ""; lead = ""; cw = ""; cw2 = ""; copt = 0
       for (i = 1; i <= length(s); i++) {
         ch = substr(s, i, 1)
         if (q == "") {
+          # rule:parse-dollar-quote
           if (ch == "$" && substr(s, i + 1, 1) == sq) continue
-          if (ch == sq || ch == dq) { q = ch; inner = ""; lead = (w != "" ? w : prevw); continue }
+          # end:parse-dollar-quote
+          if (ch == sq || ch == dq) {
+            q = ch; inner = ""; lead = (w != "" ? w : prevw); cmdq = 0
+            # rule:parse-command-string
+            if (lead ~ /^-[A-Za-z]*c$/ || lead == "eval") cmdq = 1
+            # end:parse-command-string
+            # rule:parse-c-options
+            # option words between -c and the string (bash -c -- "...", bash -c -x "...")
+            if (w == "" && copt) cmdq = 1
+            # end:parse-c-options
+            # rule:parse-here-string
+            if (lead == "<<<" && cw ~ /^(ba|z|da|k)?sh$/) cmdq = 1
+            # end:parse-here-string
+            # rule:parse-remote-command
+            # watch and ssh <host> run their quoted arguments as a command
+            if (cw == "watch" || cw == "ssh") cmdq = 1
+            # end:parse-remote-command
+            # rule:parse-count-flag
+            # -c counts (grep, wc, uniq), selects bytes (head, tail, cut) or complements (tr) here
+            if (lead ~ /^-/ && (cw ~ /^(e|f)?grep$|^(rg|wc|head|tail|cut|uniq|tr)$/ || (cw == "git" && cw2 == "grep"))) cmdq = 0
+            # end:parse-count-flag
+            continue
+          }
           out = out ch
           if (ch == " " || ch == "\t" || ch == "\n" || ch == ";" || ch == "&" || ch == "|") {
-            if (w != "") prevw = w
+            if (w != "") {
+              prevw = w
+              # the command word of the segment (without a path prefix) and the word after it
+              if (cw == "") { cw = w; sub(/.*\//, "", cw) } else if (cw2 == "") cw2 = w
+              # set by a -c word, kept by the option words after it
+              if (w ~ /^-[A-Za-z]*c$/) copt = 1
+              else if (w !~ /^-/) copt = 0
+            }
+            if (ch != " " && ch != "\t") { cw = ""; cw2 = ""; copt = 0 }
             w = ""
           } else w = w ch
         } else if (ch == q) {
           q = ""
-          if (depth < 4 && (lead ~ /^-[A-Za-z]*c$/ || lead == "eval")) extra = extra "\n" norm(inner, depth + 1)
+          if (depth < 4 && cmdq) extra = extra "\n" norm(inner, depth + 1)
           w = w "q"
         } else {
           inner = inner ch
-          out = out ((ch == " " || ch == "\t" || ch == "\n") ? "\001" : ch)
+          # rule:parse-quoted-blank
+          if (ch == " " || ch == "\t" || ch == "\n") ch = "\001"
+          # end:parse-quoted-blank
+          out = out ch
         }
       }
-      if (q != "" && depth < 4 && (lead ~ /^-[A-Za-z]*c$/ || lead == "eval")) extra = extra "\n" norm(inner, depth + 1)
       return out extra
     }
     { all = all $0 "\n" }
@@ -42,10 +78,34 @@ normalize() {
 }
 
 # Command-word boundary, and an optional path prefix on the command word (/bin/rm, /usr/bin/git).
+B='' P='' GOPT=''
+# rule:parse-word-boundary
 B='(^|[;&|(`[:space:]\\])'
+# end:parse-word-boundary
+# rule:parse-path-prefix
 P='([^[:space:];&|(`]*/)?'
+# end:parse-path-prefix
 # git global options that may precede the subcommand: -C <dir>, -c <k=v>, --git-dir <dir>, -P, --no-pager, --x=y.
+# Long options that take a separate value are named: a generic "--x <value>" would swallow the
+# subcommand (git --no-pager push would read "push" as the value of --no-pager).
+# rule:parse-git-options
 GOPT='([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|]+|--(git-dir|work-tree|namespace|super-prefix|config-env)[[:space:]]+[^[:space:];&|]+|-[A-Za-z]+|--[a-z-]+(=[^[:space:];&|]+)?))*'
+# end:parse-git-options
+
+# is_abbrev <token> <long option>...: git and GNU tools accept an unambiguous prefix of a long
+# option (--h for --hard: git 2.55 runs `git reset --h` as a hard reset). True when the token,
+# without any =value, is at least 3 characters ("--" + 1) and a prefix of one of the options.
+# A prefix shared with another option of the command (--fo: --force, --follow-tags) is refused by
+# git as ambiguous, so matching it too costs nothing.
+is_abbrev() {
+  local t=${1%%=*} o
+  shift
+  case "$t" in --?*) ;; *) return 1 ;; esac
+  for o in "$@"; do
+    case "$o" in "$t"*) return 0 ;; esac
+  done
+  return 1
+}
 
 # segments <word-regex>: each "<word> args..." up to the next ; & | separator, one per line. Reads $cmd.
 segments() { printf '%s\n' "$cmd" | grep -oE "${B}${P}$1([[:space:]]+[^;&|]*)?" || true; }

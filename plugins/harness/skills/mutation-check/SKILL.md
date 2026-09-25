@@ -14,7 +14,10 @@ Copy the repository **outside** the working tree, install dependencies **inside 
 ```sh
 EXP="$(mktemp -d)/exp"
 mkdir -p "$EXP" && git archive HEAD | tar -x -C "$EXP"
-git ls-files -m -o --exclude-standard | tar -c -T - | tar -x -C "$EXP"   # overlay uncommitted files
+# overlay uncommitted files; -m also lists deleted files, which tar cannot read: delete those in the copy
+git ls-files -m -o --exclude-standard | while IFS= read -r f; do
+  if [ -e "$f" ]; then printf '%s\n' "$f"; else rm -f -- "${EXP:?}/$f"; fi
+done | tar -c -T - | tar -x -C "$EXP"
 (cd "$EXP" && <install>)      # e.g. pnpm install --frozen-lockfile --offline / uv sync --locked
 (cd "$EXP" && <test>)         # control: must be green
 # apply the mutation inside $EXP (edit the guarded line, invert a condition, drop a branch)

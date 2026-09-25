@@ -82,7 +82,7 @@ agentic-harness/
 | PostToolUse `Edit\|Write\|MultiEdit` | `lint-on-edit.sh` | lint the edited file |
 | Stop | `test-on-stop.sh` | run tests before the turn ends |
 
-Commands use the documented form `bash "${CLAUDE_PLUGIN_ROOT}/scripts/<name>.sh"`. Scripts need `bash` (3.2 or later), `jq`, `git` and `awk`. `scripts/lib/parse.sh` normalizes a command before matching: backslash-newline continuations are joined, quotes are removed (a quoted argument stays one token), the content of each quoted string is checked as a command of its own (`sh -c '…'`), a path prefix on the command word is accepted (`/bin/rm`), and git global options before the subcommand are skipped.
+Hooks use the exec form `"command": "bash", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/<name>.sh"]`, so the path is one argument with no shell quoting. Scripts need `bash` (3.2 or later), `jq`, `git` and `awk`. `scripts/lib/parse.sh` normalizes a command before matching: backslash-newline continuations are joined, quotes are removed (a quoted argument stays one token), the content of each quoted string is checked as a command of its own (`sh -c '…'`), a path prefix on the command word is accepted (`/bin/rm`), and git global options before the subcommand are skipped.
 
 **`guard.sh`** blocks unconditionally (exit 2, reason on stderr). Each rule is a block tagged `# rule:<id>` so the mutation test can disable it:
 

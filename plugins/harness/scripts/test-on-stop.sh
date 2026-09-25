@@ -3,14 +3,19 @@
 # Runs HARNESS_TEST_CMD before Claude ends its turn when non-doc files have uncommitted
 # changes; on failure returns {"decision":"block"} so Claude keeps working.
 # stop_hook_active (set after a previous block) ends the loop.
+# {"decision":"block"} rather than hookSpecificOutput.additionalContext: both keep the turn going
+# under the same stop_hook_active protection, but every Claude Code version honors decision:block,
+# while a client that ignores additionalContext would let the turn end with failing tests.
 set -u
 # rule:stop-unset
 [ -n "${HARNESS_TEST_CMD:-}" ] || exit 0
 # end:stop-unset
+# rule:no-jq
 if ! command -v jq >/dev/null 2>&1; then
   echo "harness test-on-stop: jq not found; tests skipped" >&2
   exit 0
 fi
+# end:no-jq
 input=$(cat)
 # rule:stop-active
 [ "$(printf '%s' "$input" | jq -r '.stop_hook_active // false')" = true ] && exit 0
@@ -19,6 +24,15 @@ cwd=$(printf '%s' "$input" | jq -r '.cwd // ""')
 [ -n "$cwd" ] || cwd=$(pwd)
 root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || exit 0
 doc=${HARNESS_DOC_PATTERN:-'\.(md|txt)$|^docs/|^openspec/|^\.claude/'}
+# rule:stop-bad-pattern
+# grep exits 2 on an invalid regex; unchecked, no change would count as code and tests would be skipped silently
+grep -Eq -- "$doc" </dev/null
+if [ $? = 2 ]; then
+  jq -n --arg r "invalid HARNESS_DOC_PATTERN (not an extended regex): $doc. Fix it in .claude/settings.json; tests were not run." \
+    '{decision:"block",reason:$r}'
+  exit 0
+fi
+# end:stop-bad-pattern
 changed=$(
   {
     git -C "$root" diff --name-only HEAD 2>/dev/null || git -C "$root" diff --name-only

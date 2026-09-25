@@ -53,6 +53,10 @@ check defaults-teams-off '[ "$(settings "$D1" .env.CLAUDE_CODE_EXPERIMENTAL_AGEN
 check defaults-branch '[ "$(settings "$D1" .env.HARNESS_PROTECTED_BRANCHES)" = main ]'
 check defaults-no-mcp '[ ! -e "$D1/.mcp.json" ]'
 check defaults-lang 'grep -q "Japanese" "$D1/AGENTS.md" && grep -q "Japanese" "$D1/openspec/config.yaml"'
+# the "!" carve-out applies to the .env rules listed before it, so the order matters
+check defaults-env-deny '[ "$(settings "$D1" "[.permissions.deny[] | select(test(\"env\"))] | join(\" \")")" = "Read(.env) Read(.env.*) Read(!.env.example) Edit(.env) Edit(.env.*) Edit(!.env.example)" ]'
+check defaults-release-assets 'settings "$D1" ".sandbox.network.allowedDomains[]" | grep -qx release-assets.githubusercontent.com'
+check defaults-gh-login 'settings "$D1" ".permissions.allow[]" | grep -qxF "Bash(gh api user --jq .login)" && ! settings "$D1" ".permissions.allow[]" | grep -qF "gh api user:"'
 
 D2="$TMP_ROOT/node"
 render "$D2" v9.9.0 --data 'lint_cmd=pnpm exec biome check --error-on-warnings --no-errors-on-unmatched' \

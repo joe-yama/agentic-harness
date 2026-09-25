@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016 # assertions are single-quoted on purpose: expect() evals them later
-# Behavior tests for lint-on-edit.sh and test-on-stop.sh in throwaway git repositories.
+# Behavior tests for lint-on-edit.sh and test-on-stop.sh in throwaway git repositories,
+# and for every hook when jq is missing.
 # HOOKS_DIR overrides the script directory (used by mutate.sh).
 set -u
 here=$(cd "$(dirname "$0")" && pwd -P)
@@ -65,12 +66,15 @@ expect l-no-injection '[ $rc = 0 ] && [ ! -e "$R/pwned" ] && [ ! -e "$R/src/pwne
 echo BAD > "$TMP_ROOT/outside.ts"
 lint "$TMP_ROOT/outside.ts" HARNESS_LINT_CMD="$LINTER"
 expect l-outside-repo '[ $rc = 0 ]'
-# macOS: /tmp and /var are symlinks into /private; a path through the link must still resolve.
-case "$R" in
-  /private/*)
-    lint "${R#/private}/src/bad.ts" HARNESS_LINT_CMD="$LINTER"
-    expect l-symlinked-path '[ $rc = 2 ]' ;;
-esac
+# A path through a symlinked directory (e.g. macOS /tmp -> /private/tmp) must resolve to the
+# repo-relative path (the anchored pattern only matches then).
+ln -s "$R" "$TMP_ROOT/proj-link"
+lint "$TMP_ROOT/proj-link/src/bad.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_LINT_PATTERN="^src/"
+expect l-symlinked-path '[ $rc = 2 ]'
+lint "$R/src/good.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_LINT_PATTERN='('
+expect l-bad-lint-pattern '[ $rc = 2 ] && printf "%s" "$err" | grep -q "invalid HARNESS_LINT_PATTERN"'
+lint "$R/src/good.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_DOC_PATTERN='('
+expect l-bad-doc-pattern '[ $rc = 2 ] && printf "%s" "$err" | grep -q "invalid HARNESS_DOC_PATTERN"'
 
 M="$TMP_ROOT/ran"
 T="touch $M"
@@ -96,5 +100,69 @@ git -C "$R" add -A && git -C "$R" commit -q -m more
 echo new > "$R/src/untracked.ts"
 stop '{}' HARNESS_TEST_CMD="$T"
 expect s-untracked '[ -e "$M" ]'
+rm -f "$M"
+stop '{}' HARNESS_TEST_CMD="$T" HARNESS_DOC_PATTERN='('
+expect s-bad-doc-pattern '[ ! -e "$M" ] && [ "$(printf "%s" "$out" | jq -r .decision)" = block ] && printf "%s" "$out" | jq -r .reason | grep -q "invalid HARNESS_DOC_PATTERN"'
+
+# ask-gate looks up the current branch once per directory: 16 KiB of bare `git push;` on a
+# feature branch took 8 s with one lookup per segment (29 s at 64 KiB, over the 10 s timeout).
+F="$TMP_ROOT/feat"
+git init -q "$F" && git -C "$F" commit -q --allow-empty -m init && git -C "$F" checkout -q -b feature/x
+pushes=$(printf 'git push;%.0s' $(seq 1 1820))
+start=$SECONDS
+out=$(jq -nc --arg c "$pushes" --arg d "$F" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' \
+  | "$HOOK_BASH" "$HOOKS_DIR/ask-gate.sh" 2>/dev/null)
+rc=$?
+took=$((SECONDS - start))
+expect "a-push-cache (took ${took}s)" '[ $rc = 0 ] && [ -z "$out" ] && [ "$took" -le 3 ]'
+
+# lib/parse.sh missing, failing to source, or not defining the parser: guard blocks, ask-gate asks.
+BP="$TMP_ROOT/bad-parser"
+badparser() { # <missing|broken|empty> <script> -> sets rc, out, err
+  rm -rf "$BP" && cp -R "$HOOKS_DIR" "$BP"
+  case "$1" in
+    missing) rm "$BP/lib/parse.sh" ;;
+    broken) printf 'normalize() {\n' > "$BP/lib/parse.sh" ;;
+    empty) : > "$BP/lib/parse.sh" ;;
+  esac
+  # shellcheck disable=SC2034 # read by the eval in expect()
+  out=$(printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | "$HOOK_BASH" "$BP/$2.sh" 2>"$TMP_ROOT/bp.err")
+  rc=$?
+  # shellcheck disable=SC2034 # read by the eval in expect()
+  err=$(cat "$TMP_ROOT/bp.err")
+}
+for v in missing broken empty; do
+  badparser "$v" guard
+  expect "bp-guard-$v" '[ $rc = 2 ] && printf "%s" "$err" | grep -q "BLOCKED by harness guard (bad-parser)"'
+  badparser "$v" ask-gate
+  expect "bp-ask-gate-$v" '[ $rc = 0 ] && printf "%s" "$out" | grep -q "harness ask-gate (bad-parser)"'
+done
+
+# jq missing: a PATH with only the tools the hooks need, minus jq.
+NOJQ="$TMP_ROOT/nojq-bin"
+mkdir -p "$NOJQ"
+for t in bash cat dirname basename git grep sed awk tr sort tail head env pwd; do
+  p=$(command -v "$t") && ln -s "$p" "$NOJQ/$t"
+done
+hb=$(command -v "$HOOK_BASH")
+if env PATH="$NOJQ" "$hb" -c 'command -v jq' >/dev/null 2>&1; then ng "nojq PATH still finds jq"; else ok; fi
+nojq() { # <script> <stdin> [env args] -> sets rc, out, err
+  local s=$1 in=$2
+  shift 2
+  # shellcheck disable=SC2034 # read by the eval in expect()
+  out=$(printf '%s' "$in" | env PATH="$NOJQ" "$@" "$hb" "$HOOKS_DIR/$s.sh" 2>"$TMP_ROOT/nojq.err")
+  rc=$?
+  # shellcheck disable=SC2034 # read by the eval in expect()
+  err=$(cat "$TMP_ROOT/nojq.err")
+}
+nojq guard '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
+expect nj-guard-blocks '[ $rc = 2 ] && printf "%s" "$err" | grep -q "BLOCKED by harness guard (no-jq): jq is required"'
+nojq ask-gate '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
+expect nj-ask-gate-asks '[ $rc = 0 ] && printf "%s" "$out" | grep -q "\"permissionDecision\":\"ask\"" && printf "%s" "$out" | grep -q "harness ask-gate (no-jq)"'
+nojq lint-on-edit "{\"tool_input\":{\"file_path\":\"$R/src/bad.ts\"}}" HARNESS_LINT_CMD="$LINTER"
+expect nj-lint-skips '[ $rc = 0 ] && printf "%s" "$err" | grep -q "jq not found; lint skipped"'
+rm -f "$M"
+nojq test-on-stop "{\"cwd\":\"$R\"}" HARNESS_TEST_CMD="$T"
+expect nj-stop-skips '[ $rc = 0 ] && [ -z "$out" ] && [ ! -e "$M" ] && printf "%s" "$err" | grep -q "jq not found; tests skipped"'
 
 report "lifecycle"

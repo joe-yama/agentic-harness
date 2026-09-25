@@ -19,9 +19,12 @@ setup_git_env() {
 }
 
 ok() { PASS=$((PASS + 1)); }
+# MUTATE_FAIL_FAST=1 (set by mutate.sh for mutant runs) exits at the first failure: the verdict
+# "some case fails" is the same, and the rest of the suite is not needed to reach it.
 ng() {
   FAIL=$((FAIL + 1))
   printf 'FAIL %s\n' "$*" >&2
+  if [ "${MUTATE_FAIL_FAST:-}" = 1 ]; then exit 1; fi
 }
 
 report() {

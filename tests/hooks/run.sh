@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Runs every case in tests/hooks/cases.tsv against guard.sh / ask-gate.sh.
-# Payloads: bash:<command>, bashe:<command with printf %b escapes>, monitor:<command>, file:<Tool>:<path>.
+# expect: block:<id> | ask:<id> | pass, where <id> is the reason id the hook prints.
+# Payloads: bash:<command>, bashe:<command with printf %b escapes>, bashpad:<length>:<command>,
+# monitor:<command>, file:<Tool>:<path>,
+# raw:<hook input sent as is>.
 # HOOKS_DIR overrides the script directory (used by mutate.sh).
 set -u
 here=$(cd "$(dirname "$0")" && pwd -P)
@@ -22,11 +25,18 @@ while IFS=$'\t' read -r id script where envkv expect payload; do
   case "$id" in '' | '#'*) continue ;; esac
   cwd="$TMP_ROOT/$where"
   case "$payload" in
-    bash:* | bashe:* | monitor:*)
-      # bashe: interprets printf %b escapes (\n for newlines); monitor: sends the Monitor tool
+    bash:* | bashe:* | bashpad:* | monitor:*)
+      # bashe: interprets printf %b escapes (\n for newlines); monitor: sends the Monitor tool;
+      # bashpad:<n>:<command> appends " ; : aaa..." until the command is exactly n characters
       tname=Bash
       case "$payload" in
         bashe:*) c=$(printf '%b' "${payload#bashe:}") ;;
+        bashpad:*)
+          rest=${payload#bashpad:}
+          n=${rest%%:*}
+          c="${rest#*:} ; : "
+          c="$c$(printf '%*s' "$((n - ${#c}))" '' | tr ' ' a)"
+          ;;
         monitor:*) c=${payload#monitor:} tname=Monitor ;;
         *) c=${payload#bash:} ;;
       esac
@@ -38,21 +48,27 @@ while IFS=$'\t' read -r id script where envkv expect payload; do
       path=${rest#*:}
       json=$(jq -nc --arg t "$tool" --arg p "$path" --arg d "$cwd" \
         '{hook_event_name:"PreToolUse",tool_name:$t,tool_input:{file_path:$p},cwd:$d}') ;;
+    raw:*)
+      json=${payload#raw:} ;;
     *)
       ng "$id: bad payload"
       continue ;;
   esac
+  errf="$TMP_ROOT/stderr"
   if [ "$envkv" = "-" ]; then
-    out=$(cd "$cwd" && printf '%s' "$json" | "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>/dev/null)
+    out=$(cd "$cwd" && printf '%s' "$json" | "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>"$errf")
   else
-    out=$(cd "$cwd" && printf '%s' "$json" | env "$envkv" "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>/dev/null)
+    out=$(cd "$cwd" && printf '%s' "$json" | env "$envkv" "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>"$errf")
   fi
   rc=$?
   decision=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // empty' 2>/dev/null)
   if [ "$rc" -eq 2 ]; then
-    got=block
+    # the id printed in "BLOCKED by harness guard (<id>): ..."
+    got=block:$(sed -n 's/^BLOCKED by harness guard (\([a-z0-9-]*\)).*/\1/p' "$errf" | head -n 1)
   elif [ "$rc" -eq 0 ] && [ "$decision" = ask ]; then
-    got=ask
+    # the id in permissionDecisionReason "harness ask-gate (<id>): ..."
+    got=ask:$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' \
+      | sed -n 's/^harness ask-gate (\([a-z0-9-]*\)).*/\1/p')
   elif [ "$rc" -eq 0 ] && [ -z "$out" ]; then
     got=pass
   else

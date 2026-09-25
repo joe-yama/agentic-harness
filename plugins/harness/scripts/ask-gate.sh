@@ -13,11 +13,29 @@ ask() {
 }
 
 input=$(cat)
+# rule:no-jq
 command -v jq >/dev/null 2>&1 || ask no-jq "jq is missing, so the command could not be checked"
+# end:no-jq
+# rule:bad-input
+printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1 \
+  || ask bad-input "the hook input is not a JSON object, so the command could not be checked"
+# end:bad-input
 case "$(printf '%s' "$input" | jq -r '.tool_name // ""')" in Bash | Monitor) ;; *) exit 0 ;; esac
 # shellcheck source=lib/parse.sh
-. "$(dirname "$0")/lib/parse.sh"
-cmd=$(normalize "$(printf '%s' "$input" | jq -r '.tool_input.command // ""')")
+. "$(dirname "$0")/lib/parse.sh" 2>/dev/null
+parsed=$?
+# rule:bad-parser
+if [ "$parsed" != 0 ] || ! declare -F normalize is_abbrev segments git_segments >/dev/null; then
+  ask bad-parser "lib/parse.sh is missing or broken, so the command could not be checked; reinstall the plugin"
+fi
+# end:bad-parser
+raw=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
+# rule:too-large
+# bytes, not ${#raw}: in a UTF-8 locale that counts characters (3x the bytes for CJK), and awk is byte-based
+[ "$(($(printf '%s' "$raw" | wc -c)))" -le 65536 ] \
+  || ask too-large "the command is over 64 KiB and was not checked; write it to a file and run the file"
+# end:too-large
+cmd=$(normalize "$raw")
 cwd=$(printf '%s' "$input" | jq -r '.cwd // ""')
 [ -n "$cwd" ] || cwd=$(pwd)
 protected=${HARNESS_PROTECTED_BRANCHES:-main}
@@ -29,6 +47,7 @@ is_protected() {
 }
 
 # rule:protected-push
+looked='' lookups=0 # directories whose current branch was already looked up (and is not protected)
 while IFS= read -r seg; do
   [ -n "$seg" ] || continue
   dir=$cwd after=0 skip=0 prev='' npos=0 second=''
@@ -63,6 +82,16 @@ while IFS= read -r seg; do
     is_protected "$target" && ask protected-push "push to protected branch $target needs the PO"
   done
   if [ "$npos" -le 1 ] || [ "$second" = HEAD ] || [ "$second" = @ ]; then
+    # rule:push-branch-cache
+    # one git call per directory: a git call per segment runs past the hook timeout on a long command
+    case "$looked" in *"$Q$dir$Q"*) continue ;; esac
+    looked=$looked$Q$dir$Q
+    # end:push-branch-cache
+    # rule:push-lookup-cap
+    # each lookup is a git call; thousands of distinct -C directories would run past the timeout
+    lookups=$((lookups + 1))
+    [ "$lookups" -le 16 ] || ask protected-push "more than 16 directories to check for a protected branch"
+    # end:push-lookup-cap
     cur=$(git -C "$dir" symbolic-ref --short -q HEAD 2>/dev/null || true)
     [ -n "$cur" ] && is_protected "$cur" && ask protected-push "push from protected branch $cur needs the PO"
   fi
@@ -76,7 +105,11 @@ while IFS= read -r seg; do
   [ -n "$seg" ] || continue
   rm=0 force=0
   for tok in $seg; do
-    case "$tok" in remove) rm=1 ;; -f | --force) force=1 ;; esac
+    case "$tok" in
+      remove) rm=1 ;;
+      -f) force=1 ;;
+      --*) is_abbrev "$tok" --force && force=1 ;;
+    esac
   done
   [ "$rm" = 1 ] && [ "$force" = 1 ] && ask worktree-force "git worktree remove --force discards uncommitted work"
 done <<EOF

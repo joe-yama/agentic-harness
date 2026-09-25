@@ -4,23 +4,23 @@
       {
         "matcher": "Bash|Monitor",
         "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guard.sh\"", "timeout": 10 },
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ask-gate.sh\"", "timeout": 10 }
+          { "type": "command", "command": "bash", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/guard.sh"], "timeout": 10 },
+          { "type": "command", "command": "bash", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/ask-gate.sh"], "timeout": 10 }
         ]
       },
       {
         "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit",
-        "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guard.sh\"", "timeout": 10 }]
+        "hooks": [{ "type": "command", "command": "bash", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/guard.sh"], "timeout": 10 }]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
-        "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/lint-on-edit.sh\"", "timeout": 120 }]
+        "hooks": [{ "type": "command", "command": "bash", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/lint-on-edit.sh"], "timeout": 120 }]
       }
     ],
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/test-on-stop.sh\"", "timeout": 600 }] }
+      { "hooks": [{ "type": "command", "command": "bash", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/test-on-stop.sh"], "timeout": 600 }] }
     ]
   }
 }

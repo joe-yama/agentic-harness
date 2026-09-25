@@ -38,4 +38,4 @@ Stop the fix loop and start a **fresh** `harness:implementer` (new context, `mod
 2. two fix rounds have passed without Approved;
 3. the reviewer wrote "Re-implementation recommended".
 
-Record the rebuild and its reason in the ledger and on the Issue.
+Record the rebuild and its reason in the change's `openspec/changes/<name>/` (committed; `.superpowers/sdd/` is gitignored scratch) and on the Issue.

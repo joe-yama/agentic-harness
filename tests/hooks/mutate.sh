@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Proves every guarded rule is covered: for each "# rule:<id>" block in the hook scripts,
+# Proves every guarded rule is covered: for each "# rule:<id>" block in the hook scripts and lib/,
 # delete the block in a copy and require at least one test to fail. Control run first.
 set -u
 here=$(cd "$(dirname "$0")" && pwd -P)
@@ -7,8 +7,11 @@ repo=$(cd "$here/../.." && pwd -P)
 src=${HOOKS_SRC:-$repo/plugins/harness/scripts}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+# suite <hooks dir> [1]: both suites pass. A mutant only needs one failing case, so with the
+# fail-fast argument each suite stops at its first failure; the verdict is the same.
 suite() {
-  HOOKS_DIR=$1 bash "$here/run.sh" >/dev/null 2>&1 && HOOKS_DIR=$1 bash "$here/lifecycle.sh" >/dev/null 2>&1
+  HOOKS_DIR=$1 MUTATE_FAIL_FAST=${2:-} bash "$here/lifecycle.sh" >/dev/null 2>&1 \
+    && HOOKS_DIR=$1 MUTATE_FAIL_FAST=${2:-} bash "$here/run.sh" >/dev/null 2>&1
 }
 
 if ! suite "$src"; then
@@ -16,7 +19,8 @@ if ! suite "$src"; then
   exit 1
 fi
 survivors=0 total=0
-for script in "$src"/*.sh; do
+for script in "$src"/*.sh "$src"/lib/*.sh; do
+  rel=${script#"$src"/}
   while IFS= read -r id; do
     total=$((total + 1))
     rm -r "$work/s" 2>/dev/null
@@ -24,9 +28,9 @@ for script in "$src"/*.sh; do
     awk -v id="$id" '
       $0 ~ "# rule:" id "$" { skip = 1; next }
       $0 ~ "# end:" id "$" { skip = 0; next }
-      !skip' "$script" > "$work/s/$(basename "$script")"
-    if suite "$work/s"; then
-      echo "SURVIVED: $(basename "$script") rule:$id (no test fails without it)" >&2
+      !skip' "$script" > "$work/s/$rel"
+    if suite "$work/s" 1; then
+      echo "SURVIVED: $rel rule:$id (no test fails without it)" >&2
       survivors=$((survivors + 1))
     fi
   done < <(grep -oE '^[[:space:]]*# rule:[a-z0-9-]+' "$script" | sed 's/.*rule://')
