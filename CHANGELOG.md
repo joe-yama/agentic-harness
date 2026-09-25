@@ -11,7 +11,7 @@ All notable changes to this project are documented here. The plugin version in
 - A command over 64 KiB is blocked by guard and asked by ask-gate (`too-large`) before parsing, so the hooks cannot time out on it.
 - Abbreviated long options count as the full option (`git reset --har`, `rm --rec --for`, `git commit --no-verif`, `git worktree remove --forc`).
 - guard blocks hook bypass by configuration: `git -c core.hooksPath=…` and `HUSKY=0 git …` (`no-verify`), and shell aliases `git -c alias.<x>=!…` (`git-alias`).
-- guard blocks hook bypass by configuration: `git -c core.hooksPath=…` and `HUSKY=0 git …` (`no-verify`), and shell aliases `git -c alias.<x>=!…` (`git-alias`).
+- `pipe-shell` catches more spellings: `bash <(curl …)`, `source <(curl …)`, `| /bin/bash`, `| sudo -E bash`, `| tee x | sh`, and backticks or `$(curl …)` given to `sh -c` or `eval`.
 
 ## [0.1.0] - 2026-09-25
 

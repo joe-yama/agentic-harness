@@ -201,9 +201,41 @@ EOF
     # end:secrets-dir
 
     # rule:pipe-shell
-    flat=$(printf '%s' "$cmd" | tr '\001' ' ')
-    if printf '%s' "$flat" | grep -Eq "(curl|wget)[^|]*\|[[:space:]]*(sudo[[:space:]]+)?(ba|z|da|k)?sh([[:space:]]|$)" \
-      || printf '%s' "$flat" | grep -Eq "(ba|z|da|k)?sh[[:space:]]+-c[[:space:]]+\\\$\((curl|wget)"; then
+    # A download (curl / wget) reaching a shell: a later pipe stage whose command word, after sudo
+    # and its options and any path prefix, is a shell; <(download) given to a shell, source or .;
+    # and `download` / $(download) given to sh -c or eval. Quoted blanks are still \001 here, so a
+    # quoted "curl x | sh" (an Issue body) is data; inside sh -c '…' it is checked on its own line.
+    Q=$(printf '\001')
+    if printf '%s\n' "$cmd" | awk '
+      {
+        gsub(/\|\|/, ";")
+        gsub(/\|&/, "|")
+        n = split($0, cmds, /[;&]/)
+        for (i = 1; i <= n; i++) {
+          m = split(cmds[i], st, "|")
+          dl = 0
+          for (j = 1; j <= m; j++) {
+            if (dl) {
+              k = split(st[j], w)
+              x = 1
+              if (w[x] ~ /(^|\/)sudo$/) {
+                x++
+                while (x <= k && w[x] ~ /^-/) {
+                  if (w[x] ~ /^-[A-Za-z]*[ugCDhprT]$/) x++
+                  x++
+                }
+              }
+              c = w[x]
+              sub(/.*\//, "", c)
+              if (c ~ /^(ba|z|da|k)?sh$/) { found = 1; exit }
+            }
+            if (st[j] ~ /(^|[ \t(`\/])(curl|wget)([ \t]|$)/) dl = 1
+          }
+        }
+      }
+      END { exit !found }' \
+      || printf '%s\n' "$cmd" | grep -Eq "${B}${P}((ba|z|da|k)?sh|source|\.)([[:space:]]+[^;&|<]*)?[[:space:]]*<\([[:space:]$Q]*${P}(curl|wget)([[:space:]$Q]|\))" \
+      || printf '%s\n' "$cmd" | grep -Eq "((ba|z|da|k)?sh[[:space:]]+-[A-Za-z]*c([[:space:]]+-[^[:space:]]*)*|eval)[[:space:]]+(\\\$\(|\`)[[:space:]$Q]*${P}(curl|wget)"; then
       deny pipe-shell "piping a download into a shell is not allowed"
     fi
     # end:pipe-shell
