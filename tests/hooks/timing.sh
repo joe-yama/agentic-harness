@@ -12,6 +12,8 @@ repo=$(cd "$here/../.." && pwd -P)
 setup_git_env
 HOOKS_DIR=${HOOKS_DIR:-$repo/plugins/harness/scripts}
 HOOK_BASH=${HOOK_BASH:-bash} # e.g. /bin/bash to test macOS bash 3.2
+# Hooks run in the user's locale, usually UTF-8, where ${#var} counts characters, not bytes.
+export LC_ALL=C.UTF-8
 LIMIT=5 # seconds; generous for slow CI runners, far below what a per-word fork costs
 CAP=65536
 F="$TMP_ROOT/feat"
@@ -54,6 +56,10 @@ timed t-push guard pass "$(fill 'git push;')"
 timed t-push ask-gate pass "$(fill 'git push;')"
 timed t-push-x-main ask-gate ask:protected-push "$(fill 'git push x ; ' 'git push origin main')"
 timed t-push-dirs ask-gate ask:protected-push "$(awk -v cap="$CAP" 'BEGIN { while (length(s) < cap - 40) s = s sprintf("git -C d%d push;", i++); printf "%s", s }')"
+# 65536 characters of a 3-byte character: over the byte cap, so refused before awk (byte-based) runs
+timed t-utf8 guard block:too-large "$(fill '日')"
+timed t-utf8 ask-gate ask:too-large "$(fill '日')"
+timed t-utf8-rm guard block:too-large "$(fill '日' "' ; rm -rf ~/work'")"
 timed t-install ask-gate pass "$(fill 'pnpm install --frozen-lockfile ; ')"
 
 report timing

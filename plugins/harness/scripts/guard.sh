@@ -60,7 +60,8 @@ case "$tool" in
     raw=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
     # rule:too-large
     # the parser is quadratic in the length; a timed-out hook would let the command through
-    [ "${#raw}" -le 65536 ] \
+    # bytes, not ${#raw}: in a UTF-8 locale that counts characters (3x the bytes for CJK), and awk is byte-based
+    [ "$(($(printf '%s' "$raw" | wc -c)))" -le 65536 ] \
       || deny too-large "the command is over 64 KiB; write it to a file and run the file"
     # end:too-large
     cmd=$(normalize "$raw")
