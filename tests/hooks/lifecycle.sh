@@ -66,12 +66,11 @@ expect l-no-injection '[ $rc = 0 ] && [ ! -e "$R/pwned" ] && [ ! -e "$R/src/pwne
 echo BAD > "$TMP_ROOT/outside.ts"
 lint "$TMP_ROOT/outside.ts" HARNESS_LINT_CMD="$LINTER"
 expect l-outside-repo '[ $rc = 0 ]'
-# macOS: /tmp and /var are symlinks into /private; a path through the link must still resolve.
-case "$R" in
-  /private/*)
-    lint "${R#/private}/src/bad.ts" HARNESS_LINT_CMD="$LINTER"
-    expect l-symlinked-path '[ $rc = 2 ]' ;;
-esac
+# A path through a symlinked directory (e.g. macOS /tmp -> /private/tmp) must resolve to the
+# repo-relative path (the anchored pattern only matches then).
+ln -s "$R" "$TMP_ROOT/proj-link"
+lint "$TMP_ROOT/proj-link/src/bad.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_LINT_PATTERN="^src/"
+expect l-symlinked-path '[ $rc = 2 ]'
 
 M="$TMP_ROOT/ran"
 T="touch $M"
