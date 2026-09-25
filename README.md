@@ -67,7 +67,7 @@ Resolve the conflict markers, restart Claude Code so it reads the new pin, run `
 - Do not run `claude -p` over repositories you do not trust without `--bare`: committed hooks run in headless mode.
 - The hooks match command text; they are a tripwire, not a sandbox. The template turns on the Claude Code sandbox (credential directories unreadable, network limited to GitHub and package registries) as the OS-level boundary. Known gaps and false positives:
   - a quoted string is checked as a command only after `-c` (`sh -c '…'`, `bash -lc "…"`) or `eval`; other quoted strings (commit messages, grep patterns, Issue bodies) are data. A quoted `.env` is still treated as a file name (`jq '.env' …` is refused), and heredoc bodies are checked line by line, so pass long bodies with `--body-file`;
-  - commands assembled from variables, run through another interpreter (`python -c`, `node -e`), or spelled with abbreviated long options (`--har`) are not seen;
+  - commands assembled from variables or run through another interpreter (`python -c`, `node -e`) are not seen;
   - `uv run` can update `uv.lock` without asking.
 - Third-party components: Superpowers (MIT, pinned by the official marketplace), OpenSpec (MIT, pinned tag via `gh skill`), Playwright MCP (Apache-2.0, exact version, only with `ui_review`). All GitHub Actions are pinned by commit SHA and updated by Dependabot.
 

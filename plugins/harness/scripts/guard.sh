@@ -62,9 +62,10 @@ case "$tool" in
       for tok in $seg; do
         case "$tok" in
           --) break ;;
-          --recursive) rec=1 ;;
-          --force) force=1 ;;
-          --*) ;;
+          --*)
+            is_abbrev "$tok" --recursive && rec=1
+            is_abbrev "$tok" --force && force=1
+            ;;
           -*)
             case "$tok" in *[rR]*) rec=1 ;; esac
             case "$tok" in *f*) force=1 ;; esac
@@ -84,7 +85,10 @@ EOF
         case "$tok" in
           --force | --force=* | --force-with-lease | --force-with-lease=* | --force-if-includes)
             deny force-push "force push rewrites shared history" ;;
-          --*) ;;
+          --*)
+            is_abbrev "$tok" --force --force-with-lease --force-if-includes \
+              && deny force-push "force push rewrites shared history"
+            ;;
           -*f*) deny force-push "force push rewrites shared history" ;;
           +?*) deny force-push "a +refspec is a force push" ;;
         esac
@@ -102,14 +106,16 @@ EOF
         case "$tok" in reset | clean | checkout | restore | branch) [ -z "$sub" ] && sub=$tok && continue ;; esac
         [ -n "$sub" ] || continue
         case "$sub:$tok" in
-          reset:--hard | reset:--merge) deny discard "git reset $tok discards work" ;;
-          clean:--force | clean:-*f*) deny discard "git clean -f deletes untracked files" ;;
+          reset:--*) is_abbrev "$tok" --hard --merge && deny discard "git reset $tok discards work" ;;
+          clean:--*) is_abbrev "$tok" --force && deny discard "git clean --force deletes untracked files" ;;
+          clean:-*f*) deny discard "git clean -f deletes untracked files" ;;
           checkout:. | checkout:./ | restore:. | restore:./) whole=1 ;;
           restore:--staged | restore:-S) staged=1 ;;
           restore:--worktree | restore:-W) worktree=1 ;;
-          branch:--delete) del=1 ;;
-          branch:--force) force=1 ;;
-          branch:--*) ;;
+          branch:--*)
+            is_abbrev "$tok" --delete && del=1
+            is_abbrev "$tok" --force && force=1
+            ;;
           branch:-*D*) deny discard "git branch -D drops unmerged work" ;;
           branch:-*)
             case "$tok" in *d*) del=1 ;; esac
@@ -132,7 +138,7 @@ EOF
       [ -n "$seg" ] || continue
       sub='' prev=''
       for tok in $seg; do
-        case "$tok" in --no-verify | --no-gpg-sign) deny no-verify "skipping hooks or signing is not allowed" ;; esac
+        is_abbrev "$tok" --no-verify --no-gpg-sign && deny no-verify "skipping hooks or signing is not allowed"
         if [ -z "$sub" ]; then
           # the subcommand is the first word after git that is neither an option nor an option's value
           case "$prev:$tok" in

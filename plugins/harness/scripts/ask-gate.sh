@@ -87,7 +87,11 @@ while IFS= read -r seg; do
   [ -n "$seg" ] || continue
   rm=0 force=0
   for tok in $seg; do
-    case "$tok" in remove) rm=1 ;; -f | --force) force=1 ;; esac
+    case "$tok" in
+      remove) rm=1 ;;
+      -f) force=1 ;;
+      --*) is_abbrev "$tok" --force && force=1 ;;
+    esac
   done
   [ "$rm" = 1 ] && [ "$force" = 1 ] && ask worktree-force "git worktree remove --force discards uncommitted work"
 done <<EOF

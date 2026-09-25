@@ -202,3 +202,21 @@ g-tl-04	guard	none	-	pass	bashpad:65536:ls
 g-tl-05	guard	none	-	block:too-large	bashpad:65537:rm -rf x
 a-tl-01	ask-gate	none	-	ask:too-large	bashpad:65537:ls
 a-tl-02	ask-gate	none	-	pass	bashpad:65536:ls
+g-ab-01	guard	none	-	block:discard	bash:git reset --har
+g-ab-02	guard	none	-	block:discard	bash:git reset --me HEAD~1
+g-ab-03	guard	none	-	block:discard	bash:git clean --forc
+g-ab-04	guard	none	-	block:no-verify	bash:git commit --no-verif -m x
+g-ab-05	guard	none	-	block:no-verify	bash:git commit --no-gpg -m x
+g-ab-06	guard	none	-	block:rm-rf	bash:rm --rec --for build
+g-ab-07	guard	none	-	block:force-push	bash:git push --forc origin feature/x
+g-ab-08	guard	none	-	block:force-push	bash:git push --force-with=feature/x origin feature/x
+g-ab-09	guard	none	-	block:force-push	bash:git push --force-if origin feature/x
+g-ab-10	guard	none	-	block:discard	bash:git branch --del --forc x
+g-ab-11	guard	none	-	pass	bash:git commit --no-edit
+g-ab-12	guard	none	-	pass	bash:git reset --help
+g-ab-13	guard	none	-	pass	bash:rm --help
+g-ab-14	guard	none	-	pass	bash:git push --fol origin feature/x
+g-ab-15	guard	none	-	pass	bash:git branch --del x
+g-ab-16	guard	none	-	pass	bash:rm --rec dir
+a-ab-01	ask-gate	none	-	ask:worktree-force	bash:git worktree remove --forc x
+a-ab-02	ask-gate	none	-	pass	bash:git worktree remove --help

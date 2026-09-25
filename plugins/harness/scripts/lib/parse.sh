@@ -65,6 +65,19 @@ P='([^[:space:];&|(`]*/)?'
 GOPT='([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|]+|--(git-dir|work-tree|namespace|super-prefix|config-env)[[:space:]]+[^[:space:];&|]+|-[A-Za-z]+|--[a-z-]+(=[^[:space:];&|]+)?))*'
 # end:parse-git-options
 
+# is_abbrev <token> <long option>...: git and GNU tools accept an unambiguous prefix of a long
+# option (--har for --hard). True when the token, without any =value, is at least 4 characters
+# ("--" + 2) and a prefix of one of the options.
+is_abbrev() {
+  local t=${1%%=*} o
+  shift
+  case "$t" in --??*) ;; *) return 1 ;; esac
+  for o in "$@"; do
+    case "$o" in "$t"*) return 0 ;; esac
+  done
+  return 1
+}
+
 # segments <word-regex>: each "<word> args..." up to the next ; & | separator, one per line. Reads $cmd.
 segments() { printf '%s\n' "$cmd" | grep -oE "${B}${P}$1([[:space:]]+[^;&|]*)?" || true; }
 
