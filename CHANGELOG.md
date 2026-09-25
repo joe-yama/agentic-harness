@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. The plugin version in
 `plugins/harness/.claude-plugin/plugin.json` and the git tags `vX.Y.Z` / `harness--vX.Y.Z` follow this file.
 
-## Unreleased
+## [0.2.0] - 2026-09-25
 
 - Tests: hook cases assert which rule fired (`block:<id>` / `ask:<id>`), cover a missing `jq`, and the mutation check covers `lib/parse.sh`.
 - guard's missing-`jq` message carries the id `no-jq`, like ask-gate's.

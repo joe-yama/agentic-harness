@@ -31,8 +31,8 @@
 ```sh
 # プロダクトのリポジトリで（既定ブランチが GitHub 上に既にあること）
 git switch -c fix/adopt-agentic-harness
-uvx copier@9.18.2 copy --vcs-ref v0.1.0 gh:joe-yama/agentic-harness .
-claude            # 対話モードで信頼ダイアログを承認する。v0.1.0 に固定されたマーケットプレイスが登録される
+uvx copier@9.18.2 copy --vcs-ref v0.2.0 gh:joe-yama/agentic-harness .
+claude            # 対話モードで信頼ダイアログを承認する。v0.2.0 に固定されたマーケットプレイスが登録される
 claude plugin install harness@agentic-harness --scope project
 ```
 
