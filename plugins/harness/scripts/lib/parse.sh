@@ -16,8 +16,8 @@ normalize() {
   s=${s//\\$nl/ }
   # end:parse-continuation
   printf '%s\n' "$s" | awk -v sq="'" -v dq='"' '
-    function norm(s, depth,    out, q, inner, extra, i, ch, w, prevw, lead, cmdq, cw, cw2) {
-      out = ""; q = ""; inner = ""; extra = ""; w = ""; prevw = ""; lead = ""; cw = ""; cw2 = ""
+    function norm(s, depth,    out, q, inner, extra, i, ch, w, prevw, lead, cmdq, cw, cw2, copt) {
+      out = ""; q = ""; inner = ""; extra = ""; w = ""; prevw = ""; lead = ""; cw = ""; cw2 = ""; copt = 0
       for (i = 1; i <= length(s); i++) {
         ch = substr(s, i, 1)
         if (q == "") {
@@ -29,6 +29,17 @@ normalize() {
             # rule:parse-command-string
             if (lead ~ /^-[A-Za-z]*c$/ || lead == "eval") cmdq = 1
             # end:parse-command-string
+            # rule:parse-c-options
+            # option words between -c and the string (bash -c -- "...", bash -c -x "...")
+            if (w == "" && copt) cmdq = 1
+            # end:parse-c-options
+            # rule:parse-here-string
+            if (lead == "<<<" && cw ~ /^(ba|z|da|k)?sh$/) cmdq = 1
+            # end:parse-here-string
+            # rule:parse-remote-command
+            # watch and ssh <host> run their quoted arguments as a command
+            if (cw == "watch" || cw == "ssh") cmdq = 1
+            # end:parse-remote-command
             # rule:parse-count-flag
             # -c counts (grep, wc, uniq), selects bytes (head, tail, cut) or complements (tr) here
             if (lead ~ /^-/ && (cw ~ /^(e|f)?grep$|^(rg|wc|head|tail|cut|uniq|tr)$/ || (cw == "git" && cw2 == "grep"))) cmdq = 0
@@ -41,8 +52,11 @@ normalize() {
               prevw = w
               # the command word of the segment (without a path prefix) and the word after it
               if (cw == "") { cw = w; sub(/.*\//, "", cw) } else if (cw2 == "") cw2 = w
+              # set by a -c word, kept by the option words after it
+              if (w ~ /^-[A-Za-z]*c$/) copt = 1
+              else if (w !~ /^-/) copt = 0
             }
-            if (ch != " " && ch != "\t") { cw = ""; cw2 = "" }
+            if (ch != " " && ch != "\t") { cw = ""; cw2 = ""; copt = 0 }
             w = ""
           } else w = w ch
         } else if (ch == q) {

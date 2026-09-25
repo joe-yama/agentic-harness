@@ -274,3 +274,11 @@ g-cf-01	guard	none	-	pass	bash:grep -c "rm -rf" build.sh
 g-cf-02	guard	none	-	pass	bash:git grep -c 'git push -f'
 g-cf-03	guard	none	-	pass	bash:/usr/bin/grep -c -e 'rm -rf' build.sh
 g-cf-04	guard	none	-	block:rm-rf	bash:sudo sh -c 'rm -rf x'
+g-cs-01	guard	none	-	block:rm-rf	bash:bash -c -- 'rm -rf x'
+g-cs-02	guard	none	-	block:rm-rf	bash:bash -c -x 'rm -rf x'
+g-cs-03	guard	none	-	block:rm-rf	bash:bash <<< 'rm -rf x'
+g-cs-04	guard	none	-	pass	bash:cat <<< 'rm -rf x'
+g-cs-05	guard	none	-	block:force-push	bash:watch -n 5 'git push -f'
+g-cs-06	guard	none	-	block:rm-rf	bash:ssh host 'rm -rf /srv/app'
+g-cs-07	guard	none	-	pass	bash:git -c user.name=x commit -m 'rm -rf'
+a-cs-01	ask-gate	feature	-	ask:protected-push	bash:ssh host "git push origin main"
