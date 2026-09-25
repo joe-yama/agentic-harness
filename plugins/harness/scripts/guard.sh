@@ -21,6 +21,11 @@ deny() {
   exit 2
 }
 
+# rule:bad-input
+printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1 \
+  || deny bad-input "the hook input is not a JSON object, so the command could not be checked"
+# end:bad-input
+
 check_path() {
   p=$1
   base=${p##*/}

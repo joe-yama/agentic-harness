@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs every case in tests/hooks/cases.tsv against guard.sh / ask-gate.sh.
 # expect: block:<id> | ask:<id> | pass, where <id> is the reason id the hook prints.
-# Payloads: bash:<command>, bashe:<command with printf %b escapes>, monitor:<command>, file:<Tool>:<path>.
+# Payloads: bash:<command>, bashe:<command with printf %b escapes>, monitor:<command>, file:<Tool>:<path>,
+# raw:<hook input sent as is>.
 # HOOKS_DIR overrides the script directory (used by mutate.sh).
 set -u
 here=$(cd "$(dirname "$0")" && pwd -P)
@@ -39,6 +40,8 @@ while IFS=$'\t' read -r id script where envkv expect payload; do
       path=${rest#*:}
       json=$(jq -nc --arg t "$tool" --arg p "$path" --arg d "$cwd" \
         '{hook_event_name:"PreToolUse",tool_name:$t,tool_input:{file_path:$p},cwd:$d}') ;;
+    raw:*)
+      json=${payload#raw:} ;;
     *)
       ng "$id: bad payload"
       continue ;;

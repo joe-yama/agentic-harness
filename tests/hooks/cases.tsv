@@ -1,4 +1,4 @@
-# id	script	where	env	expect	payload   (TAB-separated; expect = block:<id> | ask:<id> | pass, <id> = the reason id the hook prints; payload = bash:<command> | file:<Tool>:<path>)
+# id	script	where	env	expect	payload   (TAB-separated; expect = block:<id> | ask:<id> | pass, <id> = the reason id the hook prints; payload = see run.sh)
 g-rm-01	guard	none	-	block:rm-rf	bash:rm -rf build
 g-rm-02	guard	none	-	block:rm-rf	bash:rm -fr build
 g-rm-03	guard	none	-	block:rm-rf	bash:rm -r -f build
@@ -192,3 +192,8 @@ g-nq-06	guard	none	-	block:rm-rf	bash:bash -lc 'rm -rf x'
 g-nq-07	guard	none	-	block:rm-rf	bash:eval "rm -rf x"
 a-fq-01	ask-gate	feature	-	pass	bash:rg "git push origin main" docs
 a-nq-01	ask-gate	feature	-	ask:protected-push	bash:bash -c "git push origin 'main'"
+g-bi-01	guard	none	-	block:bad-input	raw:{"tool_name":"Bash","tool_input":{"command":"rm -rf x"}
+g-bi-02	guard	none	-	block:bad-input	raw:not json
+g-bi-03	guard	none	-	block:bad-input	raw:["Bash"]
+a-bi-01	ask-gate	feature	-	ask:bad-input	raw:{"tool_name":"Bash","tool_input":{"command":"git push origin main"}
+a-bi-02	ask-gate	none	-	ask:bad-input	raw:not json
