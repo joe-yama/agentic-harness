@@ -14,6 +14,7 @@ g-rm-12	guard	none	-	pass	bash:rm -r dir
 g-rm-13	guard	none	-	pass	bash:rm -f file.txt
 g-rm-14	guard	none	-	pass	bash:git rm --cached file.txt
 g-rm-15	guard	none	-	pass	bash:rm -- -rf
+g-rm-16	guard	none	-	pass	bash:confirm -rf build
 g-fp-01	guard	none	-	block:force-push	bash:git push -f
 g-fp-02	guard	none	-	block:force-push	bash:git push --force origin feature/x
 g-fp-03	guard	none	-	block:force-push	bash:git push --force-with-lease

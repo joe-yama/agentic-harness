@@ -11,14 +11,19 @@
 # checked like any other command. Other quoted strings (commit messages, grep patterns, Issue
 # bodies) stay data. Quote state is tracked across newlines.
 normalize() {
-  local nl=$'\n'
-  printf '%s\n' "${1//\\$nl/ }" | awk -v sq="'" -v dq='"' '
+  local nl=$'\n' s=$1
+  # rule:parse-continuation
+  s=${s//\\$nl/ }
+  # end:parse-continuation
+  printf '%s\n' "$s" | awk -v sq="'" -v dq='"' '
     function norm(s, depth,    out, q, inner, extra, i, ch, w, prevw, lead) {
       out = ""; q = ""; inner = ""; extra = ""; w = ""; prevw = ""; lead = ""
       for (i = 1; i <= length(s); i++) {
         ch = substr(s, i, 1)
         if (q == "") {
+          # rule:parse-dollar-quote
           if (ch == "$" && substr(s, i + 1, 1) == sq) continue
+          # end:parse-dollar-quote
           if (ch == sq || ch == dq) { q = ch; inner = ""; lead = (w != "" ? w : prevw); continue }
           out = out ch
           if (ch == " " || ch == "\t" || ch == "\n" || ch == ";" || ch == "&" || ch == "|") {
@@ -27,11 +32,16 @@ normalize() {
           } else w = w ch
         } else if (ch == q) {
           q = ""
+          # rule:parse-command-string
           if (depth < 4 && (lead ~ /^-[A-Za-z]*c$/ || lead == "eval")) extra = extra "\n" norm(inner, depth + 1)
+          # end:parse-command-string
           w = w "q"
         } else {
           inner = inner ch
-          out = out ((ch == " " || ch == "\t" || ch == "\n") ? "\001" : ch)
+          # rule:parse-quoted-blank
+          if (ch == " " || ch == "\t" || ch == "\n") ch = "\001"
+          # end:parse-quoted-blank
+          out = out ch
         }
       }
       if (q != "" && depth < 4 && (lead ~ /^-[A-Za-z]*c$/ || lead == "eval")) extra = extra "\n" norm(inner, depth + 1)
@@ -42,10 +52,17 @@ normalize() {
 }
 
 # Command-word boundary, and an optional path prefix on the command word (/bin/rm, /usr/bin/git).
+B='' P='' GOPT=''
+# rule:parse-word-boundary
 B='(^|[;&|(`[:space:]\\])'
+# end:parse-word-boundary
+# rule:parse-path-prefix
 P='([^[:space:];&|(`]*/)?'
+# end:parse-path-prefix
 # git global options that may precede the subcommand: -C <dir>, -c <k=v>, --git-dir <dir>, -P, --no-pager, --x=y.
+# rule:parse-git-options
 GOPT='([[:space:]]+(-[Cc][[:space:]]+[^[:space:];&|]+|--(git-dir|work-tree|namespace|super-prefix|config-env)[[:space:]]+[^[:space:];&|]+|-[A-Za-z]+|--[a-z-]+(=[^[:space:];&|]+)?))*'
+# end:parse-git-options
 
 # segments <word-regex>: each "<word> args..." up to the next ; & | separator, one per line. Reads $cmd.
 segments() { printf '%s\n' "$cmd" | grep -oE "${B}${P}$1([[:space:]]+[^;&|]*)?" || true; }
