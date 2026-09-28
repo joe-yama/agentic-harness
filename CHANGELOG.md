@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. The plugin version in
 `plugins/harness/.claude-plugin/plugin.json` and the git tags `vX.Y.Z` / `harness--vX.Y.Z` follow this file.
 
-## Unreleased
+## [0.3.0] - 2026-09-29
 
 - guard: two opt-in exceptions, off unless set (behavior is unchanged when unset). `HARNESS_ALLOW_LEASE_PUSH=1` lets `git push --force-with-lease=refs/heads/<branch>:<sha> [--force-if-includes] <remote> <src>:refs/heads/<branch>...` through when refs are written in full, leases and destinations match one to one, no branch is in `HARNESS_PROTECTED_BRANCHES` (space-separated, as in ask-gate), and the command neither mentions a `GIT_CONFIG*` variable nor runs `git config`; every other force push stays blocked (`force-push`). `HARNESS_RM_RF_ALLOW=<prefix>[:<prefix>...]` lets a recursive forced `rm` through when every operand is a plain absolute path that, with symlinks resolved (`cd -P`), is at or under one of the (resolved) prefixes of at least two segments; relative paths, globs, `..`, expansions, words after the first operand that look like options (BSD `rm`), operands over 1024 bytes, commands that run `ln`, and `rm` run by `xargs`, `find -exec`, `sudo` or `sh -c` stay blocked (`rm-rf`). See README "Opt-in guard exceptions".
 - Tests: the env column of `tests/hooks/cases.tsv` takes several `NAME=value` assignments separated by `;`, and `@T@` in a case is a fixture tree with symlinks; `tests/hooks/timing.sh` also runs with both opt-ins set. `tests/hooks/mutate.sh` runs `MUTATE_JOBS` mutants at a time (default: the CPU count), without wall-clock assertions (`MUTATE_NO_TIMING=1`), and reports a mutant that does not finish in `MUTATE_TIMEOUT` seconds (default 300) as TIMED OUT, which fails the run.
