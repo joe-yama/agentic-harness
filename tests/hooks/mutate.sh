@@ -18,22 +18,34 @@ if ! suite "$src"; then
   echo "control run failed: fix the tests before mutating" >&2
   exit 1
 fi
-survivors=0 total=0
+# Mutants run in parallel, MUTATE_JOBS at a time (default: the CPU count): most are killed only by
+# a case late in cases.tsv, so one at a time runs past the CI job's timeout.
+max=${MUTATE_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}
+total=0
 for script in "$src"/*.sh "$src"/lib/*.sh; do
   rel=${script#"$src"/}
   while IFS= read -r id; do
     total=$((total + 1))
-    rm -r "$work/s" 2>/dev/null
-    cp -R "$src" "$work/s"
+    m="$work/s$total"
+    cp -R "$src" "$m"
     awk -v id="$id" '
       $0 ~ "# rule:" id "$" { skip = 1; next }
       $0 ~ "# end:" id "$" { skip = 0; next }
-      !skip' "$script" > "$work/s/$rel"
-    if suite "$work/s" 1; then
-      echo "SURVIVED: $rel rule:$id (no test fails without it)" >&2
-      survivors=$((survivors + 1))
-    fi
+      !skip' "$script" > "$m/$rel"
+    (
+      if suite "$m" 1; then
+        echo "SURVIVED: $rel rule:$id (no test fails without it)" > "$work/survived$total"
+      fi
+    ) &
+    while [ "$(jobs -pr | wc -l)" -ge "$max" ]; do sleep 0.2; done
   done < <(grep -oE '^[[:space:]]*# rule:[a-z0-9-]+' "$script" | sed 's/.*rule://')
+done
+wait
+survivors=0
+for f in "$work"/survived*; do
+  [ -f "$f" ] || continue
+  cat "$f" >&2
+  survivors=$((survivors + 1))
 done
 echo "mutation: rules=$total survived=$survivors"
 [ "$total" -gt 0 ] && [ "$survivors" -eq 0 ]
