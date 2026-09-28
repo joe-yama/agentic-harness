@@ -418,3 +418,4 @@ g-rs-05	guard	none	HARNESS_RM_RF_ALLOW=@T@/work	block:rm-rf	bash:rm -rf @T@/work
 g-rs-06	guard	none	HARNESS_RM_RF_ALLOW=@T@/link	pass	bash:rm -rf @T@/work/real
 g-rs-07	guard	none	HARNESS_RM_RF_ALLOW=@T@/link	pass	bash:rm -rf @T@/link/real
 g-rs-08	guard	none	HARNESS_RM_RF_ALLOW=@T@/top	block:rm-rf	bash:rm -rf @T@/top/local
+g-rs-09	guard	none	HARNESS_RM_RF_ALLOW=@T@/work/..	block:rm-rf	bash:rm -rf @T@/outside/x

@@ -59,6 +59,7 @@ check_path() {
 # per operand runs past the hook timeout on a long command. The caller restores the directory.
 resolve() {
   local p=$1 tail=''
+  case "$p" in /*) ;; *) return 1 ;; esac # a relative path would never shorten to /
   while [ "$p" != / ] && [ "${p%/}" != "$p" ]; do p=${p%/}; done
   while [ -n "$p" ] && [ "$p" != / ] && ! [ -d "$p" ]; do
     tail=/${p##*/}$tail
