@@ -5,6 +5,8 @@
 # monitor:<command>, file:<Tool>:<path>,
 # raw:<hook input sent as is>.
 # env: - for none, or NAME=value assignments separated by ";" (a value may contain blanks).
+# @T@ in env and payload is the fixture tree for rm prefixes: work/real/, outside/, and symlinks
+# work/out -> outside, link -> work, top -> /usr.
 # HOOKS_DIR overrides the script directory (used by mutate.sh).
 set -u
 here=$(cd "$(dirname "$0")" && pwd -P)
@@ -21,9 +23,16 @@ for b in main feature; do
   [ "$b" = feature ] && git -C "$TMP_ROOT/$b" checkout -q -b feature/x
 done
 mkdir -p "$TMP_ROOT/none"
+FX="$TMP_ROOT/fx"
+mkdir -p "$FX/work/real" "$FX/outside"
+ln -s ../outside "$FX/work/out"
+ln -s work "$FX/link"
+ln -s /usr "$FX/top"
 
 while IFS=$'\t' read -r id script where envkv expect payload; do
   case "$id" in '' | '#'*) continue ;; esac
+  envkv=${envkv//@T@/$FX}
+  payload=${payload//@T@/$FX}
   cwd="$TMP_ROOT/$where"
   case "$payload" in
     bash:* | bashe:* | bashpad:* | monitor:*)

@@ -26,13 +26,15 @@ fill() {
   printf '%s' "$(awk -v u="$unit" -v n="$n" 'BEGIN { for (i = 0; i < n; i++) printf "%s", u }')$suffix"
 }
 # timed <id> <script> <expect: pass | block:<id> | ask:<id>> <command>
+# T_LEASE / T_RM set HARNESS_ALLOW_LEASE_PUSH / HARNESS_RM_RF_ALLOW (empty: off, as unset)
 timed() {
   local id=$1 script=$2 expect=$3 c=$4 start took out rc got
   start=$SECONDS
   # the command goes to jq on stdin: Linux caps one argument at 128 KiB (MAX_ARG_STRLEN), and
   # the multibyte shapes are 192 KiB; real hook input arrives on stdin too
   out=$(printf '%s' "$c" | jq -Rsc --arg d "$F" '{tool_name:"Bash",tool_input:{command:.},cwd:$d}' \
-    | "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>"$TMP_ROOT/err")
+    | env "HARNESS_ALLOW_LEASE_PUSH=${T_LEASE:-}" "HARNESS_RM_RF_ALLOW=${T_RM:-}" \
+      "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>"$TMP_ROOT/err")
   rc=$?
   took=$((SECONDS - start))
   if [ "$rc" = 2 ]; then
@@ -63,5 +65,14 @@ timed t-utf8 guard block:too-large "$(fill '日')"
 timed t-utf8 ask-gate ask:too-large "$(fill '日')"
 timed t-utf8-rm guard block:too-large "$(fill '日' "' ; rm -rf ~/work'")"
 timed t-install ask-gate pass "$(fill 'pnpm install --frozen-lockfile ; ')"
+# with both opt-ins set: lease pushes, rm segments, and one rm with many operands (each resolved)
+optin() { T_LEASE=1 T_RM="$TMP_ROOT/work:/var/cache/app" timed "$@"; }
+mkdir -p "$TMP_ROOT/work/a/b/c"
+LP='git push --force-with-lease=refs/heads/feature/x:abc1234 origin HEAD:refs/heads/feature/x;'
+optin t-lease guard pass "$(fill "$LP")"
+optin t-lease-f guard block:force-push "$(fill "$LP" 'git push -f')"
+optin t-rm-segs guard pass "$(fill "rm -rf $TMP_ROOT/work/a/b/c/d;")"
+optin t-rm-ops guard pass "rm -rf$(CAP=$((CAP - 6)) fill " $TMP_ROOT/work/a/b/c/d")"
+optin t-rm-last guard block:rm-rf "$(fill "rm -rf $TMP_ROOT/work/a/b/c/d;" 'rm -rf build')"
 
 report timing
