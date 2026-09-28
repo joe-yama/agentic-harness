@@ -74,5 +74,10 @@ optin t-lease-f guard block:force-push "$(fill "$LP" 'git push -f')"
 optin t-rm-segs guard pass "$(fill "rm -rf $TMP_ROOT/work/a/b/c/d;")"
 optin t-rm-ops guard pass "rm -rf$(CAP=$((CAP - 6)) fill " $TMP_ROOT/work/a/b/c/d")"
 optin t-rm-last guard block:rm-rf "$(fill "rm -rf $TMP_ROOT/work/a/b/c/d;" 'rm -rf build')"
+# one very deep operand, then a force push: refused (over 1024 bytes) well inside the budget
+optin t-rm-deep guard block:rm-rf "rm -rf $TMP_ROOT/work/a$(CAP=58000 fill /a) ; git push --force origin main"
+# operands just under 1024 bytes, each resolved in one pass
+DEEP="$TMP_ROOT/work/a/b/c$(CAP=$((1000 - ${#TMP_ROOT} - 16)) fill /x)"
+optin t-rm-deep-ok guard pass "rm -rf$(CAP=$((CAP - 6)) fill " $DEEP")"
 
 report timing

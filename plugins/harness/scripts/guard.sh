@@ -54,19 +54,23 @@ check_path() {
   return 0
 }
 
-# resolve <absolute path>: sets res to the path with its deepest existing directory resolved by
-# cd -P (symlinks followed) and the rest appended as written. cd in this shell, not $(...): a fork
-# per operand runs past the hook timeout on a long command. The caller restores the directory.
+# resolve <absolute path without //>: sets res to the path with its deepest existing directory
+# resolved by cd -P (symlinks followed) and the rest appended as written. One pass from the root:
+# below a missing directory nothing exists, and cutting the path per segment from the end is
+# quadratic. cd in this shell, not $(...): a fork per operand runs past the hook timeout on a long
+# command. The caller restores the directory.
 resolve() {
-  local p=$1 tail=''
-  case "$p" in /*) ;; *) return 1 ;; esac # a relative path would never shorten to /
-  while [ "$p" != / ] && [ "${p%/}" != "$p" ]; do p=${p%/}; done
-  while [ -n "$p" ] && [ "$p" != / ] && ! [ -d "$p" ]; do
-    tail=/${p##*/}$tail
-    p=${p%/*}
+  local p=$1 cur='' s tail IFS=/
+  case "$p" in /*) ;; *) return 1 ;; esac
+  case "$p" in *//*) return 1 ;; esac
+  for s in $p; do
+    [ -n "$s" ] || continue
+    [ -d "$cur/$s" ] || break
+    cur=$cur/$s
   done
-  [ -n "$p" ] || p=/
-  CDPATH='' cd -P -- "$p" 2>/dev/null || return 1
+  tail=${p:${#cur}}
+  tail=${tail%/}
+  CDPATH='' cd -P -- "${cur:-/}" 2>/dev/null || return 1
   res=${PWD%/}$tail
   [ -n "$res" ] || res=/
 }
@@ -101,9 +105,14 @@ rm_ok() {
     case "$tok/" in */../*) return 1 ;; esac
     case "$tok" in *//*) return 1 ;; esac
     # end:rm-rf-allow-dotdot
+    # rule:rm-rf-allow-length
+    # a very deep path costs time to resolve; a timed-out hook would let the whole command through
+    [ "${#tok}" -le 1024 ] || return 1
+    # end:rm-rf-allow-length
     # rule:rm-rf-allow-resolve
     # a symlink under the prefix may point anywhere: compare where the path really is
-    case "$tok" in /*) resolve "$tok" || return 1; tok=$res ;; esac
+    resolve "$tok" || return 1
+    tok=$res
     # end:rm-rf-allow-resolve
     m=0
     for pre in $rm_pre; do
@@ -260,6 +269,26 @@ case "$tool" in
       rm_pre=''
     fi
     # end:rm-rf-allow-indirect
+    # rule:rm-rf-allow-ln
+    # a link made in the same command (ln -s / <prefix>/x && rm -rf <prefix>/x/usr) does not exist
+    # yet when the path is resolved: any ln word (/bin/ln, sudo ln, sh -c 'ln …') turns the allow off
+    if [ -n "$rm_pre" ] && printf '%s\n' "$cmd" | tr '\001' ' ' | awk '
+      {
+        n = split($0, pc, /[;&|(`]/)
+        for (i = 1; i <= n; i++) {
+          k = split(pc[i], w)
+          for (j = 1; j <= k; j++) {
+            c = w[j]
+            sub(/.*\//, "", c)
+            sub(/^\\+/, "", c)
+            if (c == "ln") { found = 1; exit }
+          }
+        }
+      }
+      END { exit !found }'; then
+      rm_pre=''
+    fi
+    # end:rm-rf-allow-ln
     # end:rm-rf-allow
     while IFS= read -r seg; do
       [ -n "$seg" ] || continue
