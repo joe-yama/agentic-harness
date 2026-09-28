@@ -4,6 +4,7 @@
 # Payloads: bash:<command>, bashe:<command with printf %b escapes>, bashpad:<length>:<command>,
 # monitor:<command>, file:<Tool>:<path>,
 # raw:<hook input sent as is>.
+# env: - for none, or NAME=value assignments separated by ";" (a value may contain blanks).
 # HOOKS_DIR overrides the script directory (used by mutate.sh).
 set -u
 here=$(cd "$(dirname "$0")" && pwd -P)
@@ -58,7 +59,8 @@ while IFS=$'\t' read -r id script where envkv expect payload; do
   if [ "$envkv" = "-" ]; then
     out=$(cd "$cwd" && printf '%s' "$json" | "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>"$errf")
   else
-    out=$(cd "$cwd" && printf '%s' "$json" | env "$envkv" "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>"$errf")
+    IFS=';' read -r -a envs <<<"$envkv"
+    out=$(cd "$cwd" && printf '%s' "$json" | env "${envs[@]}" "$HOOK_BASH" "$HOOKS_DIR/$script.sh" 2>"$errf")
   fi
   rc=$?
   decision=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // empty' 2>/dev/null)
