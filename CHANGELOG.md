@@ -3,6 +3,11 @@
 All notable changes to this project are documented here. The plugin version in
 `plugins/harness/.claude-plugin/plugin.json` and the git tags `vX.Y.Z` / `harness--vX.Y.Z` follow this file.
 
+## Unreleased
+
+- guard: two opt-in exceptions, off unless set (behavior is unchanged when unset). `HARNESS_ALLOW_LEASE_PUSH=1` lets `git push --force-with-lease=<branch>:<sha> [--force-if-includes] <remote> <refspec>...` through when every destination is an explicit, unprotected branch (`HARNESS_PROTECTED_BRANCHES`, space- or comma-separated) and each lease names one of them; every other force push stays blocked (`force-push`). `HARNESS_RM_RF_ALLOW=<prefix>[:<prefix>...]` lets a recursive forced `rm` through when every operand is a plain absolute path at or under one of the prefixes (at least two segments; shorter or odd prefixes are ignored); relative paths, globs, `..`, expansions and `rm` run by `xargs`, `find -exec`, `sudo` or `sh -c` stay blocked (`rm-rf`). See README "Opt-in guard exceptions".
+- Tests: the env column of `tests/hooks/cases.tsv` takes several `NAME=value` assignments separated by `;`.
+
 ## [0.2.1] - 2026-09-25
 
 - Template: `.claude/settings.json` is rendered exactly as `claude plugin install --scope project` writes it — JSON.stringify with 2-space indent, Claude Code's key order, no HTML or ASCII escaping in string values (`&&`, `'`, `<`, `ü` stay literal) — and enables the `superpowers@claude-plugins-official` dependency. The install in `harness:adopt` step 5 now leaves the file byte-identical (checked with Claude Code 2.1.282 for `ui_review` true and false); before, it reformatted the whole file and left an uncommitted diff. `tests/template/run.sh` checks the layout, and `harness:adopt` step 5 checks `git diff --exit-code .claude/settings.json`. The Quick start commits the render before the install, so that check compares against it. `harness:adopt` "Updating" points to these CHANGELOG notes before resolving conflicts.

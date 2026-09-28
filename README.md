@@ -49,7 +49,14 @@ The template writes these into `.claude/settings.json` → `env`. The hooks do n
 | `HARNESS_LINT_PATTERN` | every non-doc file | `lint-on-edit`; extended regex on the repo-relative path |
 | `HARNESS_TEST_CMD` | unset (no test) | `test-on-stop` |
 | `HARNESS_DOC_PATTERN` | `\.(md\|txt)$\|^docs/\|^openspec/\|^\.claude/` | paths that never trigger lint or tests |
-| `HARNESS_PROTECTED_BRANCHES` | `main` | `ask-gate`; space-separated |
+| `HARNESS_PROTECTED_BRANCHES` | `main` | `ask-gate`; space-separated. `guard` reads it for `HARNESS_ALLOW_LEASE_PUSH` and also splits on commas |
+
+### Opt-in guard exceptions
+
+Two variables relax `guard`. They are off unless set, the template does not write them, and when unset `guard` behaves exactly as without them. Add them to `.claude/settings.json` → `env` yourself if the repository wants them.
+
+- `HARNESS_ALLOW_LEASE_PUSH=1` (exactly `1`; any other value is off) lets through a `git push` whose only force-like option is `--force-with-lease=<branch>:<sha>` — an explicit ref and an explicit expected value, a hex object name of 7 to 40 characters — optionally with `--force-if-includes`. The push must name a remote and at least one destination branch, and each lease's ref must be one of the destinations (`refs/heads/` is ignored on both). Still blocked (`force-push`): `--force`, `-f` (also inside `-uf`), abbreviations such as `--force-with`, bare `--force-with-lease`, `--force-with-lease=<ref>` without a value or with a non-hex one (`$(git rev-parse …)` included), `--force-if-includes` alone, `+refspec`, a push without a remote or refspec (relying on `push.default`), any destination in `HARNESS_PROTECTED_BRANCHES`, `HEAD` / `@` / `refs/tags/…` / `:branch` destinations, destinations with shell characters (`$B`, `{a,b}`), `--all`, `--mirror`, `--tags`, `--delete`, `-d`, `--prune`, `--repo`, and any `git -c` / `--config-env` before `push`.
+- `HARNESS_RM_RF_ALLOW=<prefix>[:<prefix>...]` lists absolute directories where a recursive forced `rm` may run. A segment passes only when it has at least one operand and every operand is a plain absolute path equal to a prefix or under it on a segment boundary (`/tmp/work/a` is under `/tmp/work`, `/tmp/workx` is not). Plain means only letters, digits and `._/@%+=,-`: no glob (`* ? [`), `~`, `$`, backtick, brace, backslash, quoted blank or redirection (`2>/dev/null`), and no `..` segment. A prefix that is not absolute, is `/`, has fewer than two segments (`/tmp`), has a `.`, `..` or empty segment, or has another character is ignored; if none is left, the variable counts as unset. Still blocked (`rm-rf`): relative paths, any non-matching operand, and every recursive forced `rm` in a command where `rm` is not the first word of its simple command (`xargs rm -rf`, `find -exec rm -rf`, `sudo rm -rf`, `sh -c 'rm -rf …'`). Each `rm` in a compound command is judged on its own. Paths are compared as text: a symlink under a prefix is not resolved.
 
 ## Updating
 

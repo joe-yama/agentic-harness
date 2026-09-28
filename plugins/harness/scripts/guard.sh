@@ -54,6 +54,115 @@ check_path() {
   return 0
 }
 
+# rm_ok <rm segment>: true when HARNESS_RM_RF_ALLOW allows the segment (rm_pre holds the prefixes):
+# at least one operand, and every operand a plain absolute path equal to a prefix or under it.
+rm_ok() {
+  local first=1 ends=0 n=0 tok pre m
+  [ -n "$rm_pre" ] || return 1
+  for tok in $1; do
+    if [ "$first" = 1 ]; then
+      first=0 # the command word (rm, /bin/rm, \rm)
+      continue
+    fi
+    if [ "$ends" = 0 ]; then
+      case "$tok" in
+        --) ends=1; continue ;;
+        -*) continue ;;
+      esac
+    fi
+    n=$((n + 1))
+    # rule:rm-rf-allow-chars
+    # no glob, ~, $, backtick, brace, backslash, quoted blank or redirection: the text is the path
+    case "$tok" in *[!A-Za-z0-9._/@%+=,-]*) return 1 ;; esac
+    # end:rm-rf-allow-chars
+    # rule:rm-rf-allow-dotdot
+    case "$tok/" in */../*) return 1 ;; esac
+    # end:rm-rf-allow-dotdot
+    m=0
+    for pre in $rm_pre; do
+      case "$tok" in "$pre" | "$pre"/*) m=1 ;; esac
+    done
+    [ "$m" = 1 ] || return 1
+  done
+  [ "$n" -gt 0 ]
+}
+
+# lease_push_ok <git push segment>: true when HARNESS_ALLOW_LEASE_PUSH=1 allows the segment's
+# --force-with-lease: every lease is <ref>:<hex 7-40>, names a destination, and every destination
+# is an explicit, unprotected branch; no option that pushes more than the named branches.
+lease_push_ok() {
+  local tok prev='' sub=0 npos=0 skip=0 dests=' ' refs='' d r e b protected
+  protected=${HARNESS_PROTECTED_BRANCHES:-main}
+  protected=${protected//,/ }
+  for tok in $1; do
+    if [ "$sub" = 0 ]; then
+      # rule:lease-config
+      # git -c / --config-env can turn on mirror or a forcing refspec for this push
+      case "$tok" in -c | --config-env | --config-env=*) return 1 ;; esac
+      # end:lease-config
+      if [ "$tok" = push ]; then
+        case "$prev" in -C | --git-dir | --work-tree | --namespace | --super-prefix) ;; *) sub=1 ;; esac
+      fi
+      prev=$tok
+      continue
+    fi
+    if [ "$skip" = 1 ]; then
+      skip=0
+      continue
+    fi
+    case "$tok" in
+      --force-with-lease=*)
+        refs="$refs ${tok#--force-with-lease=}"
+        continue ;;
+      -o | --push-option | --receive-pack | --exec)
+        skip=1
+        continue ;;
+      --*)
+        # rule:lease-options
+        is_abbrev "$tok" --all --mirror --tags --delete --prune --repo && return 1
+        # end:lease-options
+        continue ;;
+      -*)
+        # rule:lease-delete-flag
+        case "$tok" in *d*) return 1 ;; esac
+        # end:lease-delete-flag
+        continue ;;
+      [0-9]\>* | \>* | [0-9]\<* | \<*) continue ;;
+    esac
+    npos=$((npos + 1))
+    [ "$npos" = 1 ] && continue # the remote
+    d=${tok#*:}
+    # rule:lease-refspec
+    # an explicit branch name: not a deletion (:x), HEAD, @, refs/tags/..., or a shell expansion
+    case "$tok" in :*) return 1 ;; esac
+    d=${d#refs/heads/}
+    case "$d" in '' | HEAD | @ | refs/* | *[!A-Za-z0-9._/-]*) return 1 ;; esac
+    # end:lease-refspec
+    # rule:lease-protected
+    for b in $protected; do [ "$d" = "$b" ] && return 1; done
+    # end:lease-protected
+    dests="$dests$d "
+  done
+  # rule:lease-includes
+  # --force-if-includes alone is not a lease
+  [ -n "$refs" ] || return 1
+  # end:lease-includes
+  for r in $refs; do
+    # rule:lease-shape
+    case "$r" in *:*) ;; *) return 1 ;; esac
+    e=${r#*:}
+    case "$e" in '' | *[!0-9a-fA-F]*) return 1 ;; esac
+    [ "${#e}" -ge 7 ] && [ "${#e}" -le 40 ] || return 1
+    # end:lease-shape
+    r=${r%%:*}
+    r=${r#refs/heads/}
+    # rule:lease-match
+    case "$dests" in *" $r "*) ;; *) return 1 ;; esac
+    # end:lease-match
+  done
+  return 0
+}
+
 tool=$(printf '%s' "$input" | jq -r '.tool_name // ""')
 case "$tool" in
   Bash | Monitor)
@@ -67,6 +176,43 @@ case "$tool" in
     cmd=$(normalize "$raw")
 
     # rule:rm-rf
+    rm_pre=''
+    # rule:rm-rf-allow
+    # HARNESS_RM_RF_ALLOW=<prefix>[:<prefix>...]: absolute directories where rm -rf may run
+    rest=${HARNESS_RM_RF_ALLOW:-}
+    while [ -n "$rest" ]; do
+      pre=${rest%%:*}
+      case "$rest" in *:*) rest=${rest#*:} ;; *) rest='' ;; esac
+      pre=${pre%/}
+      # rule:rm-rf-allow-shape
+      # ignored: not absolute, /, fewer than 2 segments, a . / .. / empty segment, or an odd character
+      case "$pre" in /*/?*) ;; *) continue ;; esac
+      case "$pre/" in */./* | */../* | *//*) continue ;; esac
+      case "$pre" in *[!A-Za-z0-9._/@%+=,-]*) continue ;; esac
+      # end:rm-rf-allow-shape
+      rm_pre="$rm_pre $pre"
+    done
+    # rule:rm-rf-allow-indirect
+    # rm run by another command (xargs, find -exec, sudo, sh -c '…') gets operands the text does not
+    # show: then no segment is allowed. Quoted blanks count as blanks here.
+    if [ -n "$rm_pre" ] && printf '%s\n' "$cmd" | tr '\001' ' ' | awk '
+      {
+        n = split($0, pc, /[;&|(`]/)
+        for (i = 1; i <= n; i++) {
+          k = split(pc[i], w)
+          for (j = 2; j <= k; j++) {
+            c = w[j]
+            sub(/.*\//, "", c)
+            sub(/^\\+/, "", c)
+            if (c == "rm") { found = 1; exit }
+          }
+        }
+      }
+      END { exit !found }'; then
+      rm_pre=''
+    fi
+    # end:rm-rf-allow-indirect
+    # end:rm-rf-allow
     while IFS= read -r seg; do
       [ -n "$seg" ] || continue
       rec=0 force=0
@@ -83,18 +229,29 @@ case "$tool" in
             ;;
         esac
       done
-      [ "$rec" = 1 ] && [ "$force" = 1 ] && deny rm-rf "recursive forced rm; ask the PO before deleting"
+      if [ "$rec" = 1 ] && [ "$force" = 1 ] && ! rm_ok "$seg"; then
+        deny rm-rf "recursive forced rm; ask the PO before deleting"
+      fi
     done <<EOF
 $(segments rm)
 EOF
     # end:rm-rf
 
     # rule:force-push
+    lease_ok=0
+    # rule:lease-push
+    # HARNESS_ALLOW_LEASE_PUSH=1: an explicit --force-with-lease=<ref>:<expect> may pass (lease_push_ok)
+    [ "${HARNESS_ALLOW_LEASE_PUSH:-}" = 1 ] && lease_ok=1
+    # end:lease-push
     while IFS= read -r seg; do
       [ -n "$seg" ] || continue
+      lease=0
       for tok in $seg; do
         case "$tok" in
-          --force | --force=* | --force-with-lease | --force-with-lease=* | --force-if-includes)
+          --force-with-lease=* | --force-if-includes)
+            [ "$lease_ok" = 1 ] || deny force-push "force push rewrites shared history"
+            lease=1 ;;
+          --force | --force=* | --force-with-lease)
             deny force-push "force push rewrites shared history" ;;
           --*)
             is_abbrev "$tok" --force --force-with-lease --force-if-includes \
@@ -104,6 +261,9 @@ EOF
           +?*) deny force-push "a +refspec is a force push" ;;
         esac
       done
+      if [ "$lease" = 1 ] && ! lease_push_ok "$seg"; then
+        deny force-push "force push rewrites shared history; HARNESS_ALLOW_LEASE_PUSH allows only --force-with-lease=<branch>:<sha> to named, unprotected branches"
+      fi
     done <<EOF
 $(git_segments push)
 EOF

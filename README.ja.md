@@ -57,7 +57,14 @@ claude plugin install harness@agentic-harness --scope project
 | `HARNESS_LINT_PATTERN` | ドキュメント以外の全ファイル | `lint-on-edit`。リポジトリからの相対パスに対する拡張正規表現 |
 | `HARNESS_TEST_CMD` | 未設定（テストしない） | `test-on-stop` |
 | `HARNESS_DOC_PATTERN` | `\.(md\|txt)$\|^docs/\|^openspec/\|^\.claude/` | lint もテストも起こさないパス |
-| `HARNESS_PROTECTED_BRANCHES` | `main` | `ask-gate`。空白区切り |
+| `HARNESS_PROTECTED_BRANCHES` | `main` | `ask-gate`。空白区切り。`guard` も `HARNESS_ALLOW_LEASE_PUSH` のために読み、カンマでも区切る |
+
+### guard の例外（オプトイン）
+
+次の 2 つの変数は `guard` を緩めます。設定しない限り無効で、テンプレートは書きません。未設定なら `guard` の挙動はこれらが無いときとまったく同じです。使うリポジトリは自分で `.claude/settings.json` の `env` に足してください。
+
+- `HARNESS_ALLOW_LEASE_PUSH=1`（ちょうど `1`。ほかの値は無効）は、force 系のオプションが `--force-with-lease=<branch>:<sha>` だけの `git push` を通す。ref と期待値を明示し、期待値は 7〜40 文字の 16 進のオブジェクト名。`--force-if-includes` は併用してよい。push はリモートと 1 つ以上の宛先ブランチを明示し、各 lease の ref は宛先のどれかと一致しなければならない（どちらも `refs/heads/` は無視する）。引き続きブロックするもの（`force-push`）: `--force`、`-f`（`-uf` の中も）、`--force-with` などの前方一致、値の無い `--force-with-lease`、期待値の無い `--force-with-lease=<ref>` や 16 進でない期待値（`$(git rev-parse …)` を含む）、`--force-if-includes` だけのもの、`+refspec`、リモートや refspec の無い push（`push.default` 頼み）、`HARNESS_PROTECTED_BRANCHES` に入っている宛先、`HEAD` / `@` / `refs/tags/…` / `:branch` の宛先、シェルの文字を含む宛先（`$B`、`{a,b}`）、`--all`、`--mirror`、`--tags`、`--delete`、`-d`、`--prune`、`--repo`、`push` の前の `git -c` / `--config-env`。
+- `HARNESS_RM_RF_ALLOW=<prefix>[:<prefix>...]` は、再帰 + 強制の `rm` を実行してよい絶対パスのディレクトリを並べる。通すのは、オペランドが 1 つ以上あり、すべてのオペランドが素の絶対パスで、プレフィックスと等しいか、パスの区切りの単位でその下にあるときだけ（`/tmp/work/a` は `/tmp/work` の下、`/tmp/workx` は下ではない）。素のパスとは英数字と `._/@%+=,-` だけのもの: glob（`* ? [`）、`~`、`$`、バッククォート、波括弧、バックスラッシュ、引用符の中の空白、リダイレクト（`2>/dev/null`）を含まず、`..` の区切りも無い。絶対パスでない、`/` である、区切りが 2 つ未満（`/tmp`）、`.`・`..`・空の区切りがある、ほかの文字を含む、のどれかに当たるプレフィックスは無視し、1 つも残らなければ未設定と同じ。引き続きブロックするもの（`rm-rf`）: 相対パス、一致しないオペランドが 1 つでもあるもの、`rm` が単純コマンドの先頭の語でない箇所があるコマンドの再帰 + 強制の `rm` すべて（`xargs rm -rf`、`find -exec rm -rf`、`sudo rm -rf`、`sh -c 'rm -rf …'`）。複合コマンドの `rm` はそれぞれ別に判定する。パスは文字列として比べるので、プレフィックスの下のシンボリックリンクは解決しない。
 
 ## 更新
 

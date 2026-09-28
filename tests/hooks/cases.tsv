@@ -295,3 +295,102 @@ g-cs-05	guard	none	-	block:force-push	bash:watch -n 5 'git push -f'
 g-cs-06	guard	none	-	block:rm-rf	bash:ssh host 'rm -rf /srv/app'
 g-cs-07	guard	none	-	pass	bash:git -c user.name=x commit -m 'rm -rf'
 a-cs-01	ask-gate	feature	-	ask:protected-push	bash:ssh host "git push origin main"
+g-lp-01	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	pass	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-02	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	pass	bash:git push --force-with-lease=feature/x:0123456789abcdef0123456789abcdef01234567 --force-if-includes origin HEAD:feature/x
+g-lp-03	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	pass	bash:git push --force-with-lease=refs/heads/feature/x:abc1234 origin feature/x:refs/heads/feature/x
+g-lp-04	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	pass	bash:git -C ../repo push -u --force-with-lease=feature/x:abc1234 origin feature/x 2>&1 | tail -3
+g-lp-05	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	pass	bash:git push origin feature/x --force-with-lease=feature/x:ABCDEF0
+g-lp-06	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	pass	bash:git push --force-with-lease=feature/x:abc1234 --force-with-lease=feature/y:abc1234 origin feature/x feature/y
+g-lp-07	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	pass	bash:git push -o ci.skip --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-10	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease origin feature/x
+g-lp-11	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x origin feature/x
+g-lp-12	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x: origin feature/x
+g-lp-13	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc123 origin feature/x
+g-lp-14	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:xyz1234 origin feature/x
+g-lp-15	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:0123456789abcdef0123456789abcdef012345678 origin feature/x
+g-lp-16	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:$SHA origin feature/x
+g-lp-17	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=main:abc1234 origin main
+g-lp-18	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=refs/heads/main:abc1234 origin HEAD:refs/heads/main
+g-lp-19	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x main
+g-lp-20	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/y
+g-lp-21	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin
+g-lp-22	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc1234
+g-lp-23	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin +feature/x
+g-lp-24	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push -f --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-25	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-26	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push -uf --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-27	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with=feature/x:abc1234 origin feature/x
+g-lp-28	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-if-includes origin feature/x
+g-lp-29	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --all --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-30	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --mirror --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-31	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --tags --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-32	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --delete --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-33	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push -d --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-34	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push -ud --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-35	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --prune --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-36	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --repo=origin --force-with-lease=feature/x:abc1234 feature/x
+g-lp-37	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --mir --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-38	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin :feature/x
+g-lp-39	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=HEAD:abc1234 origin HEAD
+g-lp-40	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x {main,dev}
+g-lp-41	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x $B
+g-lp-42	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=v1:abc1234 origin refs/tags/v1
+g-lp-43	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git -c remote.origin.mirror=true push --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-44	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git --config-env=remote.origin.mirror=M push --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-45	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x && git push -f origin feature/y
+g-lp-46	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:bash -c "git push --force-with-lease=main:abc1234 origin main"
+g-lp-47	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x:
+g-lp-48	guard	none	HARNESS_ALLOW_LEASE_PUSH=1	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x --force-with-lease=feature/z
+g-lp-50	guard	none	-	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-51	guard	none	HARNESS_ALLOW_LEASE_PUSH=	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-52	guard	none	HARNESS_ALLOW_LEASE_PUSH=true	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-53	guard	none	HARNESS_ALLOW_LEASE_PUSH=0	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-54	guard	none	HARNESS_ALLOW_LEASE_PUSH=1 	block:force-push	bash:git push --force-with-lease=feature/x:abc1234 origin feature/x
+g-lp-55	guard	none	HARNESS_ALLOW_LEASE_PUSH=1;HARNESS_PROTECTED_BRANCHES=main release	block:force-push	bash:git push --force-with-lease=release:abc1234 origin release
+g-lp-56	guard	none	HARNESS_ALLOW_LEASE_PUSH=1;HARNESS_PROTECTED_BRANCHES=main,release	block:force-push	bash:git push --force-with-lease=release:abc1234 origin release
+g-lp-57	guard	none	HARNESS_ALLOW_LEASE_PUSH=1;HARNESS_PROTECTED_BRANCHES=trunk	pass	bash:git push --force-with-lease=main:abc1234 origin main
+g-lp-58	guard	none	HARNESS_ALLOW_LEASE_PUSH=1;HARNESS_PROTECTED_BRANCHES=trunk	block:force-push	bash:git push --force-with-lease=trunk:abc1234 origin trunk
+g-ra-01	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	pass	bash:rm -rf /tmp/work/build
+g-ra-02	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	pass	bash:rm -rf /tmp/work
+g-ra-03	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	pass	bash:rm -rf /tmp/work/a /var/cache/app/b
+g-ra-04	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	pass	bash:rm -rf -- /tmp/work/a/
+g-ra-05	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	pass	bash:/bin/rm -rf /tmp/work/a && echo ok
+g-ra-06	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	pass	bash:rm -rf /tmp/work/a; rm -r -f /var/cache/app/b
+g-ra-07	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work/	pass	bash:rm -rf /tmp/work/a
+g-ra-08	guard	none	HARNESS_RM_RF_ALLOW=/tmp:/tmp/work	pass	bash:rm -rf /tmp/work/a
+g-ra-10	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf build
+g-ra-11	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/workx
+g-ra-12	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/*
+g-ra-13	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/a?
+g-ra-14	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/[ab]
+g-ra-15	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/../etc
+g-ra-16	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/..
+g-ra-17	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/~x
+g-ra-18	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/$X
+g-ra-19	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/`pwd`
+g-ra-20	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/{a,../../etc}
+g-ra-21	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/{.,.}.
+g-ra-22	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/\..
+g-ra-23	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/a build
+g-ra-24	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf ~/x
+g-ra-25	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:find /tmp/work | xargs rm -rf /tmp/work/a
+g-ra-26	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:find /tmp/work | xargs \rm -rf /tmp/work/a
+g-ra-27	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:find /tmp/work -exec rm -rf {} +
+g-ra-28	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:sudo rm -rf /tmp/work/a
+g-ra-29	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:bash -c 'rm -rf /tmp/work/a'
+g-ra-30	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/a; rm -rf build
+g-ra-31	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf
+g-ra-32	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf "/tmp/work/a b"
+g-ra-33	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp/work/a 2>/dev/null
+g-ra-34	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:rm -rf /tmp//work/a
+g-ra-35	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work:/var/cache/app	block:rm-rf	bash:find /tmp/work -name x -exec rm -rf /tmp/work/a +
+g-ra-40	guard	none	-	block:rm-rf	bash:rm -rf /tmp/work/a
+g-ra-41	guard	none	HARNESS_RM_RF_ALLOW=	block:rm-rf	bash:rm -rf /tmp/work/a
+g-ra-42	guard	none	HARNESS_RM_RF_ALLOW=/tmp	block:rm-rf	bash:rm -rf /tmp/work
+g-ra-43	guard	none	HARNESS_RM_RF_ALLOW=/	block:rm-rf	bash:rm -rf /tmp/work
+g-ra-44	guard	none	HARNESS_RM_RF_ALLOW=tmp/work	block:rm-rf	bash:rm -rf tmp/work/a
+g-ra-45	guard	none	HARNESS_RM_RF_ALLOW=/tmp/.	block:rm-rf	bash:rm -rf /tmp/./a
+g-ra-46	guard	none	HARNESS_RM_RF_ALLOW=/tmp/..	block:rm-rf	bash:rm -rf /tmp/../x
+g-ra-47	guard	none	HARNESS_RM_RF_ALLOW=/tmp/work b	block:rm-rf	bash:rm -rf /tmp/work/a
+g-ra-48	guard	none	HARNESS_RM_RF_ALLOW=//tmp	block:rm-rf	bash:rm -rf //tmp/a
+g-ra-49	guard	none	HARNESS_RM_RF_ALLOW=/tmp/*	block:rm-rf	bash:rm -rf /tmp/work
