@@ -114,7 +114,8 @@ out=$(jq -nc --arg c "$pushes" --arg d "$F" '{tool_name:"Bash",tool_input:{comma
   | "$HOOK_BASH" "$HOOKS_DIR/ask-gate.sh" 2>/dev/null)
 rc=$?
 took=$((SECONDS - start))
-expect "a-push-cache (took ${took}s)" '[ $rc = 0 ] && [ -z "$out" ] && [ "$took" -le 3 ]'
+# MUTATE_NO_TIMING=1 (set by mutate.sh): mutants run in parallel, so wall-clock time says nothing
+expect "a-push-cache (took ${took}s)" '[ $rc = 0 ] && [ -z "$out" ] && { [ "${MUTATE_NO_TIMING:-}" = 1 ] || [ "$took" -le 3 ]; }'
 
 # lib/parse.sh missing, failing to source, or not defining the parser: guard blocks, ask-gate asks.
 BP="$TMP_ROOT/bad-parser"
