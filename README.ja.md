@@ -128,6 +128,7 @@ claude --plugin-dir plugins/harness   # 開発中のプラグインを読み込�
 
 - [obra/superpowers](https://github.com/obra/superpowers) — brainstorming、計画、サブエージェント駆動開発、TDD
 - [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) — デルタ仕様とアーカイブによる spec 駆動の変更管理
+- implementer のデバッグの規則（先に再現と根本原因、仮説は 1 つずつ、3 回直して駄目なら止める）は、[obra/superpowers](https://github.com/obra/superpowers) の systematic-debugging の考え方を言い換えたものです
 - reviewer の過剰設計の観点は [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) の考え方に倣っています
 - Anthropic, [Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) と [Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps)
 

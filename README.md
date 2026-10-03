@@ -105,6 +105,7 @@ Before each commit, `tests/lint.sh`, `tests/hooks/run.sh` and `tests/hooks/lifec
 
 - [obra/superpowers](https://github.com/obra/superpowers) — brainstorming, planning, subagent-driven development, TDD.
 - [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) — spec-driven changes with delta specs and archives.
+- The implementer's debugging rule (reproduce and find the root cause first, one hypothesis at a time, stop after three failed fixes) is a paraphrase of the systematic-debugging idea in [obra/superpowers](https://github.com/obra/superpowers).
 - The reviewer's over-engineering pass follows the idea of [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail).
 - Anthropic, [Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) and [Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps).
 
