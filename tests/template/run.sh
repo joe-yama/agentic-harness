@@ -49,6 +49,23 @@ os_run() {
   for f in "$@"; do mkdir -p "$w/$(dirname "$f")" && : > "$w/$f"; done
   (cd "$w" && bash -e -c "$run") > "$TMP_ROOT/os.log" 2>&1
 }
+# Reads the table rows (lines starting with "|") of models.md. Decision and final review must be Opus / high, implementation and
+# intermediate review Sonnet / medium; no row may use another model (Haiku included) or be a planning role (planning is part of the decision).
+models_ok() { awk -F'|' '
+  function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return tolower(s) }
+  /^\|/ {
+    r = trim($2); m = trim($3); e = trim($4)
+    if (m == "model" || m ~ /^[-: ]+$/) next
+    if (tolower($0) ~ /haiku/ || r ~ /^plan/ || r ~ /planning/) bad = 1
+    if (m != "opus" && m != "sonnet") bad = 1
+    if (m == "opus" && e != "high") bad = 1
+    if (m == "sonnet" && e != "medium") bad = 1
+    if (r ~ /^decision/) { dec++; if (m != "opus") bad = 1 }
+    if (r ~ /^final review/) { fin++; if (m != "opus") bad = 1 }
+    if (r ~ /^implementation/) { imp++; if (m != "sonnet") bad = 1 }
+    if (r ~ /^intermediate review/) { mid++; if (m != "sonnet") bad = 1 }
+  }
+  END { exit (bad || dec != 1 || fin != 1 || imp != 1 || mid != 1) }' "$1"; }
 settings() { jq -r "$2" "$1/.claude/settings.json"; }
 common() { # <name> <dest>
   local n=$1 d=$2
@@ -71,7 +88,7 @@ common() { # <name> <dest>
   check "$n-install-order" '[ "$(settings "$d" "keys_unsorted | join(\",\")")" = "$top" ] &&
     [ "$(settings "$d" ".sandbox | keys_unsorted | join(\",\")")" = enabled,autoAllowBashIfSandboxed,network,filesystem,excludedCommands ]'
   check "$n-openspec-rules" 'rules_ok "$d/openspec/config.yaml"'
-  check "$n-models-doc" '[ -f "$d/docs/harness/models.md" ] && ! grep -q "計画" "$d/docs/harness/models.md" && ! grep -qF "model: \"opus\"" "$d/CLAUDE.md"'
+  check "$n-models-doc" '[ -f "$d/docs/harness/models.md" ] && models_ok "$d/docs/harness/models.md" && ! grep -qF "model: \"opus\"" "$d/CLAUDE.md"'
   check "$n-answers" '[ -f "$d/.copier-answers.yml" ]'
   check "$n-claude-imports" '[ "$(head -1 "$d/CLAUDE.md")" = "@AGENTS.md" ]'
 }
