@@ -11,7 +11,7 @@ This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace
 | `plugins/harness/agents/`, `plugins/harness/skills/` | subagents and skills (English) |
 | `template/` | files rendered into product repositories |
 | `tests/` | `all.sh` runs everything CI runs |
-| `docs/specs/`, `docs/plans/` | design spec, implementation plans and their ledgers |
+| `docs/specs/`, `docs/plans/` | design spec, implementation plans and their ledgers (history; 0.4.0 adds no new design or plan documents, the reasons are in the PR body, `CHANGELOG.md` and `README.md`) |
 
 ## Rules
 
@@ -21,5 +21,5 @@ This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace
 - Change behavior test-first: add the failing case, watch it fail, then change the script.
 - English is canonical. Keep `README.ja.md` in sync with `README.md` in the same commit.
 - A release bumps `plugins/harness/.claude-plugin/plugin.json` `version` and `CHANGELOG.md` together; the marketplace entry carries no version. Tag `vX.Y.Z` and run `claude plugin tag plugins/harness` for `harness--vX.Y.Z` on the same commit.
-- Pinned versions (Actions SHAs, Copier, check-jsonschema, shellcheck-py, Claude Code, Playwright MCP, SchemaStore commit) are listed in the current plan's Global Constraints; change them together with CI and the template.
+- Pinned versions (Actions SHAs, Copier, check-jsonschema, shellcheck-py, Claude Code, Playwright MCP, SchemaStore commit) live in the files that use them (`.github/workflows/`, `template/`, `tests/`, `plugins/harness/skills/adopt/`); change them together. The v0.1.0 plan's Global Constraints list the original choices and are history.
 - Commit messages: English, type prefix (`feat:` `fix:` `test:` `docs:` `chore:` `ci:`).

@@ -1,6 +1,6 @@
 # agentic-harness
 
-[Claude Code](https://code.claude.com/docs) 向けのプロダクト開発ハーネスです。人間の **PO** が舵を取り、エージェントが実行します。流れは brainstorming → spec（OpenSpec）→ 実装計画 → サブエージェントによるテスト先行の実装 → 別コンテキストでの敵対的レビュー → PR → PO の受け入れ、です。実際のプロジェクトで作り、測りながら育てたハーネスを一般化しました。Claude Code・GitHub・サプライチェーンの現行の指針にも照らしています。
+[Claude Code](https://code.claude.com/docs) 向けのプロダクト開発ハーネスです。人間の **PO** が舵を取り、エージェントが実行します。流れは設計の対話 → OpenSpec の change（spec、design、計画を兼ねる `tasks.md`）→ サブエージェントによるテスト先行の実装 → 別コンテキストでの敵対的レビュー → PR → PO の受け入れ、です。実際のプロジェクトで作り、測りながら育てたハーネスを一般化しました。Claude Code・GitHub・サプライチェーンの現行の指針にも照らしています。
 
 > 英語版の [README.md](README.md) が正本です。
 
@@ -10,10 +10,12 @@
 
 | 経路 | 運ぶもの | 更新方法 |
 |---|---|---|
-| **プラグイン** `harness@agentic-harness`（`plugins/harness/`） | hooks: `guard`（無条件ブロック）、`ask-gate`（PO の確認に回す）、`lint-on-edit`、`test-on-stop`。サブエージェント: `harness:implementer`、`harness:reviewer`。スキル: `harness:workflow`、`harness:review-loop`、`harness:mutation-check`、`harness:adopt` | `claude plugin update` |
+| **プラグイン** `harness@agentic-harness`（`plugins/harness/`） | hooks: `guard`（無条件ブロック）、`ask-gate`（PO の確認に回す）、`lint-on-edit`、`test-on-stop`。サブエージェント: `harness:implementer`（Sonnet、effort medium）、`harness:reviewer`（Opus、effort high）。スキル: `harness:workflow`、`harness:design`、`harness:execute`、`harness:mutation-check`、`harness:adopt` | `claude plugin update` |
 | **Copier テンプレート**（`copier.yml`、`template/`） | プラグインでは運べないもの: `AGENTS.md`、`CLAUDE.md`（`@AGENTS.md` + Claude 固有の差分）、`.claude/rules/`、`.claude/settings.json`（permissions・sandbox・`HARNESS_*` の env・プラグインの版の固定）、CI の job `check`、Dependabot、PR テンプレート、OpenSpec の設定、状態・台帳・教訓の各ドキュメント、ブランチの ruleset | `copier update`（レビューできる PR になる） |
 
-プラグインは公式マーケットプレイスの [Superpowers](https://github.com/obra/superpowers) に依存します。OpenSpec は OpenSpec 自身の CLI から入れます。
+プラグインは別のプラグインに依存しません。OpenSpec は OpenSpec 自身の CLI から入れます。ハーネスが使うのは `/opsx:propose`、`/opsx:archive`、`/opsx:update`（と、`/opsx:archive` が内から呼ぶ `opsx/sync.md`）だけです。テンプレートの CI の job `check` は、`.claude/skills/openspec-*` やほかの `opsx` のコマンドがあると失敗します。`openspec update` が既定の profile でそれらを戻すためです。生成させないために、各自が OpenSpec のグローバルな profile を設定できます（リポジトリごとには持てません）: `openspec config set profile custom`、`openspec config set workflows '["propose","archive","update"]'`、`openspec config set delivery commands`。
+
+テンプレートの `.claude/settings.json` は `superpowers@claude-plugins-official` を `false` にします。ユーザースコープに入っている Superpowers の指示が、ハーネスの指示と食い違わないようにするためです。リポジトリで Superpowers を使いたいときは `true` に変えてください。
 
 ### hooks がすること
 
@@ -41,7 +43,7 @@ claude plugin install harness@agentic-harness --scope project
 
 続けて新しいセッションで、Claude に **`harness:adopt`** の手順 4 以降を実行させてください。このスキルが次を行います。
 
-- OpenSpec を固定したスキルで用意する
+- OpenSpec を用意する（OpenSpec の余分なスキルとコマンドは入れない）
 - ブランチの ruleset を適用する（あなたの確認を取ってから）
 - guard が効いていることを確かめる
 
@@ -84,6 +86,15 @@ grep -rnE '^(<<<<<<<|>>>>>>>) ' . --exclude-dir=.git   # 衝突は .rej では�
 
 auto mode の Claude は `.claude/settings.json` を書けません。Claude がマージ済みのファイルを用意し、あなたが置きます。
 
+0.3.x から 0.4.0 への移行は後方互換がありません。手順の全体は `harness:adopt` にあります。要点は次のとおりです。
+
+- `.claude/skills/openspec-*`、`.claude/commands/opsx/apply.md`、`opsx/explore.md` を消す
+- `enabledPlugins` の Superpowers は `false` のままにし、`ref` を新しい版へ移す
+- 設計文書と計画文書を別に書かず、OpenSpec の change（`tasks.md` が計画を兼ねる）にする。台帳は `.harness/<change>/progress.md`
+- 別だったレビューのスキルは `harness:execute` に統合された
+- `ci.yml` が衝突したら新しいステップを残す
+- `docs/harness/models.md` が新しく来る
+
 ## セキュリティ上の注意
 
 - **プラグインはあなたのユーザー権限で動きます。** インストールするタグの `plugins/harness/scripts/` を読んでください。hooks が必要とするのは `bash`・`jq`・`git` だけです。
@@ -98,8 +109,7 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
   - 64 KiB を超えるコマンドは検査しない。guard は拒否し、ask-gate は確認を求めるので、ファイルに書いてそのファイルを実行する。1 つのコマンドが 16 を超えるディレクトリから push するときも、ask-gate は確認を求める
   - `uv run` は確認なしに `uv.lock` を更新することがある
 - 第三者の部品と固定の仕方:
-  - Superpowers（MIT、公式マーケットプレイスが固定）
-  - OpenSpec（MIT、`gh skill` でタグを固定）
+  - OpenSpec（MIT、CLI）
   - Playwright MCP（Apache-2.0、版を完全固定。`ui_review` のときだけ入る）
   - GitHub Actions はすべてコミット SHA で固定し、Dependabot が更新する
 
@@ -126,7 +136,7 @@ claude --plugin-dir plugins/harness   # 開発中のプラグインを読み込�
 
 ## クレジット
 
-- [obra/superpowers](https://github.com/obra/superpowers) — brainstorming、計画、サブエージェント駆動開発、TDD
+- [obra/superpowers](https://github.com/obra/superpowers) — 設計の対話、タスクごとのサブエージェント実行、テスト先行の考え方の出典。ハーネスは依存しません
 - [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) — デルタ仕様とアーカイブによる spec 駆動の変更管理
 - implementer のデバッグの規則（先に再現と根本原因、仮説は 1 つずつ、3 回直して駄目なら止める）は、[obra/superpowers](https://github.com/obra/superpowers) の systematic-debugging の考え方を言い換えたものです
 - reviewer の過剰設計の観点は [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) の考え方に倣っています

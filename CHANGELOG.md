@@ -3,6 +3,31 @@
 All notable changes to this project are documented here. The plugin version in
 `plugins/harness/.claude-plugin/plugin.json` and the git tags `vX.Y.Z` / `harness--vX.Y.Z` follow this file.
 
+## [Unreleased]
+
+Next release: 0.4.0 (the version is bumped at release). **Not backward compatible**: the plugin no longer depends on Superpowers, and the design document and the plan document are replaced by the OpenSpec change itself. The steps to move an adopted repository are in `harness:adopt` ("From 0.3.x to 0.4.0").
+
+### Changed
+
+- **BREAKING** plugin: `plugin.json` has no `dependencies` and no `superpowers` keyword, and `marketplace.json` has no `allowCrossMarketplaceDependenciesOn`. Installing the plugin no longer installs Superpowers. `tests/manifest.sh` asserts both are absent and accepts `X.Y.Z-rc.N` versions.
+- **BREAKING** `harness:workflow`: the lifecycle is idea → `harness:design` → `/opsx:propose` plus one Issue → `harness:execute` in a new session → final review and PR → acceptance → `/opsx:archive`. `tasks.md` is the plan, so there is no separate planning step and no reference to Superpowers skills. One new session per stage, handing over only through committed files and the ledger. The ledger is `.harness/<change>/progress.md` (gitignored).
+- **BREAKING** `harness:implementer` and `harness:reviewer`: they receive the change path, task numbers and BASE/range instead of a task brief, global constraints or a diff file. The implementer is now `model: sonnet`, `effort: medium`, and gains a short debugging rule (reproduce and find the root cause first, one hypothesis at a time, stop after three failed fixes). The reviewer reads the change's delta specs, `design.md` and `tasks.md` as ground truth and reports a scenario map: every touched `#### Scenario:` maps to a test (`file:line`) or a verification task, and a scenario with neither is an Important finding.
+- **BREAKING** template: `AGENTS.md` and `CLAUDE.md` name `harness:design` and `harness:execute` instead of Superpowers skills, and refer to `docs/harness/models.md` instead of naming a model; `.claude/settings.json` sets `superpowers@claude-plugins-official` to `false` (set it to `true` to use Superpowers) and keeps a `vX.Y.Z-rc.N` ref, falling back to `main` for `git describe` output after an rc; `docs/status.md` drops the Superpowers row; `.gitignore` adds `.harness/`; `openspec/config.yaml` gets `rules.design` and `rules.tasks`, which `/opsx:propose` follows so that `tasks.md` carries files, tests first, review unit and risk per task.
+- `harness:adopt`: the `gh skill install` step is gone. After `openspec init` it deletes `.claude/skills/openspec-*`, `opsx/apply.md` and `opsx/explore.md`, and optionally sets OpenSpec's global profile (`openspec config set profile custom`, `workflows`, `delivery commands`) so they are never generated. The verification no longer looks for Superpowers or OpenSpec skills; it looks for `harness:design` and `harness:execute`. "Updating" has a 0.3.x to 0.4.0 migration.
+- README (English and Japanese): the Superpowers dependency is gone; the components list matches 0.4.0; the Superpowers default and how to turn it on, the OpenSpec command set and the migration are described. Credits keep obra/superpowers as the source of ideas.
+
+### Added
+
+- `harness:design`: the design session. It reads the context, picks the route, asks the PO one question at a time (or writes a questions file when headless), writes the whole change with `/opsx:propose`, creates the one Issue and ends.
+- `harness:execute`: carries a change from `tasks.md` to an open PR: ledger, one implementer per task or batch, review units from `tasks.md`, fix rounds, rebuild conditions, waiting and context rules, a final review of the branch, one push and the PR.
+- Template `docs/harness/models.md`: the role-to-model/effort table (no planning row, no Haiku) and how model and effort are set.
+- Template CI job `check`: a step, run on every change including documentation-only ones, that fails when `.claude/skills/openspec-*` or an `opsx` command other than `propose`, `archive`, `update` and `sync` exists (`openspec update` restores them under its default profile).
+- Tests: `tests/template/run.sh` checks the Superpowers entry is `false`, the rc ref, the OpenSpec rules, the models document and the CI step.
+
+### Removed
+
+- **BREAKING** `harness:review-loop`: its content (review units, materials, fix rounds, rebuild conditions, Minor handling) moved into `harness:execute`.
+
 ## [0.3.0] - 2026-09-29
 
 - guard: two opt-in exceptions, off unless set (behavior is unchanged when unset). `HARNESS_ALLOW_LEASE_PUSH=1` lets `git push --force-with-lease=refs/heads/<branch>:<sha> [--force-if-includes] <remote> <src>:refs/heads/<branch>...` through when refs are written in full, leases and destinations match one to one, no branch is in `HARNESS_PROTECTED_BRANCHES` (space-separated, as in ask-gate), and the command neither mentions a `GIT_CONFIG*` variable nor runs `git config`; every other force push stays blocked (`force-push`). `HARNESS_RM_RF_ALLOW=<prefix>[:<prefix>...]` lets a recursive forced `rm` through when every operand is a plain absolute path that, with symlinks resolved (`cd -P`), is at or under one of the (resolved) prefixes of at least two segments; relative paths, globs, `..`, expansions, words after the first operand that look like options (BSD `rm`), operands over 1024 bytes, commands that run `ln`, and `rm` run by `xargs`, `find -exec`, `sudo` or `sh -c` stay blocked (`rm-rf`). See README "Opt-in guard exceptions".
