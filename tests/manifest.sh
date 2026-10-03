@@ -35,6 +35,10 @@ check h-plugin-root '! jq -r "${hooks}[].args[]?" $h | grep -vE "^\\\$\{CLAUDE_P
 for s in plugins/harness/scripts/*.sh; do
   check "h-wired-$(basename "$s")" "grep -qF 'scripts/$(basename "$s")' $h"
 done
+# No skill, agent, hook or template file may call a Superpowers skill (`superpowers:<skill>`).
+# The settings line `"superpowers@claude-plugins-official": false` has no colon after the name,
+# so it does not match. Offending lines (path:line:text) print on stdout.
+check no-superpowers '! grep -rnI "superpowers:" plugins template'
 if command -v claude >/dev/null 2>&1; then
   check validate-marketplace 'claude plugin validate . --strict >/dev/null 2>&1'
   check validate-plugin 'claude plugin validate plugins/harness --strict >/dev/null 2>&1'
