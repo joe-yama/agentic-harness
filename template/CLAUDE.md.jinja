@@ -2,24 +2,23 @@
 
 # Claude Code specifics
 
-The `harness@agentic-harness` plugin supplies the hooks, subagents and skills below; `superpowers@claude-plugins-official` comes with it as a dependency.
+The `harness@agentic-harness` plugin supplies the hooks, subagents and skills below.
 
 ## Which skill when
 
 | Situation | Use |
 |---|---|
 | Starting, resuming or finishing a change; unsure whether to stop | `harness:workflow` |
-| New idea or behavior change | `superpowers:brainstorming` |
-| Proposal, archive | `/opsx:propose`, `/opsx:archive` (call OpenSpec through `/opsx:*`, not the `openspec-*` skills directly) |
-| Implementation plan / execution | `superpowers:writing-plans`, `superpowers:subagent-driven-development` |
-| A task or the branch reaches review | `harness:review-loop` |
+| New idea or behavior change (design session, writes the whole change) | `harness:design` |
+| Proposal, archive | `/opsx:propose`, `/opsx:archive` (call OpenSpec through `/opsx:*`) |
+| Implementing a change's `tasks.md`, including its reviews | `harness:execute` |
 | A new guardian test | `harness:mutation-check` |
 | Harness version update | `harness:adopt` ("Updating") |
 
 ## Subagents
 
-- Dispatch only `harness:implementer` and `harness:reviewer`, and always pass `model: "opus"`. An omitted model inherits the session's.
-- The context that implemented something never reviews it. During subagent-driven development the controller distributes, judges and records; it does not write code.
+- Dispatch only `harness:implementer` and `harness:reviewer`, and always pass `model` per the role table in `docs/harness/models.md`. An omitted model inherits the session's.
+- The context that implemented something never reviews it. During `harness:execute` the controller distributes, judges and records; it does not write code.
 - Agent definition changes take effect only in a new session. The symptom of a stale definition is `No such tool available`.
 
 ## Hooks and permissions
@@ -35,4 +34,4 @@ The `harness@agentic-harness` plugin supplies the hooks, subagents and skills be
 
 ## Compact instructions
 
-Always keep: the change name and Issue number, the worktree path and branch, the ledger path (`.superpowers/sdd/<plan>/progress.md`), completed tasks and the current task number, the latest review verdict and open Critical / Important findings, PO decisions and unanswered questions, and the test / lint commands. Drop tool output bodies, exploratory file contents and full subagent reports into summaries.
+Always keep: the change name and Issue number, the worktree path and branch, the ledger path (`.harness/<change>/progress.md`), completed tasks and the current task number, the latest review verdict and open Critical / Important findings, PO decisions and unanswered questions, and the test / lint commands. Drop tool output bodies, exploratory file contents and full subagent reports into summaries.

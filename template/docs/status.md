@@ -25,6 +25,5 @@ Last updated: <date> (<event, e.g. "change X merged and archived">). Update this
 | Component | Version |
 |---|---|
 | agentic-harness | |
-| Superpowers | |
 | OpenSpec CLI / skills | |
 | Claude Code | |

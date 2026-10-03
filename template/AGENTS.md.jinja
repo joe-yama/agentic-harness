@@ -13,7 +13,7 @@ This repository is built with a harness in which a human **PO** steers and a cod
 
 ## How work flows
 
-Every change goes: idea (1-4 sentences from the PO) → design approved by the PO → OpenSpec proposal (`openspec/changes/<name>/`) plus one GitHub Issue → implementation plan → test-first implementation by a subagent → adversarial review by a separate subagent → PR → PO acceptance → archive → `docs/status.md` updated. Small changes (docs, config or styles only, or at most 5 files without a new spec requirement) skip the design step but still get an Issue.
+Every change goes: idea (1-4 sentences from the PO) → design (`harness:design`) approved by the PO → OpenSpec proposal (`openspec/changes/<name>/`) plus one GitHub Issue → implementation of `tasks.md`, which is the plan (`harness:execute`: test-first implementation by a subagent, adversarial review by a separate subagent) → PR → PO acceptance → archive → `docs/status.md` updated. Small changes (docs, config or styles only, or at most 5 files without a new spec requirement) skip the design step but still get an Issue.
 
 ## Stop and ask only for
 

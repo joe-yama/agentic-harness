@@ -28,6 +28,10 @@ render() { # <dest> <vcs-ref> [--data k=v ...]
     tail -20 "$TMP_ROOT/copier.log" >&2
   fi
 }
+# OpenSpec ignores a rules entry that is not an array of strings (an unquoted "key: value" item breaks it).
+rules_ok() { uvx --from pyyaml python -c 'import sys, yaml
+r = yaml.safe_load(open(sys.argv[1]))["rules"]
+sys.exit(0 if all(isinstance(r[k], list) and r[k] and all(isinstance(i, str) for i in r[k]) for k in ("design", "tasks")) else 1)' "$1"; }
 settings() { jq -r "$2" "$1/.claude/settings.json"; }
 common() { # <name> <dest>
   local n=$1 d=$2
@@ -40,15 +44,17 @@ common() { # <name> <dest>
   check "$n-budget" '[ "$(cat "$d/AGENTS.md" "$d/CLAUDE.md" "$d"/.claude/rules/*.md | wc -c)" -le 16000 ]'
   check "$n-plugin" '[ "$(settings "$d" ".enabledPlugins[\"harness@agentic-harness\"]")" = true ]'
   # `claude plugin install --scope project` rewrites settings.json as JSON.stringify(v, null, 2) with
-  # its own key order and enables the dependency. Rendering that exact form keeps the install a no-op
+  # its own key order. Rendering that exact form keeps the install a no-op
   # (checked by hand with Claude Code 2.1.282: the file stays byte-identical). `jq --indent 2` matches
   # JSON.stringify for these inputs (it differs only for DEL, which jq escapes).
-  check "$n-superpowers" '[ "$(settings "$d" ".enabledPlugins[\"superpowers@claude-plugins-official\"]")" = true ]'
+  check "$n-superpowers" '[ "$(settings "$d" ".enabledPlugins[\"superpowers@claude-plugins-official\"]")" = false ]'
   check "$n-install-format" 'jq --indent 2 . "$d/.claude/settings.json" | cmp -s - "$d/.claude/settings.json"'
   local top='$schema,env,permissions,enabledPlugins,extraKnownMarketplaces,sandbox'
   [ -e "$d/.mcp.json" ] && top='$schema,env,permissions,enabledMcpjsonServers,enabledPlugins,extraKnownMarketplaces,sandbox'
   check "$n-install-order" '[ "$(settings "$d" "keys_unsorted | join(\",\")")" = "$top" ] &&
     [ "$(settings "$d" ".sandbox | keys_unsorted | join(\",\")")" = enabled,autoAllowBashIfSandboxed,network,filesystem,excludedCommands ]'
+  check "$n-openspec-rules" 'rules_ok "$d/openspec/config.yaml"'
+  check "$n-models-doc" '[ -f "$d/docs/harness/models.md" ] && ! grep -q "計画" "$d/docs/harness/models.md" && ! grep -qF "model: \"opus\"" "$d/CLAUDE.md"'
   check "$n-answers" '[ -f "$d/.copier-answers.yml" ]'
   check "$n-claude-imports" '[ "$(head -1 "$d/CLAUDE.md")" = "@AGENTS.md" ]'
 }
@@ -91,6 +97,21 @@ git -C "$SRC" add -A && git -C "$SRC" commit -q -m dev
 D4="$TMP_ROOT/untagged"
 render "$D4" HEAD
 check untagged-ref '[ "$(settings "$D4" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = main ]'
+
+# A release candidate tag keeps its ref; a describe string after it does not.
+RC="$TMP_ROOT/rc"
+mkdir -p "$RC"
+(cd "$repo" && git ls-files -co --exclude-standard | tar -c -T -) | tar -x -C "$RC"
+git -C "$RC" init -q && git -C "$RC" add -A && git -C "$RC" commit -q -m snapshot
+git -C "$RC" tag -a v9.9.0-rc.1 -m v9.9.0-rc.1
+D6="$TMP_ROOT/rc-tag"
+$COPIER copy --quiet --defaults --vcs-ref v9.9.0-rc.1 --data project_name=Sample --data github_owner=octo "$RC" "$D6" > "$TMP_ROOT/copier.log" 2>&1
+check rc-ref '[ "$(settings "$D6" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = v9.9.0-rc.1 ]'
+echo "# dev" >> "$RC/README.md"
+git -C "$RC" add -A && git -C "$RC" commit -q -m dev
+D7="$TMP_ROOT/rc-after"
+$COPIER copy --quiet --defaults --vcs-ref HEAD --data project_name=Sample --data github_owner=octo "$RC" "$D7" > "$TMP_ROOT/copier.log" 2>&1
+check rc-after-ref '[ "$(settings "$D7" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = main ]'
 
 # A source repository without any tag makes _commit a bare SHA, which is not a branch or tag.
 NOTAG="$TMP_ROOT/notag"
