@@ -3,9 +3,9 @@
 All notable changes to this project are documented here. The plugin version in
 `plugins/harness/.claude-plugin/plugin.json` and the git tags `vX.Y.Z` / `harness--vX.Y.Z` follow this file.
 
-## [Unreleased]
+## [0.4.0-rc.1] - 2026-10-04
 
-Next release: 0.4.0 (the version is bumped at release). **Not backward compatible**: the plugin no longer depends on Superpowers, and the design document and the plan document are replaced by the OpenSpec change itself. The steps to move an adopted repository are in `harness:adopt` ("From 0.3.x to 0.4.0").
+Release candidate for 0.4.0 (the final 0.4.0 follows after the candidate is tried; the README install pins stay at v0.3.0 until then). **Not backward compatible**: the plugin no longer depends on Superpowers, and the design document and the plan document are replaced by the OpenSpec change itself. The steps to move an adopted repository are in `harness:adopt` ("From 0.3.x to 0.4.0").
 
 ### Changed
 
