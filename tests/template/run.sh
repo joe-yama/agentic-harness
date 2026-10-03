@@ -28,8 +28,8 @@ render() { # <dest> <vcs-ref> [--data k=v ...]
     tail -20 "$TMP_ROOT/copier.log" >&2
   fi
 }
-# OpenSpec ignores a rules entry that is not an array of strings (an unquoted "key: value" item breaks it).
-rules_ok() { uvx --from pyyaml python -c 'import sys, yaml
+# Uses the pinned copier environment, which already ships PyYAML. OpenSpec ignores a rules entry that is not an array of strings (an unquoted "key: value" item breaks it).
+rules_ok() { uvx --from copier@9.18.2 python -c 'import sys, yaml
 r = yaml.safe_load(open(sys.argv[1]))["rules"]
 sys.exit(0 if all(isinstance(r[k], list) and r[k] and all(isinstance(i, str) for i in r[k]) for k in ("design", "tasks")) else 1)' "$1"; }
 settings() { jq -r "$2" "$1/.claude/settings.json"; }
