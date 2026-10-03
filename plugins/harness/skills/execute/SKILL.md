@@ -65,7 +65,7 @@ Record the rebuild and its reason in the change's `openspec/changes/<name>/` (co
 ## 5. Finish
 
 1. **Final review.** After the last task, run **one** review of the whole branch with `model` per the "final review" row of `docs/harness/models.md` (heavier than the intermediate review). It catches what batched reviews missed. Its report maps **every** delta-spec scenario of the change to a test (`file:line`) or a verification task; a scenario with neither is an Important finding. Handle its findings as in section 3.
-2. **Pre-push checks.** Fix everything the final review raised, then run the project's pre-commit and pre-push checks (its commands in `AGENTS.md` and its testing docs) once more.
+2. **Pre-push checks.** Fix every Critical and Important finding of the final review (Minor findings go to Proposals, as in section 3), then run the project's pre-commit and pre-push checks (its commands in `AGENTS.md` and its testing docs) once more.
 3. **Open the PR only after** implementation and the final review are done. No draft PR along the way, and do not open the PR at the start of a stage.
 4. **One push.** Collect fixes into a single push, so CI runs once per push. Intermediate state is not visible on GitHub; the ledger is where progress lives. If the PR needs more than a few CI runs, write the cause in the ledger.
 5. **PR body.** `Closes #<issue>` plus the evidence: commands and their results, the review verdict, the scenario-to-test map, and the CI run.

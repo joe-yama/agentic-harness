@@ -9,7 +9,7 @@ project_name:
 project_summary:
   type: str
   default: ""
-  help: One-paragraph product summary (leave empty to write it at the first brainstorming)
+  help: One-paragraph product summary (leave empty to write it at the first design session)
 github_owner:
   type: str
   help: GitHub account that owns the repository (checked with `gh api user` before gh writes)
