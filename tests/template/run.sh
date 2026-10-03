@@ -28,6 +28,44 @@ render() { # <dest> <vcs-ref> [--data k=v ...]
     tail -20 "$TMP_ROOT/copier.log" >&2
   fi
 }
+# Uses the pinned copier environment, which already ships PyYAML. OpenSpec ignores a rules entry that is not an array of strings (an unquoted "key: value" item breaks it).
+rules_ok() { uvx --from copier@9.18.2 python -c 'import sys, yaml
+r = yaml.safe_load(open(sys.argv[1]))["rules"]
+sys.exit(0 if all(isinstance(r[k], list) and r[k] and all(isinstance(i, str) for i in r[k]) for k in ("design", "tasks")) else 1)' "$1"; }
+# The CI step that rejects OpenSpec files we strip. Pulled out of the rendered ci.yml by its name so the test runs the exact script CI runs.
+# Fails when the step is missing or has an `if:` (it must not be skippable); the job and the triggers carry no filters of their own.
+os_step() { uvx --from copier@9.18.2 python -c 'import sys, yaml
+w = yaml.safe_load(open(sys.argv[1]))
+s = [x for x in w["jobs"]["check"]["steps"] if x.get("name", "").startswith("OpenSpec")]
+sys.exit(1) if len(s) != 1 or "if" in s[0] or "if" in w["jobs"]["check"] else print(s[0]["run"])' "$1"; }
+# <rendered dir> <relative path>... : runs the step in a copy holding those empty files; output goes to $TMP_ROOT/os.log.
+os_run() {
+  local d=$1 w run
+  shift
+  run=$(os_step "$d/.github/workflows/ci.yml") && [ -n "$run" ] || return 99
+  w=$(mktemp -d "$TMP_ROOT/os.XXXXXX")
+  cp -R "$d/." "$w"
+  local f
+  for f in "$@"; do mkdir -p "$w/$(dirname "$f")" && : > "$w/$f"; done
+  (cd "$w" && bash -e -c "$run") > "$TMP_ROOT/os.log" 2>&1
+}
+# Reads the table rows (lines starting with "|") of models.md. Decision and final review must be Opus / high, implementation and
+# intermediate review Sonnet / medium; no row may use another model (Haiku included) or be a planning role (planning is part of the decision).
+models_ok() { awk -F'|' '
+  function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return tolower(s) }
+  /^\|/ {
+    r = trim($2); m = trim($3); e = trim($4)
+    if (m == "model" || m ~ /^[-: ]+$/) next
+    if (tolower($0) ~ /haiku/ || r ~ /^plan/ || r ~ /planning/) bad = 1
+    if (m != "opus" && m != "sonnet") bad = 1
+    if (m == "opus" && e != "high") bad = 1
+    if (m == "sonnet" && e != "medium") bad = 1
+    if (r ~ /^decision/) { dec++; if (m != "opus") bad = 1 }
+    if (r ~ /^final review/) { fin++; if (m != "opus") bad = 1 }
+    if (r ~ /^implementation/) { imp++; if (m != "sonnet") bad = 1 }
+    if (r ~ /^intermediate review/) { mid++; if (m != "sonnet") bad = 1 }
+  }
+  END { exit (bad || dec != 1 || fin != 1 || imp != 1 || mid != 1) }' "$1"; }
 settings() { jq -r "$2" "$1/.claude/settings.json"; }
 common() { # <name> <dest>
   local n=$1 d=$2
@@ -40,15 +78,17 @@ common() { # <name> <dest>
   check "$n-budget" '[ "$(cat "$d/AGENTS.md" "$d/CLAUDE.md" "$d"/.claude/rules/*.md | wc -c)" -le 16000 ]'
   check "$n-plugin" '[ "$(settings "$d" ".enabledPlugins[\"harness@agentic-harness\"]")" = true ]'
   # `claude plugin install --scope project` rewrites settings.json as JSON.stringify(v, null, 2) with
-  # its own key order and enables the dependency. Rendering that exact form keeps the install a no-op
+  # its own key order. Rendering that exact form keeps the install a no-op
   # (checked by hand with Claude Code 2.1.282: the file stays byte-identical). `jq --indent 2` matches
   # JSON.stringify for these inputs (it differs only for DEL, which jq escapes).
-  check "$n-superpowers" '[ "$(settings "$d" ".enabledPlugins[\"superpowers@claude-plugins-official\"]")" = true ]'
+  check "$n-superpowers" '[ "$(settings "$d" ".enabledPlugins[\"superpowers@claude-plugins-official\"]")" = false ]'
   check "$n-install-format" 'jq --indent 2 . "$d/.claude/settings.json" | cmp -s - "$d/.claude/settings.json"'
   local top='$schema,env,permissions,enabledPlugins,extraKnownMarketplaces,sandbox'
   [ -e "$d/.mcp.json" ] && top='$schema,env,permissions,enabledMcpjsonServers,enabledPlugins,extraKnownMarketplaces,sandbox'
   check "$n-install-order" '[ "$(settings "$d" "keys_unsorted | join(\",\")")" = "$top" ] &&
     [ "$(settings "$d" ".sandbox | keys_unsorted | join(\",\")")" = enabled,autoAllowBashIfSandboxed,network,filesystem,excludedCommands ]'
+  check "$n-openspec-rules" 'rules_ok "$d/openspec/config.yaml"'
+  check "$n-models-doc" '[ -f "$d/docs/harness/models.md" ] && models_ok "$d/docs/harness/models.md" && ! grep -qF "model: \"opus\"" "$d/CLAUDE.md"'
   check "$n-answers" '[ -f "$d/.copier-answers.yml" ]'
   check "$n-claude-imports" '[ "$(head -1 "$d/CLAUDE.md")" = "@AGENTS.md" ]'
 }
@@ -67,6 +107,14 @@ check defaults-lang 'grep -q "Japanese" "$D1/AGENTS.md" && grep -q "Japanese" "$
 check defaults-env-deny '[ "$(settings "$D1" "[.permissions.deny[] | select(test(\"env\"))] | join(\" \")")" = "Read(.env) Read(.env.*) Read(!.env.example) Edit(.env) Edit(.env.*) Edit(!.env.example)" ]'
 check defaults-release-assets 'settings "$D1" ".sandbox.network.allowedDomains[]" | grep -qx release-assets.githubusercontent.com'
 check defaults-gh-login 'settings "$D1" ".permissions.allow[]" | grep -qxF "Bash(gh api user --jq .login)" && ! settings "$D1" ".permissions.allow[]" | grep -qF "gh api user:"'
+
+check ci-openspec-step 'os_step "$D1/.github/workflows/ci.yml" >/dev/null && ! grep -qE "^[[:space:]]*paths(-ignore)?:" "$D1/.github/workflows/ci.yml"'
+check ci-openspec-empty 'os_run "$D1"'
+OS4=.claude/commands/opsx
+check ci-openspec-kept 'os_run "$D1" $OS4/propose.md $OS4/archive.md $OS4/update.md $OS4/sync.md'
+check ci-openspec-skill '! os_run "$D1" .claude/skills/openspec-propose/SKILL.md && grep -q "openspec-propose" "$TMP_ROOT/os.log"'
+check ci-openspec-apply '! os_run "$D1" $OS4/propose.md $OS4/archive.md $OS4/update.md $OS4/sync.md $OS4/apply.md && grep -q "opsx/apply.md" "$TMP_ROOT/os.log" && ! grep -q "opsx/propose.md" "$TMP_ROOT/os.log"'
+check ci-openspec-all '! os_run "$D1" $OS4/apply.md $OS4/explore.md .claude/skills/openspec-explore/SKILL.md && grep -q "opsx/apply.md" "$TMP_ROOT/os.log" && grep -q "opsx/explore.md" "$TMP_ROOT/os.log" && grep -q "openspec-explore" "$TMP_ROOT/os.log"'
 
 D2="$TMP_ROOT/node"
 render "$D2" v9.9.0 --data 'lint_cmd=pnpm exec biome check --error-on-warnings --no-errors-on-unmatched' \
@@ -91,6 +139,21 @@ git -C "$SRC" add -A && git -C "$SRC" commit -q -m dev
 D4="$TMP_ROOT/untagged"
 render "$D4" HEAD
 check untagged-ref '[ "$(settings "$D4" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = main ]'
+
+# A release candidate tag keeps its ref; a describe string after it does not.
+RC="$TMP_ROOT/rc"
+mkdir -p "$RC"
+(cd "$repo" && git ls-files -co --exclude-standard | tar -c -T -) | tar -x -C "$RC"
+git -C "$RC" init -q && git -C "$RC" add -A && git -C "$RC" commit -q -m snapshot
+git -C "$RC" tag -a v9.9.0-rc.1 -m v9.9.0-rc.1
+D6="$TMP_ROOT/rc-tag"
+$COPIER copy --quiet --defaults --vcs-ref v9.9.0-rc.1 --data project_name=Sample --data github_owner=octo "$RC" "$D6" > "$TMP_ROOT/copier.log" 2>&1
+check rc-ref '[ "$(settings "$D6" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = v9.9.0-rc.1 ]'
+echo "# dev" >> "$RC/README.md"
+git -C "$RC" add -A && git -C "$RC" commit -q -m dev
+D7="$TMP_ROOT/rc-after"
+$COPIER copy --quiet --defaults --vcs-ref HEAD --data project_name=Sample --data github_owner=octo "$RC" "$D7" > "$TMP_ROOT/copier.log" 2>&1
+check rc-after-ref '[ "$(settings "$D7" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = main ]'
 
 # A source repository without any tag makes _commit a bare SHA, which is not a branch or tag.
 NOTAG="$TMP_ROOT/notag"

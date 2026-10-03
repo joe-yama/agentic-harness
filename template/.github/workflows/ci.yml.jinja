@@ -24,4 +24,16 @@ jobs:
           bytes=$(cat AGENTS.md CLAUDE.md .claude/rules/*.md | wc -c)
           echo "context bytes: $bytes"
           test "$bytes" -le 16000
+      # Runs on every change, documentation-only ones included: no `if:` here and no path filter on the workflow.
+      - name: OpenSpec agent files (only the opsx commands propose, archive, update and sync stay)
+        run: |
+          bad=$({
+            find .claude/skills -mindepth 1 -maxdepth 1 -name 'openspec-*'
+            find .claude/commands/opsx -mindepth 1 ! -name propose.md ! -name archive.md ! -name update.md ! -name sync.md
+          } 2>/dev/null | sort || true)
+          if [ -n "$bad" ]; then
+            echo "These OpenSpec files were stripped and have come back (openspec update restores them). Delete them:"
+            echo "$bad"
+            exit 1
+          fi
       # The first change adds the stack's setup, lint, typecheck, test and build steps here.

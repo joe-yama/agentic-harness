@@ -57,7 +57,7 @@ claude plugin install harness@agentic-harness --scope project
 git diff --exit-code .claude/settings.json
 ```
 
-This also installs the `superpowers@claude-plugins-official` dependency. The template renders `.claude/settings.json` the way the install writes it, so the diff must be empty. A diff means this Claude Code version writes a different layout, or the file was edited after rendering; read it before committing. Restart the session so hooks, agents and skills load. Plugins run with your user privileges; read `plugins/harness/scripts/` at `<tag>` before installing. Until a folder is trusted, `claude -p` also ignores the project's `permissions.allow` entries.
+The plugin has no plugin dependencies. The template renders `.claude/settings.json` the way the install writes it, so the diff must be empty. A diff means this Claude Code version writes a different layout, or the file was edited after rendering; read it before committing. Restart the session so hooks, agents and skills load. Plugins run with your user privileges; read `plugins/harness/scripts/` at `<tag>` before installing. Until a folder is trusted, `claude -p` also ignores the project's `permissions.allow` entries.
 
 ## 6. OpenSpec
 
@@ -65,19 +65,26 @@ This also installs the `superpowers@claude-plugins-official` dependency. The tem
 openspec init --tools claude
 ```
 
-It keeps the template's `openspec/config.yaml`. Replace the generated OpenSpec skills with pinned copies whose origin `gh skill` records (`<openspec-tag>` = the OpenSpec release matching the installed CLI, for example `v1.13.2`):
+It keeps the template's `openspec/config.yaml`. The harness uses only `/opsx:propose`, `/opsx:archive` and `/opsx:update` (`opsx/sync.md` stays: `/opsx:archive` calls it). Delete what the default profile also generates, which CI job `check` rejects:
 
 ```sh
-for s in openspec-propose openspec-apply-change openspec-archive-change openspec-explore openspec-sync-specs openspec-update-change; do
-  gh skill install Fission-AI/OpenSpec "skills/$s" --agent claude-code --scope project --pin <openspec-tag> --force
-done
+[ -d .claude/skills ] && find .claude/skills -mindepth 1 -maxdepth 1 -name 'openspec-*' -exec rm -r {} +
+rm -f .claude/commands/opsx/apply.md .claude/commands/opsx/explore.md
 ```
 
-Keep the `/opsx:*` commands `openspec init` created; call OpenSpec through them. Commit.
+`openspec update` brings them back under the default profile. Optionally (each person, once, outside the repository) set OpenSpec's global profile so they are never generated; it lives in `~/.config/openspec/config.json` and cannot be set per repository:
+
+```sh
+openspec config set profile custom
+openspec config set workflows '["propose","archive","update"]'
+openspec config set delivery commands
+```
+
+Run these before `openspec init` to skip the deletion above. Commit.
 
 ## 7. Open the PR (PO merges)
 
-Push the branch and open a PR against the default branch. CI job `check` must be green (it checks the context budget). The PO merges.
+Push the branch and open a PR against the default branch. CI job `check` must be green (it checks the context budget and that no stripped OpenSpec file is present). The PO merges.
 
 ## 8. Verify in a new session
 
@@ -85,14 +92,14 @@ In a new interactive session on the default branch, check:
 
 - `rm -rf ./harness-guard-probe` is refused with `BLOCKED by harness guard (rm-rf)`;
 - `git push origin <default branch>` asks for confirmation (`harness ask-gate (protected-push)`) — decline it;
-- `/plugin` shows `harness` and `superpowers` enabled;
-- `gh skill list --agent claude-code --scope project` lists the six OpenSpec skills with their pinned tag;
+- `/plugin` shows `harness` enabled;
+- the skill list shows `harness:design` and `harness:execute` and no `openspec-*` skill, and `.claude/commands/opsx/` holds only `propose.md`, `archive.md`, `update.md` and `sync.md`;
 - `/agents` lists `harness:implementer` and `harness:reviewer`;
 - `gh api repos/<owner>/<repo>/rulesets --jq '.[].name'` lists `default-branch`.
 
 ## 9. Record
 
-Fill "Harness versions" in `docs/status.md`: agentic-harness tag, Superpowers version, OpenSpec CLI and skill tag, Claude Code version, and the results of step 8.
+Fill "Harness versions" in `docs/status.md`: agentic-harness tag, OpenSpec CLI version, Claude Code version, and the results of step 8.
 
 ## Updating an adopted repository
 
@@ -104,3 +111,13 @@ grep -rnE '^(<<<<<<<|>>>>>>>) ' . --exclude-dir=.git     # Copier writes conflic
 ```
 
 `copier update` three-way-merges template changes and moves the marketplace pin in `.claude/settings.json` to the new tag. Before resolving conflicts, read the agentic-harness changelog entries between the old and the new tag (`https://github.com/joe-yama/agentic-harness/blob/<new tag>/CHANGELOG.md`, not the product's own changelog); they say how to resolve the conflicts a release is known to cause. Resolve every conflict marker (a conflicted `.claude/settings.json` is not valid JSON until you do). Under auto mode the agent cannot write `.claude/settings.json`; prepare the merged file in the scratchpad and ask the PO to place it. Then restart the session so the new pin is read, run `claude plugin update harness@agentic-harness`, run the checks and open a PR.
+
+### From 0.3.x to 0.4.0 (no backward compatibility)
+
+0.4.0 drops the Superpowers dependency and replaces the design document and plan document with the OpenSpec change itself. After `copier update`:
+
+1. **Delete the files 0.3.x installed.** `.claude/skills/openspec-*` (including any that `gh skill install` added), `.claude/commands/opsx/apply.md` and `.claude/commands/opsx/explore.md`; the commands in step 6 do it. CI job `check` fails while they exist.
+2. **`.claude/settings.json`.** The `enabledPlugins` entry for Superpowers becomes `false`. The template update brings this; keep it when resolving the conflict, and move the marketplace `ref` to the new tag. A user-scope Superpowers install would otherwise keep injecting its own instructions.
+3. **Where the plan lives.** Design and plan are no longer separate documents: the OpenSpec change is both, and `tasks.md` is the plan (per task: files, tests first, review unit). The ledger is `.harness/<change>/progress.md` (gitignored). The separate review skill is merged into `harness:execute` (see the CHANGELOG). `harness:implementer` and `harness:reviewer` receive the change path and the task numbers or range, not a task brief. Old design and plan documents stay as history.
+4. **`ci.yml` conflicts.** Keep the new OpenSpec-files step next to your own steps.
+5. **`docs/harness/models.md`** is new: the role-to-model table. Keep any project-specific history below it and make `CLAUDE.md` refer to it instead of naming models.

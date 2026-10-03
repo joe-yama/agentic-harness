@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: The per-change lifecycle of a PO-steered repository - brainstorm, OpenSpec proposal plus one GitHub Issue, plan, TDD implementation by subagents, adversarial review, PR, archive, status update. Use when starting, resuming or finishing any change, or when unsure whether to stop and ask the PO.
+description: The per-change lifecycle of a PO-steered repository - design, OpenSpec proposal plus one GitHub Issue, implementation with review, PR, archive, status update, one new session per stage. Use when starting, resuming or finishing any change, or when unsure whether to stop and ask the PO.
 ---
 
 # Change workflow
@@ -10,22 +10,26 @@ The PO (a human) decides what to build, priorities and acceptance, and does not 
 ## Lifecycle of one change
 
 1. **Idea.** The PO describes it in 1-4 sentences.
-2. **Design.** Run `superpowers:brainstorming` and get the PO's approval. Settle every open question here, so implementation never has to stop for the PO.
-3. **Proposal.** Run `/opsx:propose` to create proposal, delta specs, design and tasks under `openspec/changes/<name>/`. At the same time, create exactly one GitHub Issue for the change (see "Issue" below).
-4. **Plan.** Start implementation in a **new session**. Run `superpowers:writing-plans`. The plan says which tasks get their own review and which are reviewed together (`harness:review-loop`).
-5. **Implement.** Work in a git worktree on `feature/<change-name>`. Before the first task, check whether `origin/<default branch>` moved since the change was proposed and merge it (parallel worktrees drift; a delta spec's MODIFIED block can silently drop requirements another change added). Run `superpowers:subagent-driven-development`: dispatch `harness:implementer` per task with `model: "opus"`. **One implementer per worktree at a time** — they share the git index, build output and ports.
-6. **Review.** Follow `harness:review-loop`. The implementing context never reviews its own work.
-7. **PR.** Create the PR with `Closes #<issue>` in the body and the evidence (commands, results, CI run, review verdict).
-8. **Acceptance.** The PO tries the result and merges. Then run `/opsx:archive` and update `docs/status.md` to the new current state.
+2. **Design and proposal.** Run `harness:design`: the design dialogue with the PO, then `/opsx:propose` writes the proposal, delta specs, `design.md` and `tasks.md` under `openspec/changes/<name>/`. `tasks.md` is also the implementation plan; there is no separate plan document. Create exactly one GitHub Issue for the change (see "Issue" below). Settle every open question here, so implementation never has to stop for the PO.
+3. **Implementation.** In a **new session**, run `harness:execute`: ledger, one `harness:implementer` per task or batch, review in the units `tasks.md` declares, fix rounds. **One implementer per worktree at a time**, on a git worktree branch `feature/<change-name>`.
+4. **Final review and PR.** `harness:execute` ends with one review of the whole branch, then the PR with `Closes #<issue>` and the evidence (commands, results, CI run, review verdict). The implementing context never reviews its own work.
+5. **Acceptance.** The PO tries the result and merges.
+6. **Archive.** Run `/opsx:archive`, copy the change's rulings into `docs/changes.md`, and update `docs/status.md` to the new current state.
+
+The OpenSpec commands this lifecycle uses are `/opsx:propose`, `/opsx:archive` and `/opsx:update`.
 
 If a guardian test was written (a test meant to catch a specific regression), the change's `tasks.md` contains a task to prove it with `harness:mutation-check`.
+
+## One new session per stage
+
+Each stage runs in a new session: design and proposal; implementation (a few tasks at a time); final review and PR; archive. Hand-offs happen only through committed files (`design.md`, `tasks.md`, delta specs) and the ledger `.harness/<change>/progress.md`, never through conversation memory. Pass the next session the spec and design as files, not as a summary: a summary drops what the next session then has to re-read. Details for the implementation stage are in `harness:execute`.
 
 ## Small-change path
 
 For a change that touches only docs, `.claude/`, or styles, or at most 5 files without a new spec requirement:
 
-- skip brainstorming, **but still create the Issue**;
-- use `tasks.md` itself as the brief, run the implementer once, and review the whole branch once.
+- skip the design dialogue, **but still create the Issue** and still write a short change with `/opsx:propose` (`harness:design`, route choice);
+- `tasks.md` is the brief: run the implementer once, and review the whole branch once.
 
 Edits to the harness or docs that belong to no change go straight to a `fix/<description>` branch and PR, without an Issue. When in doubt, use the full path.
 
@@ -46,7 +50,7 @@ For everything else during implementation, **do not stop**. Rule by the spec, re
 
 ## Ruling format
 
-Record each ruling in a committed file and in the Issue. The file is the change's `openspec/changes/<name>/` (`tasks.md` or `design.md`); at archive, copy the rulings into `docs/changes.md`. `.superpowers/sdd/` is gitignored scratch: a ruling kept only there is lost.
+Record each ruling in a committed file and in the Issue. The file is in the change's `openspec/changes/<name>/` (`tasks.md` or `design.md`); at archive, copy the rulings into `docs/changes.md`. The ledger `.harness/<change>/progress.md` is gitignored scratch: a ruling kept only there is lost.
 
 ```
 ### <date> <title>
@@ -63,7 +67,7 @@ One Issue per change, titled with the change name. The body holds the goal, scop
 2. Implementation started
 3. Change of direction (reason and new direction)
 4. Blocker or question for the PO
-5. Final review result (`harness:review-loop` step 5)
+5. Final review result (`harness:execute`, final review)
 6. PR created
 
 Pass long bodies with `--body-file <file>`; command-like text in a heredoc body can trip hooks and the auto-mode classifier. Before any `gh` write, confirm `gh api user --jq .login` is the repository owner named in `AGENTS.md`.
@@ -77,6 +81,10 @@ Report "done" only when all of these hold, with evidence:
 - `tasks.md` is updated;
 - everything is committed;
 - **the CI result is the final evidence.** Local green is not done; defects that only CI or real data shows are common.
+
+## Models
+
+Which model and effort each role uses is in the project's `docs/harness/models.md`. Pass `model` on every subagent dispatch as that table says.
 
 ## Long and unattended runs
 

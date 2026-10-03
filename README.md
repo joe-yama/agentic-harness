@@ -1,6 +1,6 @@
 # agentic-harness
 
-A product-development harness for [Claude Code](https://code.claude.com/docs) in which a human **PO** steers and the agent executes: brainstorm → spec (OpenSpec) → plan → test-first implementation by subagents → adversarial review in a separate context → PR → PO acceptance. It is the generalized form of a harness built and measured on a real project, checked against current Claude Code, GitHub and supply-chain guidance.
+A product-development harness for [Claude Code](https://code.claude.com/docs) in which a human **PO** steers and the agent executes: design dialogue → OpenSpec change (spec, design and `tasks.md`, which doubles as the plan) → test-first implementation by subagents → adversarial review in a separate context → PR → PO acceptance. It is the generalized form of a harness built and measured on a real project, checked against current Claude Code, GitHub and supply-chain guidance.
 
 > 日本語版は [README.ja.md](README.ja.md)。この英語版が正本です。
 
@@ -10,10 +10,12 @@ One repository, two channels, one version line:
 
 | Channel | Carries | Updated by |
 |---|---|---|
-| **Plugin** `harness@agentic-harness` (`plugins/harness/`) | hooks: `guard` (hard blocks), `ask-gate` (routes to the PO), `lint-on-edit`, `test-on-stop`; subagents `harness:implementer`, `harness:reviewer`; skills `harness:workflow`, `harness:review-loop`, `harness:mutation-check`, `harness:adopt` | `claude plugin update` |
+| **Plugin** `harness@agentic-harness` (`plugins/harness/`) | hooks: `guard` (hard blocks), `ask-gate` (routes to the PO), `lint-on-edit`, `test-on-stop`; subagents `harness:implementer` (Sonnet, effort medium) and `harness:reviewer` (Opus, effort high); skills `harness:workflow`, `harness:design`, `harness:execute`, `harness:mutation-check`, `harness:adopt` | `claude plugin update` |
 | **Copier template** (`copier.yml`, `template/`) | what a plugin cannot carry: `AGENTS.md`, `CLAUDE.md` (`@AGENTS.md` + Claude specifics), `.claude/rules/`, `.claude/settings.json` (permissions, sandbox, `HARNESS_*` env, plugin pin), CI job `check`, Dependabot, PR template, OpenSpec config, status / ledger / lessons docs, branch ruleset | `copier update` (a reviewable PR) |
 
-The plugin depends on [Superpowers](https://github.com/obra/superpowers) from the official marketplace. OpenSpec comes from its own CLI.
+The plugin has no plugin dependencies. OpenSpec comes from its own CLI; the harness uses only `/opsx:propose`, `/opsx:archive` and `/opsx:update` (and `opsx/sync.md`, which `/opsx:archive` calls). The template's CI job `check` fails when `.claude/skills/openspec-*` or any other `opsx` command is present, because `openspec update` restores them under its default profile. To keep them from being generated, each person can set OpenSpec's global profile (it is not per repository): `openspec config set profile custom`, `openspec config set workflows '["propose","archive","update"]'`, `openspec config set delivery commands`.
+
+The template's `.claude/settings.json` sets `superpowers@claude-plugins-official` to `false`, so the instructions of a user-scope Superpowers install do not compete with the harness's. If you want to use Superpowers in a repository, change it to `true`.
 
 ### What the hooks do
 
@@ -37,7 +39,7 @@ claude            # interactive: accept the trust dialog; this registers the mar
 claude plugin install harness@agentic-harness --scope project
 ```
 
-Do not run `claude plugin marketplace add joe-yama/agentic-harness` yourself: that registers the unpinned default branch under the same name. Then, in a new session, ask Claude to run **`harness:adopt`** from step 4 on: it sets up OpenSpec with pinned skills, applies the branch ruleset (after you confirm) and verifies that the guard is live. The skill is the full procedure, including creating the repository.
+Do not run `claude plugin marketplace add joe-yama/agentic-harness` yourself: that registers the unpinned default branch under the same name. Then, in a new session, ask Claude to run **`harness:adopt`** from step 4 on: it sets up OpenSpec (without its extra skills and commands), applies the branch ruleset (after you confirm) and verifies that the guard is live. The skill is the full procedure, including creating the repository.
 
 ## Configuration
 
@@ -69,6 +71,8 @@ grep -rnE '^(<<<<<<<|>>>>>>>) ' . --exclude-dir=.git   # conflicts are written i
 
 Resolve the conflict markers, restart Claude Code so it reads the new pin, run `claude plugin update harness@agentic-harness`, then open a PR and let CI and review check it. Under auto mode, Claude cannot write `.claude/settings.json`; it prepares the merged file and you place it.
 
+Moving from 0.3.x to 0.4.0 is not backward compatible; `harness:adopt` has the full steps. In short: delete `.claude/skills/openspec-*`, `.claude/commands/opsx/apply.md` and `opsx/explore.md`; keep the Superpowers entry in `enabledPlugins` set to `false` and move the `ref`; the OpenSpec change (with `tasks.md` as the plan) replaces the separate design and plan documents, with the ledger in `.harness/<change>/progress.md`; the separate review skill is now part of `harness:execute`; keep the new CI step when `ci.yml` conflicts; `docs/harness/models.md` is new.
+
 ## Security notes
 
 - **Plugins run with your user privileges.** Read `plugins/harness/scripts/` at the tag you install. Hooks need only `bash`, `jq` and `git`.
@@ -82,7 +86,7 @@ Resolve the conflict markers, restart Claude Code so it reads the new pin, run `
   - any prefix of a guarded long option counts as the option (`git reset --h` is `--hard`, as git 2.55 reads it); a prefix git rejects as ambiguous (`git push --fo`) is refused too;
   - a command over 64 KiB is not checked: guard refuses it and ask-gate asks; write it to a file and run the file. ask-gate also asks when one command pushes from more than 16 directories;
   - `uv run` can update `uv.lock` without asking.
-- Third-party components: Superpowers (MIT, pinned by the official marketplace), OpenSpec (MIT, pinned tag via `gh skill`), Playwright MCP (Apache-2.0, exact version, only with `ui_review`). All GitHub Actions are pinned by commit SHA and updated by Dependabot.
+- Third-party components: OpenSpec (MIT, CLI), Playwright MCP (Apache-2.0, exact version, only with `ui_review`). All GitHub Actions are pinned by commit SHA and updated by Dependabot.
 
 ## What stays in your user settings
 
@@ -103,8 +107,9 @@ Before each commit, `tests/lint.sh`, `tests/hooks/run.sh` and `tests/hooks/lifec
 
 ## Credits
 
-- [obra/superpowers](https://github.com/obra/superpowers) — brainstorming, planning, subagent-driven development, TDD.
+- [obra/superpowers](https://github.com/obra/superpowers) — the ideas behind the design dialogue, task-by-task subagent execution and test-first development. The harness does not depend on it.
 - [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) — spec-driven changes with delta specs and archives.
+- The implementer's debugging rule (reproduce and find the root cause first, one hypothesis at a time, stop after three failed fixes) is a paraphrase of the systematic-debugging idea in [obra/superpowers](https://github.com/obra/superpowers).
 - The reviewer's over-engineering pass follows the idea of [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail).
 - Anthropic, [Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) and [Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps).
 

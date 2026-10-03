@@ -6,6 +6,5 @@
   "homepage": "https://github.com/joe-yama/agentic-harness",
   "repository": "https://github.com/joe-yama/agentic-harness",
   "license": "MIT",
-  "keywords": ["harness", "hooks", "tdd", "code-review", "openspec", "superpowers"],
-  "dependencies": [{ "name": "superpowers", "marketplace": "claude-plugins-official" }]
+  "keywords": ["harness", "hooks", "tdd", "code-review", "openspec"]
 }

@@ -4,3 +4,20 @@ context: |
   Language: {{ work_language }}
   All artifacts must be written in {{ 'Japanese' if work_language == 'ja' else 'English' }}.
   Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+rules:
+  design:
+    - 'Write only the decisions the implementation needs. An agreement already made is referenced in one line with its source, not copied.'
+    - 'Write each ruling as `Ruling / Reason / Cost if wrong`, under a heading with the date and a title.'
+  tasks:
+    - 'tasks.md is also the implementation plan. Do not write a separate design or plan document outside the change directory.'
+    - 'Write `Issue: #<n>` on the first line once the Issue exists.'
+    - 'Write each task as `- [ ] N.M <what to do>` and indent these labels below it. The labels may be translated into the artifact language; keep the order and the meaning.'
+    - '`Files:` the files to create, change and test.'
+    - '`Interface:` names and types that other tasks use. Omit it when no other task uses any.'
+    - '`Test first:` for a code task, the test file that goes red first and what it checks. For a task that changes no code, `Verify:` the command and the expected result instead.'
+    - '`Review:` `solo` or `batch <letter>`. Solo is for tasks with a risk mark; the rest are batched three or four at a time.'
+    - '`Risk:` marks such as `security`, `authz`, `data`, `migration`, `ui`, or any the project adds. Use `none` when there is no mark.'
+    - 'Write no code snippets. The implementer writes the code.'
+    - 'Map each delta-spec scenario to the task that verifies it, in a short list. A scenario with no test and no verify step is a defect in the plan.'
+    - 'End the file with an empty `Proposals` section, where later findings are collected.'

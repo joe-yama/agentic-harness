@@ -4,5 +4,6 @@
 .claude/settings.local.json
 .claude/worktrees/
 .playwright-mcp/
+.harness/
 .superpowers/
 .DS_Store
