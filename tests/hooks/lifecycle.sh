@@ -138,6 +138,13 @@ expect s-untracked '[ -e "$M" ]'
 rm -f "$M"
 stop '{}' HARNESS_TEST_CMD="$T" HARNESS_DOC_PATTERN='('
 expect s-bad-doc-pattern '[ ! -e "$M" ] && [ "$(printf "%s" "$out" | jq -r .decision)" = block ] && printf "%s" "$out" | jq -r .reason | grep -q "invalid HARNESS_DOC_PATTERN"'
+# Copilot CLI Stop payloads carry stop_reason and stop_hook_active (spike F4)
+echo change >> "$R/src/good.ts"
+stop '{"hook_event_name":"Stop","stop_reason":"end_turn","stop_hook_active":false}' HARNESS_TEST_CMD=false
+expect s-copilot-shape '[ $rc = 0 ] && printf "%s" "$out" | jq -e ".decision == \"block\" and (.reason | length > 0)" >/dev/null'
+stop '{"hook_event_name":"Stop","stop_reason":"end_turn","stop_hook_active":true}' HARNESS_TEST_CMD=false
+expect s-copilot-active '[ $rc = 0 ] && [ -z "$out" ]'
+echo ok > "$R/src/good.ts"
 
 # .harness/env.json supplies HARNESS_* for agents without a per-repository hook environment; the payload's cwd locates it
 mkdir -p "$R/.harness"
