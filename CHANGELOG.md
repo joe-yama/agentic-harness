@@ -3,6 +3,28 @@
 All notable changes to this project are documented here. The plugin version in
 `plugins/harness/.claude-plugin/plugin.json` and the git tags `vX.Y.Z` / `harness--vX.Y.Z` follow this file.
 
+## [Unreleased]
+
+### Added
+
+- Codex CLI and GitHub Copilot CLI support. Copier question `agents` (`claude`, `codex`, `copilot`; default `claude`) renders each selected agent's files: `.codex/config.toml`, `.codex/rules/harness.rules`, `.codex/agents/harness-*.toml` (generated from the plugin agents by `scripts/gen-codex-agents.sh`; `tests/codex-agents.sh` checks them), `.github/copilot/settings.json`, `.github/copilot-instructions.md`, and `.harness/env.json` for hook settings. `.claude/` and `CLAUDE.md` render only when `claude` is selected (`.claude/rules/` also for `copilot`).
+- Hooks accept Codex `apply_patch` and Copilot CLI payloads: `guard` checks every path a patch writes (its body is not a command), `lint-on-edit` lints every patched file.
+- New guard rule `harness-env` refuses access to `.harness/env.json`. The file is edited only by the PO and never carries the guard relaxations. The rule reads command text, so a glob in the directory part (`.h*/env.json`) is not seen.
+- With `COPILOT_CLI=1` (exactly `1`), `guard` prints its denial as JSON on stdout and exits 0, because Copilot CLI does not pass the stderr of an exit-2 denial to the model. Only the message form changes; exit 2 stays the form otherwise. Claude Code and Codex also honour the JSON form, so an inherited `COPILOT_CLI=1` still blocks there; it remains a residual risk if either agent stops reading it.
+- `docs/harness/models.md` has a section per agent; `harness:execute`, `harness:workflow` and `harness:design` name each agent's mechanics in per-agent tables; `harness:adopt` installs, sets up OpenSpec for and verifies each selected agent.
+- The question `agents` is also asked by `copier update` (default `[claude]`); `.gitignore` and `ci.yml` change when another agent is added.
+
+### Changed
+
+- `hooks.json` goes back from the exec form (`"command": "bash", "args": [...]`, introduced in 0.2.0) to the string form `bash "${CLAUDE_PLUGIN_ROOT}/scripts/<x>.sh"`. Neither Codex nor Copilot CLI runs the exec form: Codex fails open (the guard is off) and Copilot denies every matched tool. The quotes keep a path with spaces in one argument. `tests/manifest.sh` checks the string form.
+- `lint-on-edit` reports failures as JSON instead of exit 2: Claude Code and Codex get `decision: block` with `additionalContext`, Copilot CLI gets top-level `additionalContext` only (it ignores the nested form, and a block would hide the tool output and mark an applied edit as failed). Claude Code behavior is the same: the agent must fix the file.
+- Template CI job `check`: with Codex or Copilot selected, the OpenSpec step also rejects `.agents/skills/openspec-*` other than the four the harness uses; the context-budget step counts the selected agents' instruction files.
+- Template `AGENTS.md` has a "Codex specifics" section when `codex` is selected: `.codex/rules` cover what ask-gate would ask (pushes, branch deletions, merges, releases, lockfile changes) because Codex hooks cannot ask; guard still blocks destructive commands.
+- `tests/manifest.sh` applies the agent-neutrality check to `harness:adopt` too and adds `/opsx:` to its token list.
+- `tests/hooks/run.sh` requires exit 2 for a guard block unless the case sets exactly `COPILOT_CLI=1`.
+- README (English and Japanese): the "Agents" section has the support matrix and known gaps. Among them: Codex hooks run only after you trust them; Codex hooks cannot ask, and `.codex/rules` match command prefixes only; Codex ignores `sandbox_mode` in agent files, so the reviewer runs writable and its instructions forbid edits; Copilot CLI has no repository permissions or sandbox; Copilot PostToolUse cannot block; Copilot lists plugin skills without the `harness:` prefix and may show AGENTS rules twice; `test-on-stop` keeps an agent working while tests fail even when it paused to ask the PO.
+- The plugin manifest gets no `agents` key: Codex and Copilot CLI read the same `plugins/harness/` tree, so there is one manifest and one version line.
+
 ## [0.4.0-rc.1] - 2026-10-04
 
 Release candidate for 0.4.0 (the final 0.4.0 follows after the candidate is tried; the README install pins stay at v0.3.0 until then). **Not backward compatible**: the plugin no longer depends on Superpowers, and the design document and the plan document are replaced by the OpenSpec change itself. The steps to move an adopted repository are in `harness:adopt` ("From 0.3.x to 0.4.0").

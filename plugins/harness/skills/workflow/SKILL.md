@@ -98,7 +98,7 @@ Which model and effort each role uses is in the project's `docs/harness/models.m
 
 ## Long and unattended runs
 
-Always give a completion condition and a turn limit. In Claude Code and Copilot CLI, headless operations that would prompt are denied and skipped; list them in the final report. In headless Codex, `.codex/rules` `prompt` rules reject the command (observed in the Task 12 smoke test), but the ask-gate hook cannot ask, so the items it covers run unless a rule matches; the plugin hooks run only when the project is trusted:
+Always give a completion condition and a turn limit. In Claude Code and Copilot CLI, headless operations that would prompt are denied and skipped; list them in the final report. In headless Codex, `.codex/rules` `prompt` rules reject the command (observed with Codex CLI 0.160.0), but the ask-gate hook cannot ask, so the items it covers run unless a rule matches; the plugin hooks run only when the project is trusted:
 
 | Agent | Headless |
 |---|---|
