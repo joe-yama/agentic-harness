@@ -7,15 +7,21 @@
 # Files outside a git repository, docs (HARNESS_DOC_PATTERN) and paths not matching
 # HARNESS_LINT_PATTERN are skipped.
 set -u
-# rule:lint-unset
-[ -n "${HARNESS_LINT_CMD:-}" ] || exit 0
-# end:lint-unset
 # rule:no-jq
 if ! command -v jq >/dev/null 2>&1; then
   echo "harness lint-on-edit: jq not found; lint skipped" >&2
   exit 0
 fi
 # end:no-jq
+input=$(cat)
+cwd=$(printf '%s' "$input" | jq -r '.cwd // ""')
+[ -n "$cwd" ] || cwd=$(pwd)
+# shellcheck source=lib/env.sh
+. "$(dirname "$0")/lib/env.sh" 2>/dev/null # a missing file only means no values from .harness/env.json
+declare -F harness_env >/dev/null && harness_env "$cwd"
+# rule:lint-unset
+[ -n "${HARNESS_LINT_CMD:-}" ] || exit 0
+# end:lint-unset
 doc=${HARNESS_DOC_PATTERN:-'\.(md|txt)$|^docs/|^openspec/|^\.claude/'}
 # rule:lint-bad-pattern
 # grep exits 2 on an invalid regex; unchecked, every file would be skipped (or linted) silently
@@ -28,9 +34,6 @@ check_pattern() { # <name> <regex>
 check_pattern HARNESS_LINT_PATTERN "${HARNESS_LINT_PATTERN:-}"
 check_pattern HARNESS_DOC_PATTERN "$doc"
 # end:lint-bad-pattern
-input=$(cat)
-cwd=$(printf '%s' "$input" | jq -r '.cwd // ""')
-[ -n "$cwd" ] || cwd=$(pwd)
 # tool_input is an object (Claude Code, Codex, Copilot Write) or a string (Copilot's Edit: patch text
 # or a JSON object); the object may hold a patch in command/input (Codex apply_patch)
 # rule:lint-paths

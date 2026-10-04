@@ -139,6 +139,22 @@ rm -f "$M"
 stop '{}' HARNESS_TEST_CMD="$T" HARNESS_DOC_PATTERN='('
 expect s-bad-doc-pattern '[ ! -e "$M" ] && [ "$(printf "%s" "$out" | jq -r .decision)" = block ] && printf "%s" "$out" | jq -r .reason | grep -q "invalid HARNESS_DOC_PATTERN"'
 
+# .harness/env.json supplies HARNESS_* for agents without a per-repository hook environment; the payload's cwd locates it
+mkdir -p "$R/.harness"
+printf '%s\n' "{\"HARNESS_LINT_CMD\":\"$LINTER\",\"HARNESS_TEST_CMD\":\"false\"}" > "$R/.harness/env.json"
+envlint() { # [env args]: Write with cwd
+  lintj "$(jq -nc --arg p "$R/src/bad.ts" --arg d "$R" '{hook_event_name:"PostToolUse",tool_name:"Write",tool_input:{file_path:$p},tool_response:{filePath:$p},cwd:$d}')" "$@"
+}
+envlint -u HARNESS_LINT_CMD
+expect e-lint-from-file '[ $rc = 0 ] && blocked "src/bad.ts"'
+envlint HARNESS_LINT_CMD=
+expect e-empty-env-wins '[ $rc = 0 ] && [ -z "$out" ]'
+echo change >> "$R/src/good.ts"
+stop '{}' -u HARNESS_TEST_CMD
+expect e-test-from-file '[ $rc = 0 ] && printf "%s" "$out" | jq -e ".decision == \"block\"" >/dev/null'
+git -C "$R" checkout -q -- src/good.ts
+rm -rf "$R/.harness"
+
 # ask-gate looks up the current branch once per directory: 16 KiB of bare `git push;` on a
 # feature branch took 8 s with one lookup per segment (29 s at 64 KiB, over the 10 s timeout).
 F="$TMP_ROOT/feat"

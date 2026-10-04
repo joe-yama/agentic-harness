@@ -22,6 +22,10 @@ for b in main feature; do
   git -C "$TMP_ROOT/$b" commit -q --allow-empty -m init
   [ "$b" = feature ] && git -C "$TMP_ROOT/$b" checkout -q -b feature/x
 done
+git init -q "$TMP_ROOT/envrepo"
+git -C "$TMP_ROOT/envrepo" commit -q --allow-empty -m init
+mkdir -p "$TMP_ROOT/envrepo/.harness"
+printf '%s\n' '{"HARNESS_PROTECTED_BRANCHES":"release","HARNESS_RM_RF_ALLOW":"/tmp/x:/var/tmp/y","HARNESS_ALLOW_LEASE_PUSH":"1"}' > "$TMP_ROOT/envrepo/.harness/env.json"
 mkdir -p "$TMP_ROOT/none"
 FX="$TMP_ROOT/fx"
 mkdir -p "$FX/work/real" "$FX/outside"

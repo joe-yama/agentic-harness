@@ -474,3 +474,8 @@ g-keys-04	guard	none	-	block:bad-input	raw:{"tool_name":"Edit","tool_input":{"fi
 g-keys-05	guard	none	-	block:env-file	raw:{"tool_name":"Edit","tool_input":{"file_path":null,"path":".env"}}
 g-type-01	guard	none	-	block:bad-input	raw:{"tool_name":"Edit","tool_input":[".env"]}
 g-type-02	guard	none	-	block:bad-input	raw:{"tool_name":"Read","tool_input":5}
+e-pb-01	ask-gate	envrepo	-	pass	bash:git push origin main
+e-pb-02	ask-gate	envrepo	-	ask:protected-push	bash:git push origin release
+e-pb-03	ask-gate	envrepo	HARNESS_PROTECTED_BRANCHES=main	ask:protected-push	bash:git push origin main
+e-relax-ignored-01	guard	envrepo	-	block:rm-rf	bash:rm -rf /tmp/x/a
+e-relax-ignored-02	guard	envrepo	-	block:force-push	bash:git push --force-with-lease=refs/heads/f:abcdef1 origin f:refs/heads/f

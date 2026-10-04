@@ -26,6 +26,9 @@ if [ "$parsed" != 0 ] || ! declare -F normalize is_abbrev segments git_segments 
   deny bad-parser "lib/parse.sh is missing or broken, so the command could not be checked; reinstall the plugin"
 fi
 # end:bad-parser
+# shellcheck source=lib/env.sh
+. "$(dirname "$0")/lib/env.sh" 2>/dev/null # a missing file only means no values from .harness/env.json
+declare -F harness_env >/dev/null && harness_env "$(printf '%s' "$input" | jq -r '.cwd // ""' | sed 's/^$/./')"
 
 # rule:bad-input
 printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1 \
