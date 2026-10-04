@@ -117,10 +117,20 @@ check codex-section 'grep -qF "## Codex specifics" "$DC/AGENTS.md" && grep -qF "
 check defaults-gitignore 'grep -qx ".harness/" "$D1/.gitignore"'
 if command -v codex >/dev/null 2>&1; then
   execpolicy() { perl -e 'alarm shift; exec @ARGV' 120 codex execpolicy check --rules "$DC/.codex/rules/harness.rules" "$@" </dev/null; }
-  check codex-execpolicy '[ "$(execpolicy git push --force origin x | jq -r .decision)" = forbidden ] && [ "$(execpolicy git push -f origin x | jq -r .decision)" = forbidden ] && [ "$(execpolicy git push origin x | jq -r .decision)" = prompt ]'
+  check codex-execpolicy '[ "$(execpolicy git push --force origin x | jq -r .decision)" = forbidden ] && [ "$(execpolicy git push -f origin x | jq -r .decision)" = forbidden ] && [ "$(execpolicy git push origin x | jq -r .decision)" = prompt ] && [ "$(execpolicy git push --force-with-lease origin x | jq -r .decision)" = forbidden ] && [ "$(execpolicy pnpm i | jq -r .decision)" = prompt ] && [ "$(execpolicy uv sync | jq -r .decision)" = prompt ] && [ "$(execpolicy pip3 install x | jq -r .decision)" = prompt ] && [ "$(execpolicy npm update | jq -r .decision)" = prompt ] && [ "$(execpolicy pnpm rm x | jq -r .decision)" = prompt ] && [ "$(execpolicy bun install | jq -r .decision)" = prompt ]'
 else
   echo "template: codex CLI not found; execpolicy check skipped" >&2
 fi
+
+DE="$TMP_ROOT/env-both"
+cat > "$TMP_ROOT/env-answers.yml" <<'YML'
+lint_cmd: 'eslint "a\b" é'
+lint_pattern: '\.(ts|tsx)$'
+test_cmd: 'pnpm test -- --grep "x\y"'
+YML
+render "$DE" v9.9.0 --data 'agents=[claude, codex]' --data-file "$TMP_ROOT/env-answers.yml"
+check codex-env-escapes 'jq -S . "$DE/.harness/env.json" > "$TMP_ROOT/e1.json" && jq -S "[.env | to_entries[] | select(.key | IN(\"HARNESS_PROTECTED_BRANCHES\",\"HARNESS_LINT_CMD\",\"HARNESS_LINT_PATTERN\",\"HARNESS_TEST_CMD\"))] | from_entries" "$DE/.claude/settings.json" > "$TMP_ROOT/e2.json" && cmp -s "$TMP_ROOT/e1.json" "$TMP_ROOT/e2.json" && jq -e ".HARNESS_LINT_CMD | contains(\"é\")" "$DE/.harness/env.json" >/dev/null'
+check codex-agents-md-eol '[ "$(tail -c 1 "$DC/AGENTS.md" | od -An -c | tr -d " ")" = "\\n" ] && ! tail -n 1 "$DC/AGENTS.md" | grep -q "[[:space:]]$" && [ -n "$(tail -n 1 "$DC/AGENTS.md")" ]'
 
 DP="$TMP_ROOT/copilot-only"
 render "$DP" v9.9.0 --data 'agents=[copilot]'
