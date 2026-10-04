@@ -2,7 +2,7 @@
 
 {{ project_summary if project_summary.strip() else "The PO writes this paragraph at the first design session." }}
 
-This repository is built with a harness in which a human **PO** steers and a coding agent executes. The rules below are tool-neutral; Claude Code specifics are in `CLAUDE.md`.
+{% set where = [] %}{% if use_claude %}{% set _ = where.append("Claude Code specifics are in `CLAUDE.md`") %}{% endif %}{% if use_copilot %}{% set _ = where.append("Copilot CLI specifics are in `.github/copilot-instructions.md`") %}{% endif %}{% if use_codex %}{% set _ = where.append("Codex specifics are in the last section of this file") %}{% endif %}This repository is built with a harness in which a human **PO** steers and a coding agent executes. The rules below are tool-neutral; {{ where | join("; ") }}.
 
 ## Roles
 
@@ -36,7 +36,7 @@ Tests green (show the command and output), lint passes, `tasks.md` updated, ever
 | Test | {{ "`" ~ test_cmd ~ "`" if test_cmd else "set by the first change" }} |
 | Changes and specs | `openspec list`, `openspec list --specs` |
 
-The first change that introduces the stack adds its lint, typecheck, test and build commands here, to `.claude/settings.json` (`HARNESS_LINT_CMD`, `HARNESS_TEST_CMD`) and to the CI job `check`. No dependencies or scaffolding before the design is approved.
+The first change that introduces the stack adds its lint, typecheck, test and build commands here, {{ "to `.claude/settings.json`" if use_claude }}{{ " and " if use_claude and (use_codex or use_copilot) }}{{ "to `.harness/env.json`" if use_codex or use_copilot }} (`HARNESS_LINT_CMD`, `HARNESS_TEST_CMD`) and to the CI job `check`. No dependencies or scaffolding before the design is approved.
 
 ## Language
 

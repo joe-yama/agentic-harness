@@ -96,6 +96,28 @@ common() { # <name> <dest>
 D1="$TMP_ROOT/defaults"
 render "$D1" v9.9.0
 common defaults "$D1"
+check defaults-agents 'grep -qx "agents:" "$D1/.copier-answers.yml" && grep -qx -- "- claude" "$D1/.copier-answers.yml"'
+check defaults-no-codex '[ ! -e "$D1/.codex" ] && [ ! -e "$D1/.github/copilot" ] && [ ! -e "$D1/.github/copilot-instructions.md" ] && [ ! -e "$D1/.harness" ]'
+
+DC="$TMP_ROOT/codex-only"
+render "$DC" v9.9.0 --data 'agents=[codex]'
+check codex-rendered '[ -f "$DC/AGENTS.md" ]'
+check codex-no-jinja '! grep -rIlE "\{\{|\{%" "$DC" --exclude-dir=.git --exclude=ci.yml | grep -q .'
+check codex-workflow-schema '$CJS --builtin-schema vendor.github-workflows "$DC/.github/workflows/ci.yml" >/dev/null 2>&1'
+check codex-no-claude '[ ! -e "$DC/CLAUDE.md" ] && [ ! -e "$DC/.claude" ]'
+check codex-agents-md '! grep -qF "CLAUDE.md" "$DC/AGENTS.md"'
+check codex-ci-budget '$CJS --builtin-schema vendor.github-workflows "$DC/.github/workflows/ci.yml" >/dev/null 2>&1 && ! grep -qF "CLAUDE.md" "$DC/.github/workflows/ci.yml"'
+
+DP="$TMP_ROOT/copilot-only"
+render "$DP" v9.9.0 --data 'agents=[copilot]'
+check copilot-rendered '[ -f "$DP/AGENTS.md" ]'
+check copilot-no-jinja '! grep -rIlE "\{\{|\{%" "$DP" --exclude-dir=.git --exclude=ci.yml | grep -q .'
+check copilot-workflow-schema '$CJS --builtin-schema vendor.github-workflows "$DP/.github/workflows/ci.yml" >/dev/null 2>&1'
+check copilot-rules '[ -d "$DP/.claude/rules" ] && [ ! -e "$DP/.claude/settings.json" ] && [ ! -e "$DP/CLAUDE.md" ]'
+check copilot-ci-budget '! grep -qF "CLAUDE.md" "$DP/.github/workflows/ci.yml" && grep -qF ".claude/rules" "$DP/.github/workflows/ci.yml"'
+
+check none-rejected '! $COPIER copy --quiet --defaults --vcs-ref v9.9.0 --data project_name=S --data github_owner=o --data "agents=[]" "$SRC" "$TMP_ROOT/none" >/dev/null 2>&1'
+
 check defaults-ref '[ "$(settings "$D1" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = v9.9.0 ]'
 check defaults-no-lint '[ "$(settings "$D1" ".env.HARNESS_LINT_CMD // \"unset\"")" = unset ]'
 check defaults-sandbox-excludes '[ "$(settings "$D1" ".sandbox.excludedCommands | sort | join(\",\")")" = "gh,gh *,git,git *" ]'
@@ -166,7 +188,7 @@ check notag-ref '[ "$(settings "$D5" ".extraKnownMarketplaces[\"agentic-harness\
 
 # copier update from v9.9.0 to v9.9.1 applies cleanly and moves the pin.
 git -C "$D1" init -q && git -C "$D1" add -A && git -C "$D1" commit -q -m init
-printf '\n<!-- updated -->\n' >> "$SRC/template/CLAUDE.md.jinja"
+printf '\n<!-- updated -->\n' >> "$SRC/template/{% if use_claude %}CLAUDE.md{% endif %}.jinja"
 git -C "$SRC" commit -q -am update && git -C "$SRC" tag -a v9.9.1 -m v9.9.1 && sleep 1 && git -C "$SRC" tag -a harness--v9.9.1 -m harness--v9.9.1
 if ! (cd "$D1" && $COPIER update --quiet --defaults --vcs-ref v9.9.1 > "$TMP_ROOT/update.log" 2>&1); then
   tail -20 "$TMP_ROOT/update.log" >&2

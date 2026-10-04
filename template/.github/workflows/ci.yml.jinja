@@ -19,9 +19,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Context budget (AGENTS.md + CLAUDE.md + .claude/rules <= 16000 bytes)
+{%- set ctx = ["AGENTS.md"] + (["CLAUDE.md"] if use_claude else []) + ([".claude/rules/*.md"] if use_claude or use_copilot else []) + ([".github/copilot-instructions.md"] if use_copilot else []) %}
+      - name: Context budget ({{ ctx | join(" + ") | replace("/*.md", "") }} <= 16000 bytes)
         run: |
-          bytes=$(cat AGENTS.md CLAUDE.md .claude/rules/*.md | wc -c)
+          bytes=$(cat {{ ctx | join(" ") }} | wc -c)
           echo "context bytes: $bytes"
           test "$bytes" -le 16000
       # Runs on every change, documentation-only ones included: no `if:` here and no path filter on the workflow.
