@@ -38,6 +38,10 @@ check_path() {
   # names match case-insensitively, as on macOS and Windows filesystems
   lp=$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')
   # end:path-case
+  # rule:path-normalize
+  # //, /./ and a leading ./ name the same file
+  lp=$(printf '%s' "$lp" | sed -E 's#/+#/#g; s#^\./##' | sed -e ':a' -e 's#/\./#/#' -e 'ta')
+  # end:path-normalize
   base=${lp##*/}
   # rule:env-file-path
   case "$base" in
@@ -464,7 +468,10 @@ EOF
     # end:secrets-dir
 
     # rule:harness-env
-    printf '%s\n' "$cmd" | grep -Eq '(^|[^A-Za-z0-9_])\.harness/env\.json' \
+    # lowercase, // and /./ collapsed; .harness/env.json, or a word that starts .harness/ and has a
+    # glob character before the next slash (.harness/*.json, .harness/?nv.json)
+    printf '%s\n' "$cmd" | tr '\001[:upper:]' ' [:lower:]' | sed -E 's#/+#/#g' | sed -e ':a' -e 's#/\./#/#' -e 'ta' \
+      | grep -Eq '(^|[^a-z0-9_])\.harness/(env\.json|[^/[:space:];&|<>()]*[*?[{])' \
       && deny harness-env "the harness settings file is changed by the PO only"
     # end:harness-env
 
@@ -511,31 +518,52 @@ EOF
   Read | Edit | Write | MultiEdit | NotebookEdit | apply_patch)
     # tool_input is an object (Claude's tools, Codex, Copilot Read) or a string (Copilot's apply_patch
     # reported as Edit, a double-encoded object): the filters never index a string
-    body=$(printf '%s' "$input" | jq -r '.tool_input | if type == "string" then . else (.command // .input // "") end')
+    # rule:tool-input-type
+    ti=$(printf '%s' "$input" | jq -r '.tool_input | type')
+    case "$ti" in
+      object | string) ;;
+      *) deny bad-input "the tool input is neither an object nor a string, so it could not be checked" ;;
+    esac
+    # end:tool-input-type
+    body=$(printf '%s' "$input" | jq -r '.tool_input | if type == "string" then . else (.command // .input // "") end' | tr -d '\r')
     # rule:patch-check
-    # an apply_patch envelope carries its paths in headers; the body is file content, not a command
-    case "$body" in
-      '*** Begin Patch'*)
-        paths=$(patch_paths "$body")
-        [ -n "$paths" ] || deny bad-input "the patch names no file, so it could not be checked"
-        while IFS= read -r p; do check_path "$p"; done <<EOF
+    # an apply_patch envelope carries its paths in headers; the body is file content, not a command.
+    # Any header line, indented or not, makes it a patch (fail closed); every header path is checked.
+    patch=0
+    if printf '%s\n' "$body" | grep -Eq '^[[:space:]]*\*\*\* (Begin Patch|(Add|Update|Delete) File:|Move to:)'; then
+      patch=1
+      paths=$(patch_paths "$body")
+      [ -n "$paths" ] || deny bad-input "the patch names no file, so it could not be checked"
+      while IFS= read -r p; do check_path "$p"; done <<EOF
 $paths
 EOF
-        exit 0 ;;
-    esac
+    fi
     # end:patch-check
-    [ "$tool" != apply_patch ] || deny bad-input "the patch could not be read, so it could not be checked"
+    # rule:patch-unreadable
+    if [ "$patch" = 0 ] && [ "$tool" = apply_patch ]; then
+      deny bad-input "the patch could not be read, so it could not be checked"
+    fi
+    # end:patch-unreadable
+    # the object itself, or the object a string holds (double-encoded)
+    if [ "$ti" = object ]; then sel='.tool_input | objects'; else sel='.tool_input | fromjson? | objects'; fi
+    pk='[.file_path, .notebook_path, .path]'
+    # rule:path-key-type
+    nbad=$(printf '%s' "$input" | jq -r "[$sel | $pk | map(select(. != null and type != \"string\")) | length] | add // 0")
+    [ "$nbad" = 0 ] || deny bad-input "a path key is not a string, so it could not be checked"
+    # end:path-key-type
     # rule:file-path-keys
-    fp=$(printf '%s' "$input" | jq -r '(.tool_input | objects | (.file_path // .notebook_path // .path)) // ""')
+    # every key counts, not the first: {"file_path":"a.ts","path":".env"} writes where the tool picks
+    fps=$(printf '%s' "$input" | jq -r "$sel | $pk | .[] | strings")
     # end:file-path-keys
     # rule:string-input
-    # a string tool_input holding a JSON object (double-encoded) names its path under the same keys
-    if [ -z "$fp" ] && [ "$(printf '%s' "$input" | jq -r '.tool_input | type')" = string ]; then
-      fp=$(printf '%s' "$input" | jq -r '(.tool_input | fromjson? | objects | (.file_path // .notebook_path // .path)) // ""')
-      [ -n "$fp" ] || deny bad-input "the tool input has no patch header and no path, so it could not be checked"
+    # a string with no patch header must hold a JSON object that names a path
+    if [ "$ti" = string ] && [ "$patch" = 0 ] && [ -z "$fps" ]; then
+      deny bad-input "the tool input has no patch header and no path, so it could not be checked"
     fi
     # end:string-input
-    check_path "$fp"
+    while IFS= read -r p; do check_path "$p"; done <<EOF
+$fps
+EOF
     ;;
 esac
 exit 0

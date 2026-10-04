@@ -451,3 +451,26 @@ g-henv-04	guard	none	-	block:harness-env	bash:sed -i '' 's/main//' .harness/env.
 g-henv-05	guard	none	-	block:harness-env	bash:echo {} > .harness/env.json
 g-henv-06	guard	none	-	pass	bash:mkdir -p .harness/my-change && touch .harness/my-change/progress.md
 g-henv-07	guard	none	-	pass	file:Write:.harness/my-change/progress.md
+g-patch-11	guard	none	-	block:env-file	patchraw:apply_patch:*** Begin Patch\r\n*** Add File: .env\r\n+X=1\r\n*** End Patch
+g-patch-12	guard	none	-	block:env-file	patchraw:apply_patch:*** Begin Patch\n*** Add File: .env\t\n+X=1\n*** End Patch
+g-patch-13	guard	none	-	block:env-file	patchraw:apply_patch:*** Begin Patch\n*** Add File: src/a.ts\n+x\n  *** Add File: .env\n*** End Patch
+g-patch-14	guard	none	-	block:env-file	patchraw:apply_patch:  *** Begin Patch\n*** Add File: .env\n*** End Patch
+g-patch-15	guard	none	-	block:bad-input	patchraw:apply_patch:hello
+g-henv-08	guard	none	-	block:harness-env	bash:cat .HARNESS/ENV.JSON
+g-henv-09	guard	none	-	block:harness-env	bash:cat .harness/env.js*
+g-henv-10	guard	none	-	block:harness-env	bash:cat .harness/*.json
+g-henv-11	guard	none	-	block:harness-env	bash:cat .harness//env.json
+g-henv-12	guard	none	-	block:harness-env	bash:cat .harness/./env.json
+g-henv-13	guard	none	-	block:harness-env	bash:cat .harness/?nv.json
+g-henv-14	guard	none	-	pass	bash:ls .harness/my-change/*.md
+g-henv-15	guard	none	-	block:harness-env	file:Write:./.harness//env.json
+g-henv-16	guard	none	-	block:harness-env	file:Write:.harness/./env.json
+g-henv-17	guard	none	-	block:harness-env	file:Write:.HARNESS/ENV.JSON
+g-obj-01	guard	none	-	block:env-file	raw:{"tool_name":"Edit","tool_input":{"file_path":".env","command":"*** Begin Patch\n*** Add File: a.ts\n*** End Patch"}}
+g-keys-01	guard	none	-	block:env-file	raw:{"tool_name":"Edit","tool_input":{"file_path":"src/a.ts","path":".env"}}
+g-keys-02	guard	none	-	block:env-file	raw:{"tool_name":"NotebookEdit","tool_input":{"notebook_path":"a.ipynb","path":".env"}}
+g-keys-03	guard	none	-	block:env-file	cpatch:Write:{"file_path":"a.ts","path":".env"}
+g-keys-04	guard	none	-	block:bad-input	raw:{"tool_name":"Edit","tool_input":{"file_path":5,"path":".env"}}
+g-keys-05	guard	none	-	block:env-file	raw:{"tool_name":"Edit","tool_input":{"file_path":null,"path":".env"}}
+g-type-01	guard	none	-	block:bad-input	raw:{"tool_name":"Edit","tool_input":[".env"]}
+g-type-02	guard	none	-	block:bad-input	raw:{"tool_name":"Read","tool_input":5}

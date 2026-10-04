@@ -119,6 +119,7 @@ git_segments() { printf '%s\n' "$cmd" | grep -oE "${B}${P}git${GOPT}[[:space:]]+
 # "*** Delete File: " and "*** Move to: ". The rest of the patch is file content, not a command.
 patch_paths() {
   # rule:patch-paths
-  printf '%s\n' "$1" | sed -nE 's/^\*\*\* (Add File|Update File|Delete File|Move to): (.+)$/\2/p'
+  # CR, indentation and trailing blanks are tolerated: a header the tool might still read must not slip past
+  printf '%s\n' "$1" | tr -d '\r' | sed -nE 's/^[[:space:]]*\*\*\* (Add File|Update File|Delete File|Move to):[[:space:]]*(.*[^[:space:]])[[:space:]]*$/\2/p'
   # end:patch-paths
 }
