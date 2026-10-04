@@ -484,3 +484,5 @@ g-cp-envfile	guard	none	COPILOT_CLI=1	block:env-file	file:Read:.env
 g-cp-harness-env	guard	none	COPILOT_CLI=1	block:harness-env	file:Write:.harness/env.json
 g-cp-bad-input	guard	none	COPILOT_CLI=1	block:bad-input	raw:not json
 g-cp-pass	guard	none	COPILOT_CLI=1	pass	bash:ls
+g-cp-zero	guard	none	COPILOT_CLI=0	block:rm-rf	bash:rm -rf build
+g-cp-ten	guard	none	COPILOT_CLI=10	block:rm-rf	bash:rm -rf build

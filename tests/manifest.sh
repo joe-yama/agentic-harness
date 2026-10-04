@@ -42,9 +42,9 @@ done
 # so it does not match. Offending lines (path:line:text) print on stdout.
 check no-superpowers '! grep -rnI "superpowers:" plugins template'
 # Skills and agents are agent-neutral: Claude-only mechanisms appear only in table rows (per-agent tables).
-# adopt is excluded: it installs and updates the Claude Code plugin pin itself.
+# adopt is included: its per-agent subsections keep Claude-only tokens in table rows.
 # Offending lines (path:line:text) print on stdout.
-check neutral-skills '! grep -rnE "subagent_type|/goal|claude -p|scratchpad|SendMessage|Claude Code builds" plugins/harness/skills plugins/harness/agents --exclude-dir=adopt | grep -vE "^[^:]+:[0-9]+:\|"'
+check neutral-skills '! grep -rnE "subagent_type|/goal|claude -p|scratchpad|SendMessage|Claude Code builds|/opsx:" plugins/harness/skills plugins/harness/agents | grep -vE "^[^:]+:[0-9]+:\|"'
 if command -v claude >/dev/null 2>&1; then
   check validate-marketplace 'claude plugin validate . --strict >/dev/null 2>&1'
   check validate-plugin 'claude plugin validate plugins/harness --strict >/dev/null 2>&1'
