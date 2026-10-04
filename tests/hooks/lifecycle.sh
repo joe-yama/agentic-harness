@@ -23,13 +23,28 @@ printf '%s\n' "$1" >> "$(dirname "$0")/lint.log"
 EOF
 chmod +x "$LINTER"
 
-lint() { # <file> [env args: VAR=value | -u VAR ...] -> sets rc, err
-  local f=$1
+lintj() { # <json> [env args] -> sets rc, out, err
+  local j=$1
   shift
   # shellcheck disable=SC2034 # read by the eval in expect()
-  err=$(jq -nc --arg p "$f" '{hook_event_name:"PostToolUse",tool_name:"Write",tool_input:{file_path:$p},tool_response:{filePath:$p}}' \
-    | env "$@" "$HOOK_BASH" "$HOOKS_DIR/lint-on-edit.sh" 2>&1 >/dev/null)
+  out=$(printf '%s' "$j" | env "$@" "$HOOK_BASH" "$HOOKS_DIR/lint-on-edit.sh" 2>"$TMP_ROOT/lint.err")
   rc=$?
+  # shellcheck disable=SC2034
+  err=$(cat "$TMP_ROOT/lint.err")
+}
+lint() { # <file> [env args]: Claude Code's Write
+  local f=$1
+  shift
+  lintj "$(jq -nc --arg p "$f" '{hook_event_name:"PostToolUse",tool_name:"Write",tool_input:{file_path:$p},tool_response:{filePath:$p}}')" "$@"
+}
+lintpatch() { # <cwd> <patch text with %b escapes> [env args]: Codex apply_patch
+  local d=$1 t
+  t=$(printf '%b' "$2")
+  shift 2
+  lintj "$(jq -nc --arg d "$d" --arg c "$t" '{hook_event_name:"PostToolUse",tool_name:"apply_patch",tool_input:{command:$c},cwd:$d}')" "$@"
+}
+blocked() { # <text the reason must contain>
+  printf '%s' "$out" | jq -e --arg w "$1" '.decision == "block" and (.reason | contains($w)) and (.hookSpecificOutput.additionalContext | contains($w))' >/dev/null 2>&1
 }
 stop() { # <extra-json> [env args: VAR=value | -u VAR ...] -> sets rc, out
   local extra=$1
@@ -46,35 +61,55 @@ echo BAD > "$R/src/bad.ts"
 echo BAD > "$R/docs/x.md"
 
 lint "$R/src/bad.ts" -u HARNESS_LINT_CMD
-expect l-unset '[ $rc = 0 ] && [ -z "$err" ]'
+expect l-unset '[ $rc = 0 ] && [ -z "$err" ] && [ -z "$out" ]'
 lint "$R/src/bad.ts" HARNESS_LINT_CMD=
-expect l-empty '[ $rc = 0 ]'
+expect l-empty '[ $rc = 0 ] && [ -z "$out" ]'
 lint "$R/src/good.ts" HARNESS_LINT_CMD="$LINTER"
-expect l-good '[ $rc = 0 ] && grep -q good.ts "$TMP_ROOT/lint.log"'
+expect l-good '[ $rc = 0 ] && [ -z "$out" ] && grep -q good.ts "$TMP_ROOT/lint.log"'
 lint "$R/src/bad.ts" HARNESS_LINT_CMD="$LINTER"
-expect l-bad '[ $rc = 2 ] && printf "%s" "$err" | grep -q "lint failed"'
+expect l-bad '[ $rc = 0 ] && blocked "lint failed after editing src/bad.ts"'
 lint "$R/docs/x.md" HARNESS_LINT_CMD="$LINTER"
-expect l-doc-skip '[ $rc = 0 ]'
+expect l-doc-skip '[ $rc = 0 ] && [ -z "$out" ]'
 lint "$R/src/bad.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_LINT_PATTERN='\.py$'
-expect l-pattern-skip '[ $rc = 0 ]'
+expect l-pattern-skip '[ $rc = 0 ] && [ -z "$out" ]'
 lint "$R/src/bad.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_LINT_PATTERN='\.ts$'
-expect l-pattern-hit '[ $rc = 2 ]'
+expect l-pattern-hit '[ $rc = 0 ] && blocked "src/bad.ts"'
 evil="$R/src/a\$(touch pwned) b.ts"
 echo ok > "$evil"
 lint "$evil" HARNESS_LINT_CMD="$LINTER"
-expect l-no-injection '[ $rc = 0 ] && [ ! -e "$R/pwned" ] && [ ! -e "$R/src/pwned" ] && grep -qF "a\$(touch pwned) b.ts" "$TMP_ROOT/lint.log"'
+expect l-no-injection '[ $rc = 0 ] && [ -z "$out" ] && [ ! -e "$R/pwned" ] && [ ! -e "$R/src/pwned" ] && grep -qF "a\$(touch pwned) b.ts" "$TMP_ROOT/lint.log"'
 echo BAD > "$TMP_ROOT/outside.ts"
 lint "$TMP_ROOT/outside.ts" HARNESS_LINT_CMD="$LINTER"
-expect l-outside-repo '[ $rc = 0 ]'
+expect l-outside-repo '[ $rc = 0 ] && [ -z "$out" ]'
 # A path through a symlinked directory (e.g. macOS /tmp -> /private/tmp) must resolve to the
 # repo-relative path (the anchored pattern only matches then).
 ln -s "$R" "$TMP_ROOT/proj-link"
 lint "$TMP_ROOT/proj-link/src/bad.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_LINT_PATTERN="^src/"
-expect l-symlinked-path '[ $rc = 2 ]'
+expect l-symlinked-path '[ $rc = 0 ] && blocked "src/bad.ts"'
 lint "$R/src/good.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_LINT_PATTERN='('
 expect l-bad-lint-pattern '[ $rc = 2 ] && printf "%s" "$err" | grep -q "invalid HARNESS_LINT_PATTERN"'
 lint "$R/src/good.ts" HARNESS_LINT_CMD="$LINTER" HARNESS_DOC_PATTERN='('
 expect l-bad-doc-pattern '[ $rc = 2 ] && printf "%s" "$err" | grep -q "invalid HARNESS_DOC_PATTERN"'
+P='*** Begin Patch\n*** Update File: src/good.ts\n@@\n-a\n+ok\n*** Add File: src/bad.ts\n+BAD\n*** End Patch'
+lintpatch "$R" "$P" HARNESS_LINT_CMD="$LINTER"
+expect l-patch-multi '[ $rc = 0 ] && blocked "src/bad.ts" && ! printf "%s" "$out" | grep -q "good.ts" && grep -q "src/good.ts" "$TMP_ROOT/lint.log"'
+lintpatch "$R" '*** Begin Patch\n*** Delete File: src/gone.ts\n*** End Patch' HARNESS_LINT_CMD="$LINTER"
+expect l-patch-delete '[ $rc = 0 ] && [ -z "$out" ]'
+lintpatch "$R" '*** Begin Patch\n*** Update File: src/x.ts\n*** Move to: src/bad.ts\n@@\n-a\n+b\n*** End Patch' HARNESS_LINT_CMD="$LINTER"
+expect l-patch-move '[ $rc = 0 ] && blocked "src/bad.ts"'
+lintpatch "$R" '*** Begin Patch\n*** Update File: docs/x.md\n@@\n-a\n+b\n*** End Patch' HARNESS_LINT_CMD="$LINTER"
+expect l-patch-doc '[ $rc = 0 ] && [ -z "$out" ]'
+# Codex writes absolute paths after the header
+lintpatch "$R" "*** Begin Patch\\n*** Update File: $R/src/bad.ts\\n@@\\n-a\\n+b\\n*** End Patch" HARNESS_LINT_CMD="$LINTER"
+expect l-patch-absolute '[ $rc = 0 ] && blocked "lint failed after editing src/bad.ts"'
+lintj "$(jq -nc --arg p "$R/src/bad.ts" '{hook_event_name:"PostToolUse",tool_name:"Edit",tool_input:{path:$p}}')" HARNESS_LINT_CMD="$LINTER"
+expect l-copilot-path '[ $rc = 0 ] && blocked "src/bad.ts"'
+# Copilot: PostToolUse carries tool_result; only a top-level additionalContext reaches the model, and decision:block would hide the output
+lintj "$(jq -nc --arg p "$R/src/bad.ts" --arg d "$R" '{hook_event_name:"PostToolUse",tool_name:"Edit",tool_input:{path:$p},tool_result:{resultType:"success"},cwd:$d}')" HARNESS_LINT_CMD="$LINTER"
+expect l-copilot-context '[ $rc = 0 ] && printf "%s" "$out" | jq -e ".additionalContext | contains(\"lint failed after editing src/bad.ts\")" >/dev/null && printf "%s" "$out" | jq -e "(has(\"decision\") | not) and (has(\"hookSpecificOutput\") | not)" >/dev/null'
+# Copilot's Edit sends tool_input as a string holding patch text, with paths relative to cwd
+lintj "$(jq -nc --arg d "$R" --arg c "$(printf '*** Begin Patch\n*** Update File: src/bad.ts\n@@\n-a\n+b\n*** End Patch')" '{hook_event_name:"PostToolUse",tool_name:"Edit",tool_input:$c,tool_result:{resultType:"success"},cwd:$d}')" HARNESS_LINT_CMD="$LINTER"
+expect l-copilot-string-patch '[ $rc = 0 ] && printf "%s" "$out" | jq -e ".additionalContext | contains(\"src/bad.ts\")" >/dev/null && printf "%s" "$out" | jq -e "has(\"decision\") | not" >/dev/null'
 
 M="$TMP_ROOT/ran"
 T="touch $M"
