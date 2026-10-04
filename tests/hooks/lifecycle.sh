@@ -137,7 +137,7 @@ stop '{}' HARNESS_TEST_CMD="$T"
 expect s-untracked '[ -e "$M" ]'
 rm -f "$M"
 stop '{}' HARNESS_TEST_CMD="$T" HARNESS_DOC_PATTERN='('
-expect s-bad-doc-pattern '[ ! -e "$M" ] && [ "$(printf "%s" "$out" | jq -r .decision)" = block ] && printf "%s" "$out" | jq -r .reason | grep -q "invalid HARNESS_DOC_PATTERN"'
+expect s-bad-doc-pattern '[ ! -e "$M" ] && [ "$(printf "%s" "$out" | jq -r .decision)" = block ] && printf "%s" "$out" | jq -r .reason | grep -q "invalid HARNESS_DOC_PATTERN" && printf "%s" "$out" | jq -r .reason | grep -qF ".claude/settings.json" && printf "%s" "$out" | jq -r .reason | grep -qF ".harness/env.json"'
 # Copilot CLI Stop payloads carry stop_reason and stop_hook_active (spike F4)
 echo change >> "$R/src/good.ts"
 stop '{"hook_event_name":"Stop","stop_reason":"end_turn","stop_hook_active":false}' HARNESS_TEST_CMD=false

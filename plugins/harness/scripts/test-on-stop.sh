@@ -31,7 +31,7 @@ doc=${HARNESS_DOC_PATTERN:-'\.(md|txt)$|^docs/|^openspec/|^\.claude/'}
 # grep exits 2 on an invalid regex; unchecked, no change would count as code and tests would be skipped silently
 grep -Eq -- "$doc" </dev/null
 if [ $? = 2 ]; then
-  jq -n --arg r "invalid HARNESS_DOC_PATTERN (not an extended regex): $doc. Fix it in .claude/settings.json; tests were not run." \
+  jq -n --arg r "invalid HARNESS_DOC_PATTERN (not an extended regex): $doc. Fix it in .claude/settings.json (Claude Code) or ask the PO to fix it in .harness/env.json (Codex, Copilot CLI); tests were not run." \
     '{decision:"block",reason:$r}'
   exit 0
 fi
