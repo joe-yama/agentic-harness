@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: Implements the task(s) of a change's tasks.md that the controller names, with strict TDD, and returns an evidence-backed report. Dispatch as harness:implementer with the model from docs/harness/models.md; never use it to review.
+description: Implements the task(s) of a change's tasks.md that the controller names, with strict TDD, and returns an evidence-backed report. Dispatch it with the model from your agent's section of docs/harness/models.md; never use it to review.
 model: sonnet
 effort: medium
 tools: Read, Edit, Write, Bash, Glob, Grep

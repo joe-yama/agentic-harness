@@ -18,7 +18,7 @@ Models and effort for every role (implementation, intermediate review, final rev
 
 ## 2. Dispatch
 
-- For each task, or each batch the plan marks, start `harness:implementer`. Pass only: the change path, the task number(s) and the BASE SHA (the commit before the task starts). The task text is `tasks.md` itself; do not write a brief.
+- For each task, or each batch the plan marks, start `harness:implementer` (how to start each subagent: the table in section 3). Pass only: the change path, the task number(s) and the BASE SHA (the commit before the task starts). The task text is `tasks.md` itself; do not write a brief.
 - **One implementer per worktree at a time.** They share the git index, build output and ports.
 - Note `Task N: dispatched (BASE <sha>)` in the ledger; on completion note the commit range and the review verdict.
 - If an implementer asks a question that the change files answer, answer from them. If the files do not answer it and every way forward is a guess, that is a plan defect: stop and ask the PO (see `harness:workflow`). Otherwise rule by the spec, record the ruling, continue.
@@ -38,7 +38,7 @@ Models and effort for every role (implementation, intermediate review, final rev
 
 **Dispatch.** Start the reviewer with the change path, range, task numbers, URL and items:
 
-| Agent | Implementer | Intermediate review | Final review | Follow-up to a running subagent |
+| Agent | Implementer | Intermediate review | Final review | Follow-up to the same subagent |
 |---|---|---|---|---|
 | Claude Code | `Agent(subagent_type: "harness:implementer", model: …)` | `Agent(subagent_type: "harness:reviewer", model: <intermediate>)` | `Agent(subagent_type: "harness:reviewer", model: <final>)` | `SendMessage` |
 | Codex | `spawn_agent {agent_type: "harness-implementer", task_name, message, fork_turns: "none"}` | `spawn_agent {agent_type: "harness-reviewer-intermediate", task_name, message, fork_turns: "none"}` | `spawn_agent {agent_type: "harness-reviewer", task_name, message, fork_turns: "none"}` | `followup_task {target: <task_name>, message}`, then `wait_agent` |
@@ -46,7 +46,7 @@ Models and effort for every role (implementation, intermediate review, final rev
 
 Codex: without `fork_turns: "none"` the child inherits the parent's context, and the context that implemented something must never review it. `fork_turns: "none"` is unverified until the smoke test. Copilot CLI: take `model` from the Copilot section of `docs/harness/models.md`; a dispatch without `model` fails (fallback `gpt-5.6-luna`).
 
-**Mutation checks.** Where a new refusal or security test needs `harness:mutation-check`, follow the project's rules (`.claude/rules/` and project docs) for which tests it is required for. Otherwise run it only when the reviewer doubts a test.
+**Mutation checks.** Where a new refusal or security test needs `harness:mutation-check`, follow the project's rules (`AGENTS.md`, `.claude/rules/` where present, and project docs) for which tests it is required for. Otherwise run it only when the reviewer doubts a test.
 
 **Fix round.** On "Needs fixes", send **all** Critical and Important findings to the implementer in **one** follow-up to the same subagent (table above); split messages get findings dropped. When the implementer reports back, verify every "fixed" claim yourself with the diff and `grep` before re-review. Then re-review by a follow-up to the same reviewer (history and prompt cache are kept; this also resumes a reviewer that hit its turn limit). For mechanical one-line fixes (a rename, wording, a single value), verify with diff and grep yourself and skip the re-review.
 

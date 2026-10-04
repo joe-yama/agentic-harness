@@ -98,7 +98,7 @@ Which model and effort each role uses is in the project's `docs/harness/models.m
 
 ## Long and unattended runs
 
-Always give a completion condition and a turn limit. Headless, operations that would prompt are denied and skipped, so list them in the final report:
+Always give a completion condition and a turn limit. In Claude Code and Copilot CLI, headless operations that would prompt are denied and skipped; list them in the final report. Headless Codex relies on the harness hooks only (they run only when the project is trusted):
 
 | Agent | Headless |
 |---|---|
