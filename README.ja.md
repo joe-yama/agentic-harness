@@ -32,26 +32,26 @@
 
 | | Claude Code | Codex CLI | Copilot CLI |
 |---|---|---|---|
-| `guard` | exit 2 と stderr の理由 | 同じ。ただしプラグインの hooks を信頼した後だけ。信頼していない hooks は読み飛ばされ、`codex exec` では何も表示されない。`apply_patch` はパスを検査し、パッチ本文はコマンドとして読まない | `COPILOT_CLI=1` のとき拒否を stdout の JSON で返す（exit 2 の拒否の stderr はモデルに届かない）。パッチと `create` はパスで検査する |
-| `ask-gate` | PO に確認する | 確認できない。`.codex/rules/harness.rules` が push・ブランチ削除・マージ・リリース・lockfile の変更で確認を求める | 対話では確認する。headless では拒否される |
+| `guard` | exit 2 と stderr の理由 | 同じ。ただしプラグインの hooks を信頼した後だけ。信頼していない hooks は読み飛ばされ、`codex exec` では何も表示されない。`apply_patch` はパスを検査し、パッチ本文はコマンドとして読まない | `COPILOT_CLI=1`（Copilot が hooks に設定する）のとき拒否を stdout の JSON で返し、モデルには `BLOCKED by harness guard (<rule>)` が届く（exit 2 の拒否の stderr はモデルに届かない）。パッチと `create` はパスで検査する |
+| `ask-gate` | PO に確認する | 確認できない。`.codex/rules/harness.rules` が `rm`・`curl`・`wget`・`gh` の書き込み（マージ、リリース、Issue の編集と close、リポジトリの作成と削除、workflow の実行）・push・`git worktree remove --force`・lockfile の変更で確認を求め、`codex exec` ではそれらを拒否する。対話で確認が出るかは未確認 | 対話では確認する（未確認）。headless では拒否される |
 | `lint-on-edit` | `decision: block` の JSON。エージェントがファイルを直す | 同じ | ブロックできない。lint の出力はコンテキストとして届く（トップレベルの `additionalContext`） |
 | `test-on-stop` | テストが失敗している間は作業を続けさせる | 同じ | 同じ |
 | サブエージェント | `harness:implementer`、`harness:reviewer` | `.codex/agents/` の `harness-implementer`、`harness-reviewer`、`harness-reviewer-intermediate`（プラグインのエージェントから `scripts/gen-codex-agents.sh` で生成）。子が親のコンテキストを引き継がないよう `fork_turns: "none"` で起動する | `harness:implementer`、`harness:reviewer`。呼び出しのたびに `docs/harness/models.md` の `model` と `reasoning_effort` を渡す |
 | スキル | `harness:workflow`、`harness:design`、`harness:execute`、`harness:mutation-check`、`harness:adopt` | 同じ。`$harness:<skill>` で呼ぶ | 同じ。`harness:` の接頭辞なしで表示される（`workflow`、`design` …） |
 | OpenSpec | `/opsx:propose`、`/opsx:archive`、`/opsx:update` | `.agents/skills` の `openspec-propose`、`openspec-archive-change`、`openspec-update-change`、`openspec-sync-specs` | `.agents/skills` の同じスキル（`.claude/skills` の `openspec-*` は CI の job `check` が拒否します） |
 | 権限 / sandbox | `.claude/settings.json` の permissions と sandbox | `.codex/config.toml`: `approval_policy`、`sandbox_mode = "workspace-write"`、ネットワークは無効。信頼したプロジェクトでだけ読まれる | なし。リポジトリの権限も sandbox も無い |
-| 自動導入 | 信頼ダイアログが固定したマーケットプレイスを登録する | なし。`codex plugin marketplace add joe-yama/agentic-harness --ref <tag>`、インストール、信頼（`harness:adopt`） | `.github/copilot/settings.json` が、信頼したときに固定したマーケットプレイスを登録する |
+| 自動導入 | 信頼ダイアログが固定したマーケットプレイスを登録する | なし。`codex plugin marketplace add joe-yama/agentic-harness --ref <tag>`、インストール、信頼（`harness:adopt`） | `.github/copilot/settings.json` が、信頼したときに固定したマーケットプレイスを登録する（未確認。`harness:adopt` が導入を確かめる） |
 
 ### 既知の穴
 
 - **Codex の hooks は信頼するまで動きません。** それまで Codex はプラグインの hooks を読み飛ばし（`codex exec` では何も表示されません）、guard は動きません。プロジェクトの設定と rules も、`~/.codex/config.toml` で信頼したプロジェクトでしか読まれません。
-- **Codex の hooks は確認できません。** `.codex/rules` の prompt ルールは対話では確認を求め、headless ではコマンドを拒否しますが、一致させるのはコマンドの前方だけです（保護ブランチ以外への push も含めて `git push` はすべて確認になり、`git -C . push` は一致しません）。Codex のネットワークは無効で、ホストの許可リストはありません。
+- **Codex の hooks は確認できません。** `.codex/rules` は `rm`・`curl`・`wget`・`gh` の書き込み・push・`git worktree remove --force`・lockfile の変更で確認を求めます。対話では確認が出るはずですが未確認で、`codex exec` ではそれらのコマンドを拒否します。一致させるのはコマンドの前方だけです（保護ブランチ以外への push も含めて `git push` はすべて確認になり、`git -C . push` は一致しません）。Codex のネットワークは無効で、ホストの許可リストはありません。
 - **Codex はエージェントのファイルの `sandbox_mode` を無視します。** reviewer は親のセッションの sandbox（書き込み可）で動きます。編集の禁止は指示に書いてあるだけで、それが唯一の歯止めです。
 - **Copilot CLI にはリポジトリの権限も sandbox もありません。** guard・CI・ブランチの ruleset が歯止めです。
 - **Copilot の PostToolUse はブロックできません。** lint のフィードバックはコンテキストとして届くので、モデルがそのまま進むことがあります。
-- **`COPILOT_CLI=1` だと guard は JSON の拒否の形に切り替わります。** Claude Code と Codex もこの形を受け付けるので、Claude Code や Codex のセッションに `COPILOT_CLI=1` が引き継がれても拒否は効きます。ただし、どちらかの将来の版がこの形を読まなくなれば、ほかに止めるものがなくなる残余リスクです。Copilot CLI の外ではこの変数を設定しないでください。それ以外では exit 2 の形のままです。
+- **`COPILOT_CLI=1` だと guard は JSON の拒否の形に切り替わり、Codex はそれを受け付けません。** Codex CLI 0.160.0 で確認: `COPILOT_CLI=1` が引き継がれると、guard の hook は `PreToolUse Failed` と表示され、コマンドが実行されます（`git checkout .` が止まらず、変数がなければブロックされる）。つまり `COPILOT_CLI=1` が引き継がれると Codex では guard が無効になり、残るのは `.codex/rules`、Codex の sandbox と Codex 自身の検査だけです。Claude Code 2.1.289 はこの形を受け付けます（`rm -rf` はブロックされたまま）。Copilot CLI の外でこの変数を設定・export しないでください。Copilot CLI のシェルから Codex を起動しないでください。それ以外では exit 2 の形のままです。
 - Copilot は `CLAUDE.md` もあると、AGENTS の規則を二重に表示することがあります。
-- `.harness/env.json` は Codex と Copilot 用の `HARNESS_*` の設定です。編集するのは PO だけで（guard の規則 `harness-env` がエージェントのアクセスを拒否します）、guard を緩める `HARNESS_ALLOW_LEASE_PUSH` と `HARNESS_RM_RF_ALLOW` は入れません。パスは `<segment>/../` を畳んでから比べます。コマンドでは最後の要素にある glob だけを数えるので、`ls .harness/*/progress.md` は通ります。この規則はコマンドの文字列を見るので、`.harness` 自体にある glob（`.h*/env.json`）は見えません。
+- `.harness/env.json` は Codex と Copilot 用の `HARNESS_*` の設定です。Claude Code の hooks も、`.claude/settings.json` の `env` が設定していない変数についてはこれを読みます。編集するのは PO だけで（guard の規則 `harness-env` がエージェントのアクセスを拒否します）、guard を緩める `HARNESS_ALLOW_LEASE_PUSH` と `HARNESS_RM_RF_ALLOW` は入れません。パスは `<segment>/../` を畳んでから比べます。コマンドでは最後の要素にある glob だけを数えるので、`ls .harness/*/progress.md` は通ります。この規則はコマンドの文字列を見るので、`.harness` 自体にある glob（`.h*/env.json`）は見えません。
 - `test-on-stop` は、テストが失敗している間、エージェントが PO への質問のために止まっていても、作業を続けさせます（3 つのエージェントすべて）。
 
 ## はじめ方
@@ -128,6 +128,7 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
 - **プラグインはあなたのユーザー権限で動きます。** インストールするタグの `plugins/harness/scripts/` を読んでください。hooks が必要とするのは `bash`・`jq`・`git` だけです。
 - `HARNESS_*_CMD` の値は、リポジトリにコミットされた設定から読み、`bash -c` で実行します。値の変更はコードの変更と同じように扱ってください。
 - Codex と Copilot CLI のプラグインの hooks も、あなたの権限で動きます。Codex が信頼を求めたときに hooks を確認してください。信頼したプロジェクトの設定と rules は、あなたとして実行されます。
+- `.harness/env.json` は Claude Code を含むすべてのエージェントの hooks が読みます（`.claude/settings.json` の `env` が設定していない `HARNESS_*` の変数）。その `HARNESS_LINT_CMD` と `HARNESS_TEST_CMD` は `bash -c` で実行されます。変更は `.claude/settings.json` の変更と同じように確認してください。guard がエージェントの編集を防ぎ、編集するのは PO です。
 - 信頼していないリポジトリで `--bare` なしに `claude -p` を実行しないでください。headless モードでもコミット済みの hooks が動きます。
 - hooks はコマンドの文字列を見ているだけで、仕掛け線であってサンドボックスではありません。OS レベルの境界として、テンプレートは Claude Code の sandbox を有効にします（認証情報のディレクトリは読めず、ネットワークは GitHub とパッケージレジストリに限定）。既知の穴と誤検知は次のとおりです。
   - 引用文字列をコマンドとして検査するのは、`-c`（`sh -c '…'`、`bash -lc "…"`。間にオプションがあってもよい: `bash -c -- '…'`）と `eval` の直後、シェルへの here-string（`bash <<< '…'`）、`watch` と `ssh <host>` の引数だけ。`grep`・`wc`・`head` などの `-c` はフラグとして扱う。それ以外の引用文字列（コミットメッセージ、grep のパターン、Issue 本文）はデータとして扱い、二重引用符の中のコマンド置換もデータになる（`echo "$(rm -rf x)"` は通る）

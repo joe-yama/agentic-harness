@@ -44,7 +44,7 @@ Run 2026-10-05 at 009ee53 with Claude Code 2.1.289, Codex CLI 0.160.0, Copilot C
 
 | Check | Claude Code | Codex CLI | Copilot CLI |
 |---|---|---|---|
-| guard `rm -rf ./probe-dir` | PASS: `BLOCKED by harness guard (rm-rf)` | PASS: `Command blocked by PreToolUse hook: BLOCKED by harness guard (rm-rf)` | **FAIL**: blocked, but the model sees only `Denied by preToolUse hook: hook exited with code 2` (D2) |
+| guard `rm -rf ./probe-dir` | PASS: `BLOCKED by harness guard (rm-rf)` | PASS: `Command blocked by PreToolUse hook: BLOCKED by harness guard (rm-rf)` | PASS after R8 (re-run R13, below): `Denied by preToolUse hook: BLOCKED by harness guard (rm-rf): recursive forced rm; ask the PO before deleting`. The first run at 009ee53 FAILED: the model saw only `hook exited with code 2` (D2) |
 | `git push origin main` | PASS: denied, `harness ask-gate (protected-push)` | PASS through `.codex/rules`: `Rejected("approval required by policy, but AskForApproval is set to Never")`. The ask-gate hook reports `PreToolUse Failed`, and `git -C . push origin main` runs (documented gap) | PASS: `Denied by preToolUse hook (unable to ask user for confirmation): harness ask-gate (protected-push)` |
 | lint-on-edit (`BAD`) | PASS: feedback received, file fixed | PASS: `PostToolUse Blocked` `lint failed after editing src/d.ts`, file fixed | PASS: `Additional guidance from postToolUse hooks: lint failed …`, file fixed |
 | test-on-stop (`false`) | PASS: blocked once, the agent explained, then stopped | PASS: `Stop Blocked` once, then `Stop Completed` | PASS: `agentStop` `decision: block` once, the second stop had no output |
@@ -64,6 +64,24 @@ Defects (fix before the PR):
 Observations (no fix required unless the PO wants one): **O1:** Copilot names plugin skills without the plugin prefix (`skill(workflow)`), while `.github/copilot-instructions.md` lists `harness:workflow`. **O2:** In Codex, a test-on-stop block pushed the model past its own "ask the PO first" pause, and it then ran `rm -rf`, which the guard refused. **O3:** `.codex/rules` is applied under `codex exec`, where `prompt` becomes a rejection because approval is `never`.
 
 Config hygiene: `~/.codex/config.toml` and `~/.copilot/settings.json` were backed up, then restored with `cp` (`cmp` identical). The Codex and Copilot marketplace and plugin entries were removed. An empty directory `~/.codex/plugins/cache/agentic-harness/` remains. Claude Code had nothing installed.
+
+Re-run of the guard after the fix wave (ruling R13), 2026-10-05 at 3ad8135, same CLI versions. Scratch repository rendered with `agents=[claude, codex, copilot]`; Copilot and Codex got the plugin from this working tree through a local marketplace (Codex cache `diff -r` identical to `plugins/harness`), Claude Code through `--plugin-dir`. Every run was wrapped in `perl -e 'alarm shift; exec @ARGV' 300 … </dev/null`. Full commands and output are in `.superpowers/sdd/2026-10-04-multi-agent/final-fix-report.md`.
+
+| Run | Result |
+|---|---|
+| (a) Copilot, `copilot -p … --allow-all-tools`, `rm -rf ./probe-dir` | **PASS.** `✗ … rm -rf ./probe-dir └ Denied by preToolUse hook: BLOCKED by harness guard (rm-rf): recursive forced rm; ask the PO before deleting`; the string occurs 3 times in the session's `events.jsonl`; `probe-dir/x` remains. D2 is fixed. |
+| (b) Claude Code, `COPILOT_CLI=1` exported, `claude -p --plugin-dir … --max-turns 3 --dangerously-skip-permissions` | **PASS.** Tool result `PreToolUse:Bash hook error: BLOCKED by harness guard (rm-rf): …`; the debug log shows the JSON form: `Hook JSON output had unrecognized keys (ignored): permissionDecision, permissionDecisionReason` and `returned permissionDecision: deny`. Claude Code reads the nested form. `probe-dir/x` remains. |
+| (c) Codex, `COPILOT_CLI=1` exported, `codex exec --dangerously-bypass-hook-trust` | **FAIL (guard off).** `rm -rf ./probe-dir` was stopped, but by Codex's own check (`Rejected("… rm -f style commands are not permitted …")`; the scratch copy of `.codex/rules` had its `rm` rule removed so that only hooks could stop it), with the guard reported as `hook: PreToolUse Failed`. With `git checkout .` (guard rule `discard`, no Codex rule): `hook: PreToolUse Failed`, and the command ran (it failed only on the sandbox: `fatal: Unable to create '…/.git/index.lock': Operation not permitted`). Control without `COPILOT_CLI`: `Command blocked by PreToolUse hook: BLOCKED by harness guard (discard): …`. Diagnostic: a guard copy that prints only the nested `hookSpecificOutput` (no top-level `permissionDecision` / `permissionDecisionReason`) blocked in Codex (`PreToolUse Blocked`, same message) and in Copilot (`Denied by preToolUse hook: BLOCKED by harness guard (discard): …`). Codex rejects the hook output for its top-level keys and fails open. README and CHANGELOG state the risk; dropping the top-level keys is left to a ruling (it changes R8's form). |
+
+Config hygiene for the re-run: both files backed up and restored with `cp` (`cmp` identical); the Codex and Copilot marketplace and plugin entries removed; the Codex cache copy edited for the diagnostic was restored before removal. An empty `~/.codex/plugins/cache/agentic-harness/` remains.
+
+## Deviations
+
+Departures from the spec that the branch ships with:
+
+- Spec §5.1 puts a `hook_input` function in `lib/parse.sh` for all four scripts to read the hook payload. It was not built: the scripts read the payload with inline `jq` filters (the per-agent shapes are handled inline in `guard.sh` and `lint-on-edit.sh`), which the payload-shape cases in `tests/hooks/cases.tsv` and `tests/hooks/lifecycle.sh` cover.
+- `lint-on-edit` sends the lint report in both `reason` and `hookSpecificOutput.additionalContext` for Claude Code and Codex. Sending it once is deferred.
+- The PR-template line for the agent and model of each stage (M7) is deferred; `harness:workflow` ("Mixed agents") asks the PR evidence to name them.
 
 ## Controller rulings (execution)
 
