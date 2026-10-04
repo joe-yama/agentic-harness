@@ -140,6 +140,34 @@ check copilot-workflow-schema '$CJS --builtin-schema vendor.github-workflows "$D
 check copilot-rules '[ -d "$DP/.claude/rules" ] && [ ! -e "$DP/.claude/settings.json" ] && [ ! -e "$DP/CLAUDE.md" ]'
 check copilot-ci-budget '! grep -qF "CLAUDE.md" "$DP/.github/workflows/ci.yml" && grep -qF ".claude/rules" "$DP/.github/workflows/ci.yml"'
 
+check copilot-settings 'jq -e ".enabledPlugins[\"harness@agentic-harness\"] == true and .extraKnownMarketplaces[\"agentic-harness\"].source.ref == \"v9.9.0\" and .extraKnownMarketplaces[\"agentic-harness\"].source.repo == \"joe-yama/agentic-harness\"" "$DP/.github/copilot/settings.json" >/dev/null'
+check copilot-instructions 'grep -qF "Copilot CLI specifics" "$DP/.github/copilot-instructions.md"'
+check copilot-instructions-dispatch 'grep -qF "gpt-5.6-luna" "$DP/.github/copilot-instructions.md" && grep -qF "without \`model\` the dispatch fails" "$DP/.github/copilot-instructions.md" && grep -qF "openspec-propose" "$DP/.github/copilot-instructions.md" && ! grep -qF "twice" "$DP/.github/copilot-instructions.md"'
+check copilot-env '[ -f "$DP/.harness/env.json" ]'
+DA="$TMP_ROOT/all-agents"
+render "$DA" v9.9.0 --data 'agents=[claude, codex, copilot]'
+common all "$DA"
+check all-files '[ -f "$DA/CLAUDE.md" ] && [ -f "$DA/.codex/config.toml" ] && [ -f "$DA/.github/copilot/settings.json" ] && [ -f "$DA/.harness/env.json" ]'
+check all-same-ref '[ "$(jq -r ".extraKnownMarketplaces[\"agentic-harness\"].source.ref" "$DA/.github/copilot/settings.json")" = "$(settings "$DA" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" ]'
+check all-instructions-twice 'grep -qF "may show the rules twice" "$DA/.github/copilot-instructions.md"'
+# Every file the ci.yml context-budget step cats must exist in the render (glob entries must match something).
+budget_files_ok() { # <rendered dir>
+  local d=$1 line f n=0
+  line=$(grep -E "^[[:space:]]*bytes=\\$\(cat " "$d/.github/workflows/ci.yml") || return 1
+  line=${line#*cat }
+  line=${line%% | wc*}
+  for f in $line; do
+    n=$((n + 1))
+    # shellcheck disable=SC2086 # the glob entries are meant to expand
+    [ -n "$(cd "$d" && ls -d $f 2>/dev/null)" ] || { echo "missing budget file: $f" >&2; return 1; }
+  done
+  [ "$n" -ge 1 ]
+}
+for pair in "claude:$D1" "codex:$DC" "copilot:$DP" "all:$DA"; do
+  check "budget-files-${pair%%:*}" 'budget_files_ok "${pair#*:}"'
+done
+check budget-copilot-counted 'grep -qF ".github/copilot-instructions.md" "$DP/.github/workflows/ci.yml" && grep -qF ".github/copilot-instructions.md" "$DA/.github/workflows/ci.yml" && ! grep -qF "copilot-instructions" "$D1/.github/workflows/ci.yml"'
+
 check none-rejected '! $COPIER copy --quiet --defaults --vcs-ref v9.9.0 --data project_name=S --data github_owner=o --data "agents=[]" "$SRC" "$TMP_ROOT/none" >/dev/null 2>&1'
 
 check defaults-ref '[ "$(settings "$D1" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = v9.9.0 ]'

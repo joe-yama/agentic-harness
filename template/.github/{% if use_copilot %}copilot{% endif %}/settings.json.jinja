@@ -1,0 +1,15 @@
+{%- from "template/includes/marketplace_ref.jinja" import ref with context -%}
+{
+  "enabledPlugins": {
+    "harness@agentic-harness": true
+  },
+  "extraKnownMarketplaces": {
+    "agentic-harness": {
+      "source": {
+        "source": "github",
+        "repo": "joe-yama/agentic-harness",
+        "ref": {{ ref | to_json(ensure_ascii=False) }}
+      }
+    }
+  }
+}

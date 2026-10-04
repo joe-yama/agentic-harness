@@ -1,0 +1,9 @@
+{#- Pin the marketplace to the release tag this file was rendered from. `claude plugin tag` puts
+    harness--vX.Y.Z on the same commit as vX.Y.Z, and Copier may report either; both name the same
+    commit, so strip the prefix. A release candidate tag (v1.0.0-rc.1) keeps its ref. Describe output
+    (v1.0.0-3-gabc, v1.0.0-rc.1-3-gabc) or a bare SHA falls back to main. -#}
+{%- set c = (_commit or '') -%}
+{%- set c = c[9:] if c.startswith('harness--') else c -%}
+{%- set parts = c.split('-') -%}
+{%- set is_rc = parts | length == 2 and parts[1].startswith('rc.') and parts[1][3:].isdigit() -%}
+{%- set ref = c if (c.startswith('v') and (parts | length == 1 or is_rc)) else 'main' -%}
