@@ -112,3 +112,13 @@ segments() { printf '%s\n' "$cmd" | grep -oE "${B}${P}$1([[:space:]]+[^;&|]*)?" 
 
 # git_segments <subcommand-regex>: each "git [global options] <subcommand> args..." segment. Reads $cmd.
 git_segments() { printf '%s\n' "$cmd" | grep -oE "${B}${P}git${GOPT}[[:space:]]+$1([[:space:]]+[^;&|]*)?" || true; }
+
+# patch_paths <apply_patch text>
+# Prints every path an apply_patch envelope (Codex; Copilot CLI's apply_patch) writes, deletes or
+# renames to, one per line, in order: the text after "*** Add File: ", "*** Update File: ",
+# "*** Delete File: " and "*** Move to: ". The rest of the patch is file content, not a command.
+patch_paths() {
+  # rule:patch-paths
+  printf '%s\n' "$1" | sed -nE 's/^\*\*\* (Add File|Update File|Delete File|Move to): (.+)$/\2/p'
+  # end:patch-paths
+}

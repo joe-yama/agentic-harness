@@ -426,3 +426,28 @@ g-rs-06	guard	none	HARNESS_RM_RF_ALLOW=@T@/link	pass	bash:rm -rf @T@/work/real
 g-rs-07	guard	none	HARNESS_RM_RF_ALLOW=@T@/link	pass	bash:rm -rf @T@/link/real
 g-rs-08	guard	none	HARNESS_RM_RF_ALLOW=@T@/top	block:rm-rf	bash:rm -rf @T@/top/local
 g-rs-09	guard	none	HARNESS_RM_RF_ALLOW=@T@/work/..	block:rm-rf	bash:rm -rf @T@/outside/x
+g-patch-01	guard	none	-	block:env-file	patch:apply_patch:src/.env
+g-patch-02	guard	none	-	block:secrets-dir	patch:apply_patch:/home/u/.ssh/config
+g-patch-03	guard	none	-	pass	patch:apply_patch:src/app.ts
+g-patch-04	guard	none	-	block:env-file	patch:apply_patch:src/a.ts,config/.env
+g-patch-05	guard	none	-	block:env-file	patchraw:apply_patch:*** Begin Patch\n*** Update File: src/a.ts\n*** Move to: .env\n@@\n-a\n+b\n*** End Patch
+g-patch-06	guard	none	-	block:bad-input	patchraw:apply_patch:*** Begin Patch\n*** End Patch
+g-patch-07	guard	none	-	block:env-file	patch:Edit:.env
+g-patch-08	guard	none	-	pass	patch:apply_patch:.env.example
+g-patch-09	guard	none	-	block:env-file	patchraw:apply_patch:*** Begin Patch\n*** Add File: .ENV\n+X=1\n*** End Patch
+g-patch-10	guard	none	-	block:secrets-dir	patchraw:apply_patch:*** Begin Patch\n*** Delete File: /root/.aws/credentials\n*** End Patch
+g-cop-01	guard	none	-	block:env-file	cfile:Edit:.env
+g-cop-02	guard	none	-	block:secrets-dir	cfile:Read:/Users/u/.aws/credentials
+g-cop-03	guard	none	-	pass	cfile:Edit:src/app.ts
+g-cop-04	guard	none	-	block:env-file	cpatch:Edit:*** Begin Patch\n*** Add File: .env\n+X=1\n*** End Patch
+g-cop-05	guard	none	-	pass	cpatch:Edit:*** Begin Patch\n*** Add File: src/app.ts\n+X=1\n*** End Patch
+g-cop-06	guard	none	-	block:env-file	cpatch:Write:{"path":".env","file_text":"X=1"}
+g-cop-07	guard	none	-	block:env-file	cfile:Write:.env
+g-cop-08	guard	none	-	block:bad-input	cpatch:Write:hello
+g-henv-01	guard	none	-	block:harness-env	file:Write:.harness/env.json
+g-henv-02	guard	none	-	block:harness-env	file:Read:/repo/.harness/env.json
+g-henv-03	guard	none	-	block:harness-env	patch:apply_patch:.harness/env.json
+g-henv-04	guard	none	-	block:harness-env	bash:sed -i '' 's/main//' .harness/env.json
+g-henv-05	guard	none	-	block:harness-env	bash:echo {} > .harness/env.json
+g-henv-06	guard	none	-	pass	bash:mkdir -p .harness/my-change && touch .harness/my-change/progress.md
+g-henv-07	guard	none	-	pass	file:Write:.harness/my-change/progress.md

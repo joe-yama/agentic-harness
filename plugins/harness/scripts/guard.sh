@@ -22,7 +22,7 @@ deny() {
 . "$(dirname "$0")/lib/parse.sh" 2>/dev/null
 parsed=$?
 # rule:bad-parser
-if [ "$parsed" != 0 ] || ! declare -F normalize is_abbrev segments git_segments >/dev/null; then
+if [ "$parsed" != 0 ] || ! declare -F normalize is_abbrev segments git_segments patch_paths >/dev/null; then
   deny bad-parser "lib/parse.sh is missing or broken, so the command could not be checked; reinstall the plugin"
 fi
 # end:bad-parser
@@ -51,6 +51,12 @@ check_path() {
       deny secrets-dir "credential directories are off limits: $p" ;;
   esac
   # end:secrets-dir-path
+  # rule:harness-env-path
+  # HARNESS_* for Codex and Copilot CLI hooks; the PO edits it, as with .claude/settings.json
+  case "$lp" in
+    .harness/env.json | */.harness/env.json) deny harness-env "the harness settings file is changed by the PO only: $p" ;;
+  esac
+  # end:harness-env-path
   return 0
 }
 
@@ -457,6 +463,11 @@ EOF
     fi
     # end:secrets-dir
 
+    # rule:harness-env
+    printf '%s\n' "$cmd" | grep -Eq '(^|[^A-Za-z0-9_])\.harness/env\.json' \
+      && deny harness-env "the harness settings file is changed by the PO only"
+    # end:harness-env
+
     # rule:pipe-shell
     # A download (curl / wget) reaching a shell: a later pipe stage whose command word, after sudo
     # and its options and any path prefix, is a shell; <(download) given to a shell, source or .;
@@ -497,8 +508,34 @@ EOF
     fi
     # end:pipe-shell
     ;;
-  Read | Edit | Write | MultiEdit | NotebookEdit)
-    check_path "$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""')"
+  Read | Edit | Write | MultiEdit | NotebookEdit | apply_patch)
+    # tool_input is an object (Claude's tools, Codex, Copilot Read) or a string (Copilot's apply_patch
+    # reported as Edit, a double-encoded object): the filters never index a string
+    body=$(printf '%s' "$input" | jq -r '.tool_input | if type == "string" then . else (.command // .input // "") end')
+    # rule:patch-check
+    # an apply_patch envelope carries its paths in headers; the body is file content, not a command
+    case "$body" in
+      '*** Begin Patch'*)
+        paths=$(patch_paths "$body")
+        [ -n "$paths" ] || deny bad-input "the patch names no file, so it could not be checked"
+        while IFS= read -r p; do check_path "$p"; done <<EOF
+$paths
+EOF
+        exit 0 ;;
+    esac
+    # end:patch-check
+    [ "$tool" != apply_patch ] || deny bad-input "the patch could not be read, so it could not be checked"
+    # rule:file-path-keys
+    fp=$(printf '%s' "$input" | jq -r '(.tool_input | objects | (.file_path // .notebook_path // .path)) // ""')
+    # end:file-path-keys
+    # rule:string-input
+    # a string tool_input holding a JSON object (double-encoded) names its path under the same keys
+    if [ -z "$fp" ] && [ "$(printf '%s' "$input" | jq -r '.tool_input | type')" = string ]; then
+      fp=$(printf '%s' "$input" | jq -r '(.tool_input | fromjson? | objects | (.file_path // .notebook_path // .path)) // ""')
+      [ -n "$fp" ] || deny bad-input "the tool input has no patch header and no path, so it could not be checked"
+    fi
+    # end:string-input
+    check_path "$fp"
     ;;
 esac
 exit 0

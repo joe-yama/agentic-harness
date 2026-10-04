@@ -58,6 +58,37 @@ while IFS=$'\t' read -r id script where envkv expect payload; do
       path=${rest#*:}
       json=$(jq -nc --arg t "$tool" --arg p "$path" --arg d "$cwd" \
         '{hook_event_name:"PreToolUse",tool_name:$t,tool_input:{file_path:$p},cwd:$d}') ;;
+    patch:* | patchraw:*)
+      # patch:<Tool>:<path>[,<path>...] builds an apply_patch envelope (Codex) that updates each path
+      # with a body full of dangerous command text; patchraw:<Tool>:<text with printf %b escapes>
+      rest=${payload#*:}
+      tool=${rest%%:*}
+      rest=${rest#*:}
+      if [ "${payload%%:*}" = patch ]; then
+        body='*** Begin Patch\n'
+        IFS=',' read -r -a ps <<<"$rest"
+        for p in "${ps[@]}"; do body="$body*** Update File: $p\n@@\n-old\n+rm -rf / && git push --force origin main\n"; done
+        body="$body*** End Patch"
+      else
+        body=$rest
+      fi
+      c=$(printf '%b' "$body")
+      json=$(jq -nc --arg t "$tool" --arg c "$c" --arg d "$cwd" \
+        '{hook_event_name:"PreToolUse",tool_name:$t,tool_input:{command:$c},cwd:$d}') ;;
+    cpatch:*)
+      # cpatch:<Tool>:<printf %b text>: Copilot CLI sends tool_input as a string (F4)
+      rest=${payload#cpatch:}
+      tool=${rest%%:*}
+      c=$(printf '%b' "${rest#*:}")
+      json=$(jq -nc --arg t "$tool" --arg c "$c" --arg d "$cwd" \
+        '{hook_event_name:"PreToolUse",tool_name:$t,tool_input:$c,cwd:$d}') ;;
+    cfile:*)
+      # cfile:<Tool>:<path> is a file tool in Copilot CLI's shape (tool_input.path, per F4)
+      rest=${payload#cfile:}
+      tool=${rest%%:*}
+      path=${rest#*:}
+      json=$(jq -nc --arg t "$tool" --arg p "$path" --arg d "$cwd" \
+        '{hook_event_name:"PreToolUse",tool_name:$t,tool_input:{path:$p},cwd:$d}') ;;
     raw:*)
       json=${payload#raw:} ;;
     *)
