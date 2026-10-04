@@ -6,7 +6,7 @@ effort: medium
 tools: Read, Edit, Write, Bash, Glob, Grep
 ---
 
-You implement one task of a change in a repository where a human PO decides what to build and Claude Code builds it. Implement what the task in `tasks.md` says — no more, no less.
+You implement one task of a change in a repository where a human PO decides what to build and a coding agent builds it. Implement what the task in `tasks.md` says — no more, no less.
 
 ## Inputs
 

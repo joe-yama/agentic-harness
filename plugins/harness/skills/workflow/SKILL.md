@@ -10,13 +10,23 @@ The PO (a human) decides what to build, priorities and acceptance, and does not 
 ## Lifecycle of one change
 
 1. **Idea.** The PO describes it in 1-4 sentences.
-2. **Design and proposal.** Run `harness:design`: the design dialogue with the PO, then `/opsx:propose` writes the proposal, delta specs, `design.md` and `tasks.md` under `openspec/changes/<name>/`. `tasks.md` is also the implementation plan; there is no separate plan document. Create exactly one GitHub Issue for the change (see "Issue" below). Settle every open question here, so implementation never has to stop for the PO.
+2. **Design and proposal.** Run `harness:design`: the design dialogue with the PO, then OpenSpec propose writes the proposal, delta specs, `design.md` and `tasks.md` under `openspec/changes/<name>/`. `tasks.md` is also the implementation plan; there is no separate plan document. Create exactly one GitHub Issue for the change (see "Issue" below). Settle every open question here, so implementation never has to stop for the PO.
 3. **Implementation.** In a **new session**, run `harness:execute`: ledger, one `harness:implementer` per task or batch, review in the units `tasks.md` declares, fix rounds. **One implementer per worktree at a time**, on a git worktree branch `feature/<change-name>`.
 4. **Final review and PR.** `harness:execute` ends with one review of the whole branch, then the PR with `Closes #<issue>` and the evidence (commands, results, CI run, review verdict). The implementing context never reviews its own work.
 5. **Acceptance.** The PO tries the result and merges.
-6. **Archive.** Run `/opsx:archive`, copy the change's rulings into `docs/changes.md`, and update `docs/status.md` to the new current state.
+6. **Archive.** Run OpenSpec archive, copy the change's rulings into `docs/changes.md`, and update `docs/status.md` to the new current state.
 
-The OpenSpec commands this lifecycle uses are `/opsx:propose`, `/opsx:archive` and `/opsx:update`.
+## OpenSpec and agents
+
+| Agent | Propose | Archive | Update |
+|---|---|---|---|
+| Claude Code | `/opsx:propose` | `/opsx:archive` | `/opsx:update` |
+| Codex | `$openspec-propose` | `$openspec-archive-change` | `$openspec-update-change` |
+| Copilot CLI | skill `openspec-propose` | skill `openspec-archive-change` | skill `openspec-update-change` |
+
+## Mixed agents
+
+Any stage may run in any agent the repository selected (`.copier-answers.yml` `agents`): for example the design session in Claude Code and `harness:execute` in Codex. Nothing else changes: the hand-off is still the committed change files and the ledger. The PR evidence names the agent and model of each stage.
 
 If a guardian test was written (a test meant to catch a specific regression), the change's `tasks.md` contains a task to prove it with `harness:mutation-check`.
 
@@ -26,9 +36,9 @@ Each stage runs in a new session: design and proposal; implementation (a few tas
 
 ## Small-change path
 
-For a change that touches only docs, `.claude/`, or styles, or at most 5 files without a new spec requirement:
+For a change that touches only docs, agent settings (`.claude/`, `.codex/`, `.github/copilot/`), or styles, or at most 5 files without a new spec requirement:
 
-- skip the design dialogue, **but still create the Issue** and still write a short change with `/opsx:propose` (`harness:design`, route choice);
+- skip the design dialogue, **but still create the Issue** and still write a short change with OpenSpec propose (`harness:design`, route choice);
 - `tasks.md` is the brief: run the implementer once, and review the whole branch once.
 
 Edits to the harness or docs that belong to no change go straight to a `fix/<description>` branch and PR, without an Issue. When in doubt, use the full path.
@@ -84,8 +94,16 @@ Report "done" only when all of these hold, with evidence:
 
 ## Models
 
-Which model and effort each role uses is in the project's `docs/harness/models.md`. Pass `model` on every subagent dispatch as that table says.
+Which model and effort each role uses is in the project's `docs/harness/models.md`, in your agent's section. Where your agent passes a model per dispatch, pass it as that table says.
 
 ## Long and unattended runs
 
-Use `/goal <completion condition> or stop after N turns` and always give a turn limit. Headless: `claude -p --permission-mode auto --permission-prompts none --max-turns N`; operations that would prompt are denied and skipped, so list them in the final report. Wait for long jobs with background commands (`gh run watch`, a file appearing), not with polling loops that consume turns.
+Always give a completion condition and a turn limit. Headless, operations that would prompt are denied and skipped, so list them in the final report:
+
+| Agent | Headless |
+|---|---|
+| Claude Code | `claude -p --permission-mode auto --permission-prompts none --max-turns N` (interactive: `/goal <condition> or stop after N turns`) |
+| Codex | `codex exec "<prompt>"` (it ran with `approval: never`, so prompt rules do not stop it; observed with Codex CLI 0.160.0) |
+| Copilot CLI | `copilot -p "<prompt>" --allow-all-tools --no-ask-user` |
+
+Wait for long jobs with background commands (`gh run watch`, a file appearing), not with polling loops that consume turns.

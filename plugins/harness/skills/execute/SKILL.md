@@ -7,7 +7,7 @@ description: The implementation session of a change - read the change, keep a le
 
 One session, or a few, carries a change from its `tasks.md` to an open PR. The change directory `openspec/changes/<name>/` is the plan: there is no separate plan document and no separate task brief. The controller distributes the tasks, judges and records; it does not write code and does not review. The reviewer's own rules live in the `harness:reviewer` agent, the implementer's in `harness:implementer`.
 
-Models and effort for every role (implementation, intermediate review, final review) are in the project's `docs/harness/models.md`. Always pass `model` explicitly on each dispatch, per that table; an omitted model inherits the session's.
+Models and effort for every role (implementation, intermediate review, final review) are in the project's `docs/harness/models.md`, in your agent's section. Where your agent passes a model per dispatch, always pass it; an omitted model inherits the session's.
 
 ## 1. Start
 
@@ -36,11 +36,19 @@ Models and effort for every role (implementation, intermediate review, final rev
 
 **UI.** If the unit has UI, build and start the preview server yourself and pass its HTTP URL. The reviewer never builds (it must not change the working tree). List the UI items to check; the reviewer has a turn budget. Follow the project's rules on when UI is checked over HTTP (often once, at the final review). **Stop any preview server you started before handing work back to an implementer**: a running server can hold the port the test suite needs.
 
-**Dispatch.** `Agent(subagent_type: "harness:reviewer", model: <intermediate review per docs/harness/models.md>, prompt: <change path, range, task numbers, URL, items>)`.
+**Dispatch.** Start the reviewer with the change path, range, task numbers, URL and items:
+
+| Agent | Implementer | Intermediate review | Final review | Follow-up to a running subagent |
+|---|---|---|---|---|
+| Claude Code | `Agent(subagent_type: "harness:implementer", model: …)` | `Agent(subagent_type: "harness:reviewer", model: <intermediate>)` | `Agent(subagent_type: "harness:reviewer", model: <final>)` | `SendMessage` |
+| Codex | `spawn_agent {agent_type: "harness-implementer", task_name, message, fork_turns: "none"}` | `spawn_agent {agent_type: "harness-reviewer-intermediate", task_name, message, fork_turns: "none"}` | `spawn_agent {agent_type: "harness-reviewer", task_name, message, fork_turns: "none"}` | `followup_task {target: <task_name>, message}`, then `wait_agent` |
+| Copilot CLI | `task(agent_type: "harness:implementer", model: …, reasoning_effort: …, mode: "background")` | `task(agent_type: "harness:reviewer", model: <fast model>, reasoning_effort: …, mode: "background")` | `task(agent_type: "harness:reviewer", model: <final>, reasoning_effort: …, mode: "background")` | `write_agent {agent_id, message}`, then `read_agent {agent_id, wait: true}` |
+
+Codex: without `fork_turns: "none"` the child inherits the parent's context, and the context that implemented something must never review it. `fork_turns: "none"` is unverified until the smoke test. Copilot CLI: take `model` from the Copilot section of `docs/harness/models.md`; a dispatch without `model` fails (fallback `gpt-5.6-luna`).
 
 **Mutation checks.** Where a new refusal or security test needs `harness:mutation-check`, follow the project's rules (`.claude/rules/` and project docs) for which tests it is required for. Otherwise run it only when the reviewer doubts a test.
 
-**Fix round.** On "Needs fixes", send **all** Critical and Important findings to the implementer in **one** `SendMessage`; split messages get findings dropped. When the implementer reports back, verify every "fixed" claim yourself with the diff and `grep` before re-review. Then re-review by `SendMessage` to the same reviewer (history and prompt cache are kept; this also resumes a reviewer that hit its turn limit). For mechanical one-line fixes (a rename, wording, a single value), verify with diff and grep yourself and skip the re-review.
+**Fix round.** On "Needs fixes", send **all** Critical and Important findings to the implementer in **one** follow-up to the same subagent (table above); split messages get findings dropped. When the implementer reports back, verify every "fixed" claim yourself with the diff and `grep` before re-review. Then re-review by a follow-up to the same reviewer (history and prompt cache are kept; this also resumes a reviewer that hit its turn limit). For mechanical one-line fixes (a rename, wording, a single value), verify with diff and grep yourself and skip the re-review.
 
 **Minor findings.** They never start a fix round. Copy them to the "Proposals" section at the end of the change's `tasks.md` and note them in the ledger.
 
@@ -58,13 +66,13 @@ Record the rebuild and its reason in the change's `openspec/changes/<name>/` (co
 ## 4. Waiting
 
 - **Never leave a subagent waiting.** Do not dispatch a subagent whose answer you will not read soon, and do not hold one open while you wait for CI or the PO. Only the controller waits for CI.
-- A subagent's prompt cache expires after about five minutes. If more than five minutes passed since its last turn, do **not** resume it with `SendMessage`; dispatch a fresh one with the same inputs plus what it needs to continue.
+- A subagent's prompt cache expires after about five minutes. If more than five minutes passed since its last turn, do **not** resume it with a follow-up (table above); dispatch a fresh one with the same inputs plus what it needs to continue. If your agent cannot send a follow-up to a finished subagent, dispatch a fresh one with the same inputs plus the findings.
 - **Before re-dispatching,** check that the earlier subagent is not still running (list the running agents). A restarted or resumed session can find the previous subagent still working, and two on one worktree corrupt each other's state. Wait for it or stop it first.
 - **Context limit.** When your context passes about 200k tokens, or you must wait for the PO for more than an hour, write a handoff into the ledger (state, next task, open findings, first file to read) and end the session. Do not rely on compaction: it is itself a large request. A new session resumes from the ledger and the change files.
 
 ## 5. Finish
 
-1. **Final review.** After the last task, run **one** review of the whole branch with `model` per the "final review" row of `docs/harness/models.md` (heavier than the intermediate review). It catches what batched reviews missed. Its report maps **every** delta-spec scenario of the change to a test (`file:line`) or a verification task; a scenario with neither is an Important finding. Handle its findings as in section 3.
+1. **Final review.** After the last task, run **one** review of the whole branch with the model of the "final review" row of `docs/harness/models.md` (heavier than the intermediate review). It catches what batched reviews missed. Its report maps **every** delta-spec scenario of the change to a test (`file:line`) or a verification task; a scenario with neither is an Important finding. Handle its findings as in section 3.
 2. **Pre-push checks.** Fix every Critical and Important finding of the final review (Minor findings go to Proposals, as in section 3), then run the project's pre-commit and pre-push checks (its commands in `AGENTS.md` and its testing docs) once more.
 3. **Open the PR only after** implementation and the final review are done. No draft PR along the way, and do not open the PR at the start of a stage.
 4. **One push.** Collect fixes into a single push, so CI runs once per push. Intermediate state is not visible on GitHub; the ledger is where progress lives. If the PR needs more than a few CI runs, write the cause in the ledger.
@@ -72,4 +80,4 @@ Record the rebuild and its reason in the change's `openspec/changes/<name>/` (co
 6. **Issue comment.** Write **one** comment on the change's Issue after the final review: the verdict per review unit, the number of findings, whether a rebuild happened, and the Minor findings moved to Proposals.
 7. **While CI runs,** use the wait yourself (archive preparation, status notes). Record the CI result in the ledger. The CI result, not local green, is the final evidence.
 
-Acceptance, merge and `/opsx:archive` follow in `harness:workflow`.
+Acceptance, merge and OpenSpec archive follow in `harness:workflow`.

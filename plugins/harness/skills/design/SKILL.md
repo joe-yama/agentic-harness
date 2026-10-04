@@ -1,6 +1,6 @@
 ---
 name: design
-description: The design session of a change - read the context, choose the route, ask the PO one question at a time, then write the whole change (proposal, delta spec, design, tasks that double as the plan) with /opsx:propose, create the one Issue and end the session. Use when the PO brings a new idea or a behavior change, before any implementation.
+description: The design session of a change - read the context, choose the route, ask the PO one question at a time, then write the whole change (proposal, delta spec, design, tasks that double as the plan) with OpenSpec propose, create the one Issue and end the session. Use when the PO brings a new idea or a behavior change, before any implementation.
 ---
 
 # Design session
@@ -15,7 +15,7 @@ One session turns an idea into a change under `openspec/changes/<name>/` that a 
 
 ## 2. Choose the route
 
-Apply the small-change test from `harness:workflow`. A small change (only docs, `.claude/` or styles, or at most 5 files without a new spec requirement) skips step 3 and goes straight to step 4 with a short change. Everything else takes the full route. When in doubt, take the full route.
+Apply the small-change test from `harness:workflow`. A small change (only docs, agent settings (`.claude/`, `.codex/`, `.github/copilot/`) or styles, or at most 5 files without a new spec requirement) skips step 3 and goes straight to step 4 with a short change. Everything else takes the full route. When in doubt, take the full route.
 
 ## 3. Ask
 
@@ -27,7 +27,7 @@ Ask the PO, **one question at a time**. Each question offers 2-4 options and you
 
 ## 4. Write the change
 
-When the agreements are complete, run `/opsx:propose` and write all four artifacts:
+When the agreements are complete, run OpenSpec propose (see the table in `harness:workflow`) and write all four artifacts:
 
 - **proposal**: what and why, scope in and out.
 - **delta spec**: requirements as SHALL / SHALL NOT, each with at least one `#### Scenario:` using WHEN / THEN. The reviewer later maps every scenario to a test or a verification task, so write scenarios that a test can check.

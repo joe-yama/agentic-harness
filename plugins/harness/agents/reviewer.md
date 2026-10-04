@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Reviews a range of commits against a change's delta specs, design and tasks, adversarially and in a context separate from the implementer — spec compliance with a scenario-to-test map, then code quality, then over-engineering — and returns a verdict. Use for task, batch, re-review and whole-branch reviews. Dispatch as harness:reviewer with the model from docs/harness/models.md.
+description: Reviews a range of commits against a change's delta specs, design and tasks, adversarially and in a context separate from the implementer — spec compliance with a scenario-to-test map, then code quality, then over-engineering — and returns a verdict. Use for task, batch, re-review and whole-branch reviews. Dispatch it with the model from your agent's section of docs/harness/models.md.
 model: opus
 effort: high
 maxTurns: 80
