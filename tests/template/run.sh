@@ -49,10 +49,11 @@ os_run() {
   for f in "$@"; do mkdir -p "$w/$(dirname "$f")" && : > "$w/$f"; done
   (cd "$w" && bash -e -c "$run") > "$TMP_ROOT/os.log" 2>&1
 }
-# Reads the table rows (lines starting with "|") of models.md. Decision and final review must be Opus / high, implementation and
+# Reads the rows (lines starting with "|") of the first table of models.md (it stops at the first "## " line). Decision and final review must be Opus / high, implementation and
 # intermediate review Sonnet / medium; no row may use another model (Haiku included) or be a planning role (planning is part of the decision).
 models_ok() { awk -F'|' '
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return tolower(s) }
+  /^## / { exit }
   /^\|/ {
     r = trim($2); m = trim($3); e = trim($4)
     if (m == "model" || m ~ /^[-: ]+$/) next
@@ -66,6 +67,20 @@ models_ok() { awk -F'|' '
     if (r ~ /^intermediate review/) { mid++; if (m != "sonnet") bad = 1 }
   }
   END { exit (bad || dec != 1 || fin != 1 || imp != 1 || mid != 1) }' "$1"; }
+# rows of the table under "## <heading>": four roles, a model, an effort, no Haiku
+agent_models_ok() { awk -F'|' -v h="## $2" '
+  function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return tolower(s) }
+  $0 == h { on = 1; next }
+  on && /^## / { on = 0 }
+  on && /^\|/ { m = trim($3); if (m == "model" || m ~ /^[-: ]+$/) next; n++; if (m == "" || trim($4) == "" || tolower($0) ~ /haiku/) bad = 1 }
+  END { exit (bad || n != 4) }' "$1"; }
+# "<role prefix>=<model>/<effort>" lines of the Codex table of models.md, for comparison with .codex/agents/*.toml
+codex_table() { awk -F'|' '
+  function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+  $0 == "## Codex" { on = 1; next }
+  on && /^## / { on = 0 }
+  on && /^\|/ { a = trim($5); gsub(/`/, "", a); if (a ~ /^harness-/) print a "=" trim($3) "/" trim($4) }' "$1" | sort; }
+codex_toml() { for f in "$1"/.codex/agents/*.toml; do n=$(basename "$f" .toml); printf '%s=%s/%s\n' "$n" "$(sed -n 's/^model = "\(.*\)"$/\1/p' "$f")" "$(sed -n 's/^model_reasoning_effort = "\(.*\)"$/\1/p' "$f")"; done | sort; }
 settings() { jq -r "$2" "$1/.claude/settings.json"; }
 common() { # <name> <dest>
   local n=$1 d=$2
@@ -150,6 +165,16 @@ common all "$DA"
 check all-files '[ -f "$DA/CLAUDE.md" ] && [ -f "$DA/.codex/config.toml" ] && [ -f "$DA/.github/copilot/settings.json" ] && [ -f "$DA/.harness/env.json" ]'
 check all-same-ref '[ "$(jq -r ".extraKnownMarketplaces[\"agentic-harness\"].source.ref" "$DA/.github/copilot/settings.json")" = "$(settings "$DA" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" ]'
 check all-instructions-twice 'grep -qF "may show the rules twice" "$DA/.github/copilot-instructions.md"'
+check codex-models 'agent_models_ok "$DC/docs/harness/models.md" Codex'
+check copilot-models 'agent_models_ok "$DP/docs/harness/models.md" "Copilot CLI"'
+check all-models 'models_ok "$DA/docs/harness/models.md" && agent_models_ok "$DA/docs/harness/models.md" Codex && agent_models_ok "$DA/docs/harness/models.md" "Copilot CLI"'
+check codex-models-values '[ -n "$(codex_table "$DC/docs/harness/models.md")" ] && [ "$(codex_table "$DC/docs/harness/models.md")" = "$(codex_toml "$DC")" ]'
+check codex-models-pinned 'grep -qF "gpt-6-luna" "$DC/docs/harness/models.md" && grep -qF "sets the model in each agent file" "$DC/docs/harness/models.md"'
+check copilot-models-values 'grep -qF "claude-opus-5.5" "$DP/docs/harness/models.md" && grep -qF "claude-sonnet-5.5" "$DP/docs/harness/models.md" && grep -qF "reasoning_effort" "$DP/docs/harness/models.md" && grep -qF "without \`model\` the dispatch fails" "$DP/docs/harness/models.md" && grep -qF "If \`task\` answers that a model is not available, use \`gpt-5.6-luna\`, or another id from the list in that error." "$DP/docs/harness/models.md" && ! grep -qE "<F[0-9]|\{\{|\{%" "$DP/docs/harness/models.md"'
+check models-intro 'head -3 "$DC/docs/harness/models.md" | grep -qF "AGENTS.md" && ! head -3 "$DC/docs/harness/models.md" | grep -qE "CLAUDE.md|\.claude/rules" && head -3 "$DP/docs/harness/models.md" | grep -qF ".claude/rules/" && ! head -3 "$DP/docs/harness/models.md" | grep -qF "CLAUDE.md" && head -3 "$DA/docs/harness/models.md" | grep -qF "CLAUDE.md"'
+check codex-openspec-skills 'os_run "$DC" .agents/skills/openspec-propose/SKILL.md .agents/skills/openspec-archive-change/SKILL.md .agents/skills/openspec-update-change/SKILL.md .agents/skills/openspec-sync-specs/SKILL.md .agents/skills/.openspec-target'
+check codex-openspec-extra '! os_run "$DC" .agents/skills/openspec-explore/SKILL.md && grep -q "openspec-explore" "$TMP_ROOT/os.log"'
+check agents-openspec-step-name 'os_step "$DC/.github/workflows/ci.yml" >/dev/null && grep -qF "OpenSpec agent files (only propose, archive, update and sync stay)" "$DC/.github/workflows/ci.yml" && grep -qF "OpenSpec agent files (only the opsx commands propose, archive, update and sync stay)" "$D1/.github/workflows/ci.yml"'
 # Every file the ci.yml context-budget step cats must exist in the render (glob entries must match something).
 budget_files_ok() { # <rendered dir>
   local d=$1 line f n=0

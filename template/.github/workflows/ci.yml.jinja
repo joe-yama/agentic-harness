@@ -26,11 +26,14 @@ jobs:
           echo "context bytes: $bytes"
           test "$bytes" -le 16000
       # Runs on every change, documentation-only ones included: no `if:` here and no path filter on the workflow.
-      - name: OpenSpec agent files (only the opsx commands propose, archive, update and sync stay)
+      - name: OpenSpec agent files (only {% if use_codex or use_copilot %}propose, archive, update and sync{% else %}the opsx commands propose, archive, update and sync{% endif %} stay)
         run: |
           bad=$({
             find .claude/skills -mindepth 1 -maxdepth 1 -name 'openspec-*'
             find .claude/commands/opsx -mindepth 1 ! -name propose.md ! -name archive.md ! -name update.md ! -name sync.md
+{%- if use_codex or use_copilot %}
+            find .agents/skills -mindepth 1 -maxdepth 1 -name 'openspec-*' ! -name openspec-propose ! -name openspec-archive-change ! -name openspec-update-change ! -name openspec-sync-specs
+{%- endif %}
           } 2>/dev/null | sort || true)
           if [ -n "$bad" ]; then
             echo "These OpenSpec files were stripped and have come back (openspec update restores them). Delete them:"
