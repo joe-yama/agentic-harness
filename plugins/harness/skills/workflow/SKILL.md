@@ -24,6 +24,8 @@ The PO (a human) decides what to build, priorities and acceptance, and does not 
 | Codex | `$openspec-propose` | `$openspec-archive-change` | `$openspec-update-change` |
 | Copilot CLI | skill `openspec-propose` | skill `openspec-archive-change` | skill `openspec-update-change` |
 
+Codex and Copilot CLI load these skills from `.agents/skills` (`harness:adopt`, step 6); CI job `check` rejects `openspec-*` skills under `.claude/skills`.
+
 ## Mixed agents
 
 Any stage may run in any agent the repository selected (`.copier-answers.yml` `agents`): for example the design session in Claude Code and `harness:execute` in Codex. Nothing else changes: the hand-off is still the committed change files and the ledger. The PR evidence names the agent and model of each stage.

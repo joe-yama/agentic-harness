@@ -1,6 +1,6 @@
 # Models and effort
 
-Which model and effort each role uses. This is the only place that names them: {% if use_claude %}`CLAUDE.md`, {% endif %}`AGENTS.md`{% if use_claude or use_copilot %}, `.claude/rules/`{% endif %} and the skills refer here instead of writing a model name.
+Which model and effort each role uses. This is the only place that names them: {% if use_claude %}`CLAUDE.md`, {% endif %}`AGENTS.md`, `.claude/rules/` and the skills refer here instead of writing a model name.
 {% if use_claude %}
 | Role | Model | Effort | Why |
 |---|---|---|---|
@@ -25,7 +25,7 @@ No role uses Haiku.
 | Implementation | gpt-6-luna | medium | `harness-implementer` |
 | Intermediate review | gpt-6-luna | high | `harness-reviewer-intermediate` |
 
-Codex sets the model in each agent file (`.codex/agents/*.toml`, generated from the plugin agents); pick the agent, not a model, when you start one.
+Codex sets the model in each agent file (`.codex/agents/*.toml`, generated from the plugin agents); pick the agent, not a model, when you start one. `harness-reviewer-intermediate` currently equals `harness-reviewer` (same model and effort); it exists so that the two can diverge without changing how reviews are dispatched. Codex CLI 0.160.0 applies `model` and `model_reasoning_effort` from these files but not `sandbox_mode`: a spawned reviewer runs with the parent session's sandbox (writable), and its instructions forbidding edits are the only barrier.
 {% endif %}{% if use_copilot %}
 ## Copilot CLI
 

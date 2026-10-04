@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-{%- set ctx = ["AGENTS.md"] + (["CLAUDE.md"] if use_claude else []) + ([".claude/rules/*.md"] if use_claude or use_copilot else []) + ([".github/copilot-instructions.md"] if use_copilot else []) %}
+{%- set ctx = ["AGENTS.md"] + (["CLAUDE.md"] if use_claude else []) + [".claude/rules/*.md"] + ([".github/copilot-instructions.md"] if use_copilot else []) %}
       - name: Context budget ({{ ctx | join(" + ") | replace("/*.md", "") }} <= 16000 bytes)
         run: |
           bytes=$(cat {{ ctx | join(" ") }} | wc -c)

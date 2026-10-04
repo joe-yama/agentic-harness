@@ -119,9 +119,10 @@ render "$DC" v9.9.0 --data 'agents=[codex]'
 check codex-rendered '[ -f "$DC/AGENTS.md" ]'
 check codex-no-jinja '! grep -rIlE "\{\{|\{%" "$DC" --exclude-dir=.git --exclude=ci.yml | grep -q .'
 check codex-workflow-schema '$CJS --builtin-schema vendor.github-workflows "$DC/.github/workflows/ci.yml" >/dev/null 2>&1'
-check codex-no-claude '[ ! -e "$DC/CLAUDE.md" ] && [ ! -e "$DC/.claude" ]'
+check codex-no-claude '[ ! -e "$DC/CLAUDE.md" ] && [ ! -e "$DC/.claude/settings.json" ]'
+check codex-claude-rules '[ "$(ls -A "$DC/.claude")" = rules ] && [ -f "$DC/.claude/rules/scope.md" ] && [ -f "$DC/.claude/rules/git.md" ]'
 check codex-agents-md '! grep -qF "CLAUDE.md" "$DC/AGENTS.md"'
-check codex-ci-budget '$CJS --builtin-schema vendor.github-workflows "$DC/.github/workflows/ci.yml" >/dev/null 2>&1 && ! grep -qF "CLAUDE.md" "$DC/.github/workflows/ci.yml"'
+check codex-ci-budget '$CJS --builtin-schema vendor.github-workflows "$DC/.github/workflows/ci.yml" >/dev/null 2>&1 && ! grep -qF "CLAUDE.md" "$DC/.github/workflows/ci.yml" && grep -qF ".claude/rules/*.md" "$DC/.github/workflows/ci.yml"'
 toml_ok() { uvx --from copier@9.18.2 python -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$1"; }
 check codex-config 'toml_ok "$DC/.codex/config.toml" && grep -qx "sandbox_mode = \"workspace-write\"" "$DC/.codex/config.toml" && grep -qx "approval_policy = \"on-request\"" "$DC/.codex/config.toml"'
 check codex-agents '[ -f "$DC/.codex/agents/harness-implementer.toml" ] && [ -f "$DC/.codex/agents/harness-reviewer.toml" ] && [ -f "$DC/.codex/agents/harness-reviewer-intermediate.toml" ]'
@@ -129,6 +130,11 @@ check codex-rules 'grep -qF "prefix_rule(pattern = [\"git\", \"push\"], decision
 check codex-env 'jq -e ".HARNESS_PROTECTED_BRANCHES == \"main\" and (has(\"HARNESS_RM_RF_ALLOW\") | not) and (has(\"HARNESS_ALLOW_LEASE_PUSH\") | not)" "$DC/.harness/env.json" >/dev/null'
 check codex-gitignore 'grep -qx ".harness/\*" "$DC/.gitignore" && grep -qx "!.harness/env.json" "$DC/.gitignore" && ! grep -qx ".harness/" "$DC/.gitignore"'
 check codex-section 'grep -qF "## Codex specifics" "$DC/AGENTS.md" && grep -qF "harness-reviewer-intermediate" "$DC/AGENTS.md"'
+check codex-reads-rules 'grep -qF "\`.claude/rules/*.md\`" "$DC/AGENTS.md" && grep -qF "read them at the start of every session" "$DC/AGENTS.md" && grep -qE "^\| Codex: .*\| \`\.claude/rules/\*\.md\` \|$" "$DC/AGENTS.md" && ! grep -qF "read them at the start of every session" "$D1/AGENTS.md"'
+check codex-sandbox-gap 'grep -qF "sandbox_mode" "$DC/AGENTS.md" && grep -qF "sandbox_mode" "$DC/docs/harness/models.md" && ! grep -qF "sandbox_mode" "$D1/docs/harness/models.md"'
+check codex-rules-list '( for w in "\`rm\`" "\`curl\`" "\`wget\`" "\`gh\`" pushes lockfile; do grep -F "Codex hooks cannot ask" "$DC/AGENTS.md" | grep -qF "$w" || exit 1; done )'
+check codex-intermediate-same 'grep -qF "currently equals \`harness-reviewer\`" "$DC/docs/harness/models.md"'
+check env-po-only 'grep -qF "ask the PO to add them to \`.harness/env.json\`" "$DC/AGENTS.md" && ! grep -qF "and to \`.harness/env.json\`" "$DC/AGENTS.md"'
 check defaults-gitignore 'grep -qx ".harness/" "$D1/.gitignore"'
 if command -v codex >/dev/null 2>&1; then
   execpolicy() { perl -e 'alarm shift; exec @ARGV' 120 codex execpolicy check --rules "$DC/.codex/rules/harness.rules" "$@" </dev/null; }
@@ -173,9 +179,14 @@ check all-models 'models_ok "$DA/docs/harness/models.md" && agent_models_ok "$DA
 check codex-models-values '[ -n "$(codex_table "$DC/docs/harness/models.md")" ] && [ "$(codex_table "$DC/docs/harness/models.md")" = "$(codex_toml "$DC")" ]'
 check codex-models-pinned 'grep -qF "gpt-6-luna" "$DC/docs/harness/models.md" && grep -qF "sets the model in each agent file" "$DC/docs/harness/models.md"'
 check copilot-models-values 'grep -qF "claude-opus-5.5" "$DP/docs/harness/models.md" && grep -qF "claude-sonnet-5.5" "$DP/docs/harness/models.md" && grep -qF "reasoning_effort" "$DP/docs/harness/models.md" && grep -qF "without \`model\` the dispatch fails" "$DP/docs/harness/models.md" && grep -qF "If \`task\` answers that a model is not available, use \`gpt-5.6-luna\`, or another id from the list in that error." "$DP/docs/harness/models.md" && ! grep -qE "<F[0-9]|\{\{|\{%" "$DP/docs/harness/models.md"'
-check models-intro 'head -3 "$DC/docs/harness/models.md" | grep -qF "AGENTS.md" && ! head -3 "$DC/docs/harness/models.md" | grep -qE "CLAUDE.md|\.claude/rules" && head -3 "$DP/docs/harness/models.md" | grep -qF ".claude/rules/" && ! head -3 "$DP/docs/harness/models.md" | grep -qF "CLAUDE.md" && head -3 "$DA/docs/harness/models.md" | grep -qF "CLAUDE.md"'
+check models-intro 'head -3 "$DC/docs/harness/models.md" | grep -qF "AGENTS.md" && ! head -3 "$DC/docs/harness/models.md" | grep -qF "CLAUDE.md" && head -3 "$DC/docs/harness/models.md" | grep -qF ".claude/rules/" && head -3 "$DP/docs/harness/models.md" | grep -qF ".claude/rules/" && ! head -3 "$DP/docs/harness/models.md" | grep -qF "CLAUDE.md" && head -3 "$DA/docs/harness/models.md" | grep -qF "CLAUDE.md"'
 check codex-openspec-skills 'os_run "$DC" .agents/skills/openspec-propose/SKILL.md .agents/skills/openspec-archive-change/SKILL.md .agents/skills/openspec-update-change/SKILL.md .agents/skills/openspec-sync-specs/SKILL.md .agents/skills/.openspec-target'
 check codex-openspec-extra '! os_run "$DC" .agents/skills/openspec-explore/SKILL.md && grep -q "openspec-explore" "$TMP_ROOT/os.log"'
+DPC="$TMP_ROOT/claude-copilot"
+render "$DPC" v9.9.0 --data 'agents=[claude, copilot]'
+check claude-copilot-openspec-skills 'os_run "$DPC" .agents/skills/openspec-propose/SKILL.md .agents/skills/openspec-archive-change/SKILL.md .agents/skills/openspec-update-change/SKILL.md .agents/skills/openspec-sync-specs/SKILL.md .agents/skills/.openspec-target'
+check claude-copilot-openspec-claude-dir '! os_run "$DPC" .claude/skills/openspec-propose/SKILL.md && grep -q "openspec-propose" "$TMP_ROOT/os.log"'
+check copilot-openspec-agents-dir 'grep -qF "\`.agents/skills\`" "$DP/.github/copilot-instructions.md" && ! grep -qF ".claude/skills" "$DP/.github/copilot-instructions.md"'
 check agents-openspec-step-name 'os_step "$DC/.github/workflows/ci.yml" >/dev/null && grep -qF "OpenSpec agent files (only propose, archive, update and sync stay)" "$DC/.github/workflows/ci.yml" && grep -qF "OpenSpec agent files (only the opsx commands propose, archive, update and sync stay)" "$D1/.github/workflows/ci.yml"'
 # Every file the ci.yml context-budget step cats must exist in the render (glob entries must match something).
 budget_files_ok() { # <rendered dir>

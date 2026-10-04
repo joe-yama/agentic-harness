@@ -76,11 +76,11 @@ The plugin has no plugin dependencies. The template renders `.claude/settings.js
 codex plugin marketplace add joe-yama/agentic-harness --ref <tag>
 ```
 
-Then install `harness` from that marketplace (`/plugins` in an interactive session). Trust the project in `~/.codex/config.toml` (Codex reads `.codex/config.toml` and `.codex/rules/` only for a trusted project), and review and trust the plugin hooks. Until the hooks are trusted Codex skips them, silently under `codex exec`, so the guard does not run (see openai/codex#19372). Restart the session so hooks, agents and skills load.
+Then install `harness` from that marketplace (`/plugins` in an interactive session). Trust the project in `~/.codex/config.toml` (Codex reads `.codex/config.toml` and `.codex/rules/` only for a trusted project), and review and trust the plugin hooks. Until the hooks are trusted Codex skips them, silently under `codex exec`, so the guard does not run. Restart the session so hooks, agents and skills load.
 
 ### Copilot CLI
 
-`.github/copilot/settings.json` registers the marketplace pinned to `<tag>` when the project is trusted. Without it, register it by hand and install:
+`.github/copilot/settings.json` registers the marketplace pinned to `<tag>` when the project is trusted (not yet verified end to end; check with `copilot plugin list` that `harness` is installed). That file is the preferred route because it is the only pinned one: `copilot plugin marketplace add` (CLI 1.0.91) takes no ref, so a hand registration follows the default branch, not `<tag>`. Only if the settings route does not install the plugin, register it by hand, knowing it is unpinned, and install:
 
 ```sh
 copilot plugin marketplace add joe-yama/agentic-harness
@@ -122,7 +122,7 @@ find .agents/skills -mindepth 1 -maxdepth 1 -name 'openspec-*' ! -name openspec-
 
 ### Copilot CLI
 
-Copilot runs OpenSpec through skills too (whether OpenSpec's slash commands expand there was not confirmed). It loads `openspec-*` skills from `.claude/skills` and from `.agents/skills`. If Claude Code is also selected, the Claude Code step above must not delete the four skills the harness uses; otherwise run `openspec init --tools codex` as for Codex and keep the same four skills and `.openspec-target` under `.agents/skills`.
+Copilot runs OpenSpec through skills too (whether OpenSpec's slash commands expand there was not confirmed), and always from `.agents/skills`. Run `openspec init --tools codex` as for Codex (once, if Codex is also selected) and keep the same four skills (`openspec-propose`, `openspec-archive-change`, `openspec-update-change`, `openspec-sync-specs`) and `.openspec-target` under `.agents/skills`. Copilot would also load `openspec-*` skills from `.claude/skills`, but CI job `check` rejects them there; if Claude Code is also selected, its step above still deletes `.claude/skills/openspec-*`.
 
 ### Global profile (optional)
 
