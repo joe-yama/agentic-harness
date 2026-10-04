@@ -51,7 +51,7 @@
 - **Copilot の PostToolUse はブロックできません。** lint のフィードバックはコンテキストとして届くので、モデルがそのまま進むことがあります。
 - **`COPILOT_CLI=1` だと guard は JSON の拒否の形に切り替わります。** Claude Code と Codex もこの形を受け付けるので、Claude Code や Codex のセッションに `COPILOT_CLI=1` が引き継がれても拒否は効きます。ただし、どちらかの将来の版がこの形を読まなくなれば、ほかに止めるものがなくなる残余リスクです。Copilot CLI の外ではこの変数を設定しないでください。それ以外では exit 2 の形のままです。
 - Copilot は `CLAUDE.md` もあると、AGENTS の規則を二重に表示することがあります。
-- `.harness/env.json` は Codex と Copilot 用の `HARNESS_*` の設定です。編集するのは PO だけで（guard の規則 `harness-env` がエージェントのアクセスを拒否します）、guard を緩める `HARNESS_ALLOW_LEASE_PUSH` と `HARNESS_RM_RF_ALLOW` は入れません。この規則はコマンドの文字列を見るので、ディレクトリ部分の glob（`.h*/env.json`）は見えません。
+- `.harness/env.json` は Codex と Copilot 用の `HARNESS_*` の設定です。編集するのは PO だけで（guard の規則 `harness-env` がエージェントのアクセスを拒否します）、guard を緩める `HARNESS_ALLOW_LEASE_PUSH` と `HARNESS_RM_RF_ALLOW` は入れません。パスは `<segment>/../` を畳んでから比べます。コマンドでは最後の要素にある glob だけを数えるので、`ls .harness/*/progress.md` は通ります。この規則はコマンドの文字列を見るので、`.harness` 自体にある glob（`.h*/env.json`）は見えません。
 - `test-on-stop` は、テストが失敗している間、エージェントが PO への質問のために止まっていても、作業を続けさせます（3 つのエージェントすべて）。
 
 ## はじめ方

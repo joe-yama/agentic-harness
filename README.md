@@ -51,7 +51,7 @@ The same plugin carries the hooks, subagents and skills for all three agents; th
 - **Copilot PostToolUse cannot block.** Lint feedback arrives as context, so the model may carry on.
 - **`COPILOT_CLI=1` switches the guard to the JSON denial form.** Claude Code and Codex honour that form as well, so an inherited `COPILOT_CLI=1` in a Claude Code or Codex session still blocks; but it is a residual risk that a future version of either agent does not read the form, and nothing else would then stop the command. Do not set the variable outside Copilot CLI. Exit 2 stays the form for everything else.
 - Copilot may show the AGENTS rules twice when `CLAUDE.md` is also present.
-- `.harness/env.json` holds the `HARNESS_*` settings for Codex and Copilot. Only the PO edits it (the guard rule `harness-env` refuses agent access) and it never carries the guard relaxations `HARNESS_ALLOW_LEASE_PUSH` and `HARNESS_RM_RF_ALLOW`. The rule reads command text, so a glob in the directory part (`.h*/env.json`) is not seen.
+- `.harness/env.json` holds the `HARNESS_*` settings for Codex and Copilot. Only the PO edits it (the guard rule `harness-env` refuses agent access) and it never carries the guard relaxations `HARNESS_ALLOW_LEASE_PUSH` and `HARNESS_RM_RF_ALLOW`. Paths are compared with `<segment>/../` collapsed; in commands a glob counts only in the last component, so `ls .harness/*/progress.md` passes. The rule reads command text, so a glob in `.harness` itself (`.h*/env.json`) is not seen.
 - `test-on-stop` keeps an agent working while tests fail, even when it had paused to ask the PO a question (all three agents).
 
 ## Quick start

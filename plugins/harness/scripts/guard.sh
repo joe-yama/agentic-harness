@@ -59,7 +59,12 @@ check_path() {
   # //, /./ and a leading ./ name the same file
   lp=$(printf '%s' "$lp" | sed -E 's#/+#/#g; s#^\./##' | sed -e ':a' -e 's#/\./#/#' -e 'ta')
   # end:path-normalize
-  base=${lp##*/}
+  lc=$lp
+  # rule:path-dotdot
+  # <segment>/../ names the parent, repeatedly (.harness/a/b/../../env.json); a .. segment stays
+  lc=$(printf '%s' "$lp" | sed -E -e ':a' -e 's#(^|/)([^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+)/\.\./#\1#' -e 'ta')
+  # end:path-dotdot
+  base=${lc##*/}
   # rule:env-file-path
   case "$base" in
     .env.example) ;;
@@ -67,14 +72,17 @@ check_path() {
   esac
   # end:env-file-path
   # rule:secrets-dir-path
-  case "$lp" in
-    */.ssh | */.ssh/* | */.aws | */.aws/* | */.gnupg | */.gnupg/* | */.config/op | */.config/op/* | */.config/gh | */.config/gh/*)
-      deny secrets-dir "credential directories are off limits: $p" ;;
-  esac
+  # as written and with the .. segments collapsed (.config/x/../op only collapsed, x/../.ssh only as written)
+  for q in "$lp" "$lc"; do
+    case "$q" in
+      */.ssh | */.ssh/* | */.aws | */.aws/* | */.gnupg | */.gnupg/* | */.config/op | */.config/op/* | */.config/gh | */.config/gh/*)
+        deny secrets-dir "credential directories are off limits: $p" ;;
+    esac
+  done
   # end:secrets-dir-path
   # rule:harness-env-path
   # HARNESS_* for Codex and Copilot CLI hooks; the PO edits it, as with .claude/settings.json
-  case "$lp" in
+  case "$lc" in
     .harness/env.json | */.harness/env.json) deny harness-env "the harness settings file is changed by the PO only: $p" ;;
   esac
   # end:harness-env-path
@@ -485,10 +493,18 @@ EOF
     # end:secrets-dir
 
     # rule:harness-env
-    # lowercase, // and /./ collapsed; .harness/env.json, or a word that starts .harness/ and has a
-    # glob character before the next slash (.harness/*.json, .harness/?nv.json)
-    printf '%s\n' "$cmd" | tr '\001[:upper:]' ' [:lower:]' | sed -E 's#/+#/#g' | sed -e ':a' -e 's#/\./#/#' -e 'ta' \
-      | grep -Eq '(^|[^a-z0-9_])\.harness/(env\.json|[^/[:space:];&|<>()]*[*?[{])' \
+    # Lowercase, // and /./ collapsed. Refused: .harness/env.json; a glob in the last component
+    # directly under .harness/ (.harness/*.json, .harness/?nv.json), also after **/ (zsh matches no
+    # directory); env.json after globbed directories (.harness/**/env.json); any brace expansion.
+    # A glob in a directory with another file name passes (ls .harness/*/progress.md).
+    hcmd=$(printf '%s\n' "$cmd" | tr '\001[:upper:]' ' [:lower:]' | sed -E 's#/+#/#g' | sed -e ':a' -e 's#/\./#/#' -e 'ta')
+    # rule:harness-env-dotdot
+    # <segment>/../ names the parent, repeatedly (.harness/x/../env.json)
+    hcmd=$(printf '%s\n' "$hcmd" | sed -E -e ':a' -e 's#(^|/)([^/.[:space:]][^/[:space:]]*|\.[^/.[:space:]][^/[:space:]]*|\.\.[^/[:space:]]+)/\.\./#\1#' -e 'ta')
+    # end:harness-env-dotdot
+    w='[^/[:space:];&|<>()`]'
+    printf '%s\n' "$hcmd" \
+      | grep -Eq "(^|[^a-z0-9_])\.harness/(([^[:space:];&|<>()\`]*\{)|(\*\*/)*$w*[*?[]$w*([[:space:];&|<>()\`]|\$)|($w*[*?[]$w*/)*env\.json)" \
       && deny harness-env "the harness settings file is changed by the PO only"
     # end:harness-env
 

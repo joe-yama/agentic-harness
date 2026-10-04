@@ -466,6 +466,20 @@ g-henv-14	guard	none	-	pass	bash:ls .harness/my-change/*.md
 g-henv-15	guard	none	-	block:harness-env	file:Write:./.harness//env.json
 g-henv-16	guard	none	-	block:harness-env	file:Write:.harness/./env.json
 g-henv-17	guard	none	-	block:harness-env	file:Write:.HARNESS/ENV.JSON
+g-henv-18	guard	none	-	block:harness-env	file:Write:.harness/x/../env.json
+g-henv-19	guard	none	-	block:harness-env	patchraw:apply_patch:*** Begin Patch\n*** Add File: .harness/a/../env.json\n+{}\n*** End Patch
+g-henv-20	guard	none	-	block:harness-env	patch:apply_patch:.harness/a/../env.json
+g-henv-21	guard	none	-	block:harness-env	file:Write:.harness/a/b/../../env.json
+g-henv-22	guard	none	-	pass	file:Write:.harness/a/../b.md
+g-henv-23	guard	none	-	block:harness-env	bash:cat .harness/x/../env.json
+g-henv-24	guard	none	-	pass	bash:ls .harness/*/progress.md
+g-henv-25	guard	none	-	pass	bash:cat .harness/my-change/progress.md
+g-henv-26	guard	none	-	block:harness-env	bash:cat .harness/*/../env.json
+g-henv-27	guard	none	-	block:harness-env	bash:cat .harness/**/env.json
+g-henv-28	guard	none	-	block:harness-env	bash:ls .harness/**/*.json
+g-henv-29	guard	none	-	block:harness-env	bash:cat .harness/{my-change/progress.md,env.json}
+g-henv-30	guard	none	-	pass	bash:cat .harness/a/../b.md
+g-sd-path-dotdot	guard	none	-	block:secrets-dir	file:Read:/Users/u/.config/x/../op/token
 g-obj-01	guard	none	-	block:env-file	raw:{"tool_name":"Edit","tool_input":{"file_path":".env","command":"*** Begin Patch\n*** Add File: a.ts\n*** End Patch"}}
 g-keys-01	guard	none	-	block:env-file	raw:{"tool_name":"Edit","tool_input":{"file_path":"src/a.ts","path":".env"}}
 g-keys-02	guard	none	-	block:env-file	raw:{"tool_name":"NotebookEdit","tool_input":{"notebook_path":"a.ipynb","path":".env"}}
