@@ -1,13 +1,13 @@
 # Copilot CLI specifics
 
-`AGENTS.md` holds the rules; this file adds what differs in GitHub Copilot CLI. The `harness@agentic-harness` plugin (installed from `.github/copilot/settings.json`, see `harness:adopt`) supplies the hooks, the subagents and the skills.
+`AGENTS.md` holds the rules; this file adds what differs in GitHub Copilot CLI. The `harness@agentic-harness` plugin (installed from `.github/copilot/settings.json`, see `harness:adopt`) supplies the hooks, the subagents and the skills. Copilot CLI lists the plugin's skills without the `harness:` prefix (`workflow`, `design`, `execute`, `adopt`, `mutation-check`); they come from the harness plugin. Subagents keep the prefix (`harness:implementer`).
 
 | Situation | Use |
 |---|---|
-| Starting, resuming or finishing a change | `harness:workflow` |
-| Design session | `harness:design` |
+| Starting, resuming or finishing a change | `workflow` (harness plugin) |
+| Design session | `design` (harness plugin) |
 | Proposal, archive, update | the skills `openspec-propose`, `openspec-archive-change`, `openspec-update-change` |
-| Implementing `tasks.md` | `harness:execute` |
+| Implementing `tasks.md` | `execute` (harness plugin) |
 {% if use_claude %}
 `CLAUDE.md` imports `AGENTS.md`, so Copilot CLI may show the rules twice; they are the same rules.
 {% endif %}

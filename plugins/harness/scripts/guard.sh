@@ -9,11 +9,25 @@ set -f # tokens are split on whitespace below; never glob-expand them
 input=$(cat)
 # rule:no-jq
 if ! command -v jq >/dev/null 2>&1; then
-  echo "BLOCKED by harness guard (no-jq): jq is required (brew install jq / apt-get install jq)" >&2
+  r="jq is required (brew install jq / apt-get install jq)"
+  # rule:copilot-deny-form-nojq
+  if [ "${COPILOT_CLI:-}" = 1 ]; then
+    printf '{"permissionDecision":"deny","permissionDecisionReason":"BLOCKED by harness guard (no-jq): %s","hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"BLOCKED by harness guard (no-jq): %s"}}\n' "$r" "$r"
+    exit 0
+  fi
+  # end:copilot-deny-form-nojq
+  echo "BLOCKED by harness guard (no-jq): $r" >&2
   exit 2
 fi
 # end:no-jq
 deny() {
+  # rule:copilot-deny-form
+  # Copilot CLI shows only "hook exited with code 2", so it gets the deny as JSON on stdout (F5)
+  if [ "${COPILOT_CLI:-}" = 1 ]; then
+    jq -nc --arg r "BLOCKED by harness guard ($1): $2" \
+      '{permissionDecision:"deny",permissionDecisionReason:$r,hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}' && exit 0
+  fi
+  # end:copilot-deny-form
   printf 'BLOCKED by harness guard (%s): %s\n' "$1" "$2" >&2
   exit 2
 }

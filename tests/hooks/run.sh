@@ -108,9 +108,15 @@ while IFS=$'\t' read -r id script where envkv expect payload; do
   fi
   rc=$?
   decision=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // empty' 2>/dev/null)
-  if [ "$rc" -eq 2 ]; then
+  if [ "$rc" -eq 2 ] && [ "$script" = guard ] && [[ "$envkv" == *COPILOT_CLI=1* ]]; then
+    got="rc=2 (Copilot form must exit 0 with JSON)"
+  elif [ "$rc" -eq 2 ]; then
     # the id printed in "BLOCKED by harness guard (<id>): ..."
     got=block:$(sed -n 's/^BLOCKED by harness guard (\([a-z0-9-]*\)).*/\1/p' "$errf" | head -n 1)
+  elif [ "$rc" -eq 0 ] && [ "$(printf '%s' "$out" | jq -r '.permissionDecision // empty' 2>/dev/null)" = deny ]; then
+    # Copilot CLI form (COPILOT_CLI=1): deny as JSON on stdout, exit 0
+    got=block:$(printf '%s' "$out" | jq -r '.permissionDecisionReason // empty' \
+      | sed -n 's/^BLOCKED by harness guard (\([a-z0-9-]*\)).*/\1/p')
   elif [ "$rc" -eq 0 ] && [ "$decision" = ask ]; then
     # the id in permissionDecisionReason "harness ask-gate (<id>): ..."
     got=ask:$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' \

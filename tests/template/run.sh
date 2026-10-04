@@ -158,6 +158,8 @@ check copilot-ci-budget '! grep -qF "CLAUDE.md" "$DP/.github/workflows/ci.yml" &
 check copilot-settings 'jq -e ".enabledPlugins[\"harness@agentic-harness\"] == true and .extraKnownMarketplaces[\"agentic-harness\"].source.ref == \"v9.9.0\" and .extraKnownMarketplaces[\"agentic-harness\"].source.repo == \"joe-yama/agentic-harness\"" "$DP/.github/copilot/settings.json" >/dev/null'
 check copilot-instructions 'grep -qF "Copilot CLI specifics" "$DP/.github/copilot-instructions.md"'
 check copilot-instructions-dispatch 'grep -qF "gpt-5.6-luna" "$DP/.github/copilot-instructions.md" && grep -qF "without \`model\` the dispatch fails" "$DP/.github/copilot-instructions.md" && grep -qF "openspec-propose" "$DP/.github/copilot-instructions.md" && ! grep -qF "twice" "$DP/.github/copilot-instructions.md"'
+check copilot-skill-names 'grep -qF "without the \`harness:\` prefix" "$DP/.github/copilot-instructions.md" && grep -qF "\`workflow\` (harness plugin)" "$DP/.github/copilot-instructions.md" && ! grep -qF "\`harness:workflow\`" "$DP/.github/copilot-instructions.md"'
+check codex-headless-rules 'grep -qF "prompt\` rules still apply" "$DC/AGENTS.md" && ! grep -qF "does not stop for" "$DC/AGENTS.md"'
 check copilot-env '[ -f "$DP/.harness/env.json" ]'
 DA="$TMP_ROOT/all-agents"
 render "$DA" v9.9.0 --data 'agents=[claude, codex, copilot]'

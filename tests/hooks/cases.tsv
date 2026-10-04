@@ -479,3 +479,8 @@ e-pb-02	ask-gate	envrepo	-	ask:protected-push	bash:git push origin release
 e-pb-03	ask-gate	envrepo	HARNESS_PROTECTED_BRANCHES=main	ask:protected-push	bash:git push origin main
 e-relax-ignored-01	guard	envrepo	-	block:rm-rf	bash:rm -rf /tmp/x/a
 e-relax-ignored-02	guard	envrepo	-	block:force-push	bash:git push --force-with-lease=refs/heads/f:abcdef1 origin f:refs/heads/f
+g-cp-rm	guard	none	COPILOT_CLI=1	block:rm-rf	bash:rm -rf build
+g-cp-envfile	guard	none	COPILOT_CLI=1	block:env-file	file:Read:.env
+g-cp-harness-env	guard	none	COPILOT_CLI=1	block:harness-env	file:Write:.harness/env.json
+g-cp-bad-input	guard	none	COPILOT_CLI=1	block:bad-input	raw:not json
+g-cp-pass	guard	none	COPILOT_CLI=1	pass	bash:ls
