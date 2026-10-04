@@ -57,3 +57,20 @@ Write commits, Issues, PRs, OpenSpec artifacts and status docs in {{ 'Japanese' 
 | Past changes and rulings | `docs/changes.md` |
 | Current specs / changes in progress | `openspec/specs/`, `openspec/changes/` |
 | Tests or CI failed in an unexpected way | `docs/harness/lessons.md` |
+{% if use_codex %}
+## Codex specifics
+
+The `harness` plugin (installed with `codex plugin marketplace add joe-yama/agentic-harness --ref <tag>`, see `harness:adopt`) supplies the hooks and the skills; `.codex/` holds the rest.
+
+| Situation | Use |
+|---|---|
+| Starting, resuming or finishing a change | skill `$harness:workflow` |
+| Design session | `$harness:design` |
+| Proposal, archive, update | `$openspec-propose`, `$openspec-archive-change`, `$openspec-update-change` |
+| Implementing `tasks.md` | `$harness:execute` |
+
+- Subagents: `harness-implementer`, `harness-reviewer` (final review) and `harness-reviewer-intermediate` in `.codex/agents/`; their models are fixed there (see `docs/harness/models.md`). Start one with `spawn_agent {agent_type: "harness-reviewer", task_name, message, fork_turns: "none"}` (likewise `harness-implementer`, `harness-reviewer-intermediate`); a spawn without `fork_turns: "none"` inherits the parent's context. Send follow-ups with `followup_task {target: <task_name>, message}`, then `wait_agent`. The context that implemented something never reviews it.
+- Hooks: the plugin's hooks block destructive commands and secret access, lint edited files and run tests before the turn ends; they read `HARNESS_*` from `.harness/env.json`, which only the PO edits. Until you trust the harness hooks in Codex, the guard does not run (Codex skips untrusted plugin hooks silently). Codex hooks cannot ask: `.codex/rules/harness.rules` sends pushes, deletions, merges, releases and lockfile changes to the PO instead.
+- Project trust: Codex reads `.codex/config.toml`, `.codex/rules/` and the plugin hooks only after you trust the project (in `~/.codex/config.toml`) and review the hooks.
+- Headless: `codex exec "<prompt>"`; give it a completion condition and stop after N turns. Observed with Codex CLI 0.160.0: `codex exec` runs with approval `never` whatever `approval_policy` says, so headless Codex does not stop for `prompt` rules.
+{% endif %}

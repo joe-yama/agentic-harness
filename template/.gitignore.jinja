@@ -4,6 +4,11 @@
 .claude/settings.local.json
 .claude/worktrees/
 .playwright-mcp/
+{% if use_codex or use_copilot -%}
+.harness/*
+!.harness/env.json
+{%- else -%}
 .harness/
+{%- endif %}
 .superpowers/
 .DS_Store

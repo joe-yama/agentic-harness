@@ -107,6 +107,20 @@ check codex-workflow-schema '$CJS --builtin-schema vendor.github-workflows "$DC/
 check codex-no-claude '[ ! -e "$DC/CLAUDE.md" ] && [ ! -e "$DC/.claude" ]'
 check codex-agents-md '! grep -qF "CLAUDE.md" "$DC/AGENTS.md"'
 check codex-ci-budget '$CJS --builtin-schema vendor.github-workflows "$DC/.github/workflows/ci.yml" >/dev/null 2>&1 && ! grep -qF "CLAUDE.md" "$DC/.github/workflows/ci.yml"'
+toml_ok() { uvx --from copier@9.18.2 python -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$1"; }
+check codex-config 'toml_ok "$DC/.codex/config.toml" && grep -qx "sandbox_mode = \"workspace-write\"" "$DC/.codex/config.toml" && grep -qx "approval_policy = \"on-request\"" "$DC/.codex/config.toml"'
+check codex-agents '[ -f "$DC/.codex/agents/harness-implementer.toml" ] && [ -f "$DC/.codex/agents/harness-reviewer.toml" ] && [ -f "$DC/.codex/agents/harness-reviewer-intermediate.toml" ]'
+check codex-rules 'grep -qF "prefix_rule(pattern = [\"git\", \"push\"], decision = \"prompt\"" "$DC/.codex/rules/harness.rules" && grep -qF "[\"git\", \"push\", \"--force\"], decision = \"forbidden\"" "$DC/.codex/rules/harness.rules"'
+check codex-env 'jq -e ".HARNESS_PROTECTED_BRANCHES == \"main\" and (has(\"HARNESS_RM_RF_ALLOW\") | not) and (has(\"HARNESS_ALLOW_LEASE_PUSH\") | not)" "$DC/.harness/env.json" >/dev/null'
+check codex-gitignore 'grep -qx ".harness/\*" "$DC/.gitignore" && grep -qx "!.harness/env.json" "$DC/.gitignore" && ! grep -qx ".harness/" "$DC/.gitignore"'
+check codex-section 'grep -qF "## Codex specifics" "$DC/AGENTS.md" && grep -qF "harness-reviewer-intermediate" "$DC/AGENTS.md"'
+check defaults-gitignore 'grep -qx ".harness/" "$D1/.gitignore"'
+if command -v codex >/dev/null 2>&1; then
+  execpolicy() { perl -e 'alarm shift; exec @ARGV' 120 codex execpolicy check --rules "$DC/.codex/rules/harness.rules" "$@" </dev/null; }
+  check codex-execpolicy '[ "$(execpolicy git push --force origin x | jq -r .decision)" = forbidden ] && [ "$(execpolicy git push -f origin x | jq -r .decision)" = forbidden ] && [ "$(execpolicy git push origin x | jq -r .decision)" = prompt ]'
+else
+  echo "template: codex CLI not found; execpolicy check skipped" >&2
+fi
 
 DP="$TMP_ROOT/copilot-only"
 render "$DP" v9.9.0 --data 'agents=[copilot]'
