@@ -115,12 +115,16 @@ while IFS=$'\t' read -r id script where envkv expect payload; do
   elif [ "$rc" -eq 2 ]; then
     # the id printed in "BLOCKED by harness guard (<id>): ..."
     got=block:$(sed -n 's/^BLOCKED by harness guard (\([a-z0-9-]*\)).*/\1/p' "$errf" | head -n 1)
-  elif [ "$rc" -eq 0 ] && [ "$script" = guard ] && [ "$cop" != 1 ] && [ "$(printf '%s' "$out" | jq -r '.permissionDecision // empty' 2>/dev/null)" = deny ]; then
+  elif [ "$rc" -eq 0 ] && [ "$script" = guard ] && [ "$cop" != 1 ] && [ "$decision" = deny ]; then
     # a JSON deny without exactly COPILOT_CLI=1 in the env is a defect: exit 2 is the contract
     got="rc=0 JSON deny without COPILOT_CLI=1 (must exit 2)"
-  elif [ "$rc" -eq 0 ] && [ "$(printf '%s' "$out" | jq -r '.permissionDecision // empty' 2>/dev/null)" = deny ]; then
-    # Copilot CLI form (COPILOT_CLI=1): deny as JSON on stdout, exit 0
-    got=block:$(printf '%s' "$out" | jq -r '.permissionDecisionReason // empty' \
+  elif [ "$rc" -eq 0 ] && [ "$decision" = deny ] \
+    && ! printf '%s' "$out" | jq -e 'keys == ["hookSpecificOutput"]' >/dev/null 2>&1; then
+    # top-level keys next to hookSpecificOutput make Codex fail open (R14)
+    got="rc=0 JSON deny with top-level keys (only hookSpecificOutput allowed)"
+  elif [ "$rc" -eq 0 ] && [ "$decision" = deny ]; then
+    # Copilot CLI form (COPILOT_CLI=1): only the nested deny as JSON on stdout, exit 0
+    got=block:$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' \
       | sed -n 's/^BLOCKED by harness guard (\([a-z0-9-]*\)).*/\1/p')
   elif [ "$rc" -eq 0 ] && [ "$decision" = ask ]; then
     # the id in permissionDecisionReason "harness ask-gate (<id>): ..."

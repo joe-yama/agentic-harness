@@ -32,7 +32,7 @@
 
 | | Claude Code | Codex CLI | Copilot CLI |
 |---|---|---|---|
-| `guard` | exit 2 と stderr の理由 | 同じ。ただしプラグインの hooks を信頼した後だけ。信頼していない hooks は読み飛ばされ、`codex exec` では何も表示されない。`apply_patch` はパスを検査し、パッチ本文はコマンドとして読まない | `COPILOT_CLI=1`（Copilot が hooks に設定する）のとき拒否を stdout の JSON で返し、モデルには `BLOCKED by harness guard (<rule>)` が届く（exit 2 の拒否の stderr はモデルに届かない）。パッチと `create` はパスで検査する |
+| `guard` | exit 2 と stderr の理由 | 同じ。ただしプラグインの hooks を信頼した後だけ。信頼していない hooks は読み飛ばされ、`codex exec` では何も表示されない。`apply_patch` はパスを検査し、パッチ本文はコマンドとして読まない | `COPILOT_CLI=1`（Copilot が hooks に設定する）のとき拒否を stdout の JSON（入れ子の `hookSpecificOutput` の deny だけ）で返し、モデルには `BLOCKED by harness guard (<rule>)` が届く（exit 2 の拒否の stderr はモデルに届かない）。Codex と Claude Code も、この変数を引き継いだときは同じ JSON を受け付ける（`git checkout .` と `rm -rf` はブロックされたまま）。パッチと `create` はパスで検査する |
 | `ask-gate` | PO に確認する | 確認できない。`.codex/rules/harness.rules` が `rm`・`curl`・`wget`・`gh` の書き込み（マージ、リリース、Issue の編集と close、リポジトリの作成と削除、workflow の実行）・push・`git worktree remove --force`・lockfile の変更で確認を求め、`codex exec` ではそれらを拒否する。対話で確認が出るかは未確認 | 対話では確認する（未確認）。headless では拒否される |
 | `lint-on-edit` | `decision: block` の JSON。エージェントがファイルを直す | 同じ | ブロックできない。lint の出力はコンテキストとして届く（トップレベルの `additionalContext`） |
 | `test-on-stop` | テストが失敗している間は作業を続けさせる | 同じ | 同じ |
@@ -49,7 +49,6 @@
 - **Codex はエージェントのファイルの `sandbox_mode` を無視します。** reviewer は親のセッションの sandbox（書き込み可）で動きます。編集の禁止は指示に書いてあるだけで、それが唯一の歯止めです。
 - **Copilot CLI にはリポジトリの権限も sandbox もありません。** guard・CI・ブランチの ruleset が歯止めです。
 - **Copilot の PostToolUse はブロックできません。** lint のフィードバックはコンテキストとして届くので、モデルがそのまま進むことがあります。
-- **`COPILOT_CLI=1` だと guard は JSON の拒否の形に切り替わり、Codex はそれを受け付けません。** Codex CLI 0.160.0 で確認: `COPILOT_CLI=1` が引き継がれると、guard の hook は `PreToolUse Failed` と表示され、コマンドが実行されます（`git checkout .` が止まらず、変数がなければブロックされる）。つまり `COPILOT_CLI=1` が引き継がれると Codex では guard が無効になり、残るのは `.codex/rules`、Codex の sandbox と Codex 自身の検査だけです。Claude Code 2.1.289 はこの形を受け付けます（`rm -rf` はブロックされたまま）。Copilot CLI の外でこの変数を設定・export しないでください。Copilot CLI のシェルから Codex を起動しないでください。それ以外では exit 2 の形のままです。
 - Copilot は `CLAUDE.md` もあると、AGENTS の規則を二重に表示することがあります。
 - `.harness/env.json` は Codex と Copilot 用の `HARNESS_*` の設定です。Claude Code の hooks も、`.claude/settings.json` の `env` が設定していない変数についてはこれを読みます。編集するのは PO だけで（guard の規則 `harness-env` がエージェントのアクセスを拒否します）、guard を緩める `HARNESS_ALLOW_LEASE_PUSH` と `HARNESS_RM_RF_ALLOW` は入れません。パスは `<segment>/../` を畳んでから比べます。コマンドでは最後の要素にある glob だけを数えるので、`ls .harness/*/progress.md` は通ります。`.harness/` の後のブレース展開（`{a,b}`、`{x..y}`）は拒否し、`${name}` のパラメータは拒否しません（`cat .harness/${name}/progress.md` は通ります）。この規則はコマンドの文字列を見るので、`.harness` 自体にある glob（`.h*/env.json`）は見えません。
 - `test-on-stop` は、テストが失敗している間、エージェントが PO への質問のために止まっていても、作業を続けさせます（3 つのエージェントすべて）。

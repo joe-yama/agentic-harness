@@ -12,7 +12,7 @@ if ! command -v jq >/dev/null 2>&1; then
   r="jq is required (brew install jq / apt-get install jq)"
   # rule:copilot-deny-form-nojq
   if [ "${COPILOT_CLI:-}" = 1 ]; then
-    printf '{"permissionDecision":"deny","permissionDecisionReason":"BLOCKED by harness guard (no-jq): %s","hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"BLOCKED by harness guard (no-jq): %s"}}\n' "$r" "$r"
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"BLOCKED by harness guard (no-jq): %s"}}\n' "$r"
     exit 0
   fi
   # end:copilot-deny-form-nojq
@@ -22,10 +22,12 @@ fi
 # end:no-jq
 deny() {
   # rule:copilot-deny-form
-  # Copilot CLI shows only "hook exited with code 2", so it gets the deny as JSON on stdout (F5)
+  # Copilot CLI shows only "hook exited with code 2", so it gets the deny as JSON on stdout (F5).
+  # Only the nested form: Codex rejects top-level permissionDecision keys and fails open when it
+  # inherits COPILOT_CLI=1 (R14); Copilot and Claude Code read the nested form.
   if [ "${COPILOT_CLI:-}" = 1 ]; then
     jq -nc --arg r "BLOCKED by harness guard ($1): $2" \
-      '{permissionDecision:"deny",permissionDecisionReason:$r,hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}' && exit 0
+      '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}' && exit 0
   fi
   # end:copilot-deny-form
   printf 'BLOCKED by harness guard (%s): %s\n' "$1" "$2" >&2

@@ -197,12 +197,13 @@ for v in missing broken empty; do
   expect "bp-ask-gate-$v" '[ $rc = 0 ] && printf "%s" "$out" | grep -q "harness ask-gate (bad-parser)"'
 done
 
-# Copilot CLI form of a block: exit 0, JSON with top-level and nested deny, nothing on stderr
+# Copilot CLI form of a block (R14): exit 0, JSON with only the nested deny (top-level
+# permissionDecision keys make Codex fail open when COPILOT_CLI=1 is inherited)
 # shellcheck disable=SC2034 # cop and coprc are read by the eval in expect()
 cop=$(printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf build"},"cwd":"/"}' | COPILOT_CLI=1 "$(command -v "$HOOK_BASH")" "$HOOKS_DIR/guard.sh" 2>"$TMP_ROOT/cop.err")
 # shellcheck disable=SC2034 # read by the eval in expect()
 coprc=$?
-expect cp-form-json '[ $coprc = 0 ] && printf "%s" "$cop" | jq -e ".permissionDecision == \"deny\" and .hookSpecificOutput.permissionDecision == \"deny\" and .hookSpecificOutput.hookEventName == \"PreToolUse\" and (.permissionDecisionReason | startswith(\"BLOCKED by harness guard (rm-rf)\")) and (.hookSpecificOutput.permissionDecisionReason == .permissionDecisionReason)" >/dev/null'
+expect cp-form-json '[ $coprc = 0 ] && printf "%s" "$cop" | jq -e "keys == [\"hookSpecificOutput\"] and .hookSpecificOutput.permissionDecision == \"deny\" and .hookSpecificOutput.hookEventName == \"PreToolUse\" and (.hookSpecificOutput.permissionDecisionReason | startswith(\"BLOCKED by harness guard (rm-rf)\"))" >/dev/null'
 
 # jq missing: a PATH with only the tools the hooks need, minus jq.
 NOJQ="$TMP_ROOT/nojq-bin"
@@ -224,7 +225,7 @@ nojq() { # <script> <stdin> [env args] -> sets rc, out, err
 nojq guard '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
 expect nj-guard-blocks '[ $rc = 2 ] && printf "%s" "$err" | grep -q "BLOCKED by harness guard (no-jq): jq is required"'
 nojq guard '{"tool_name":"Bash","tool_input":{"command":"ls"}}' COPILOT_CLI=1
-expect nj-guard-copilot-json '[ $rc = 0 ] && printf "%s" "$out" | jq -e ".permissionDecision == \"deny\" and .hookSpecificOutput.permissionDecision == \"deny\" and .hookSpecificOutput.hookEventName == \"PreToolUse\" and (.permissionDecisionReason | contains(\"(no-jq)\"))" >/dev/null'
+expect nj-guard-copilot-json '[ $rc = 0 ] && printf "%s" "$out" | jq -e "keys == [\"hookSpecificOutput\"] and .hookSpecificOutput.permissionDecision == \"deny\" and .hookSpecificOutput.hookEventName == \"PreToolUse\" and (.hookSpecificOutput.permissionDecisionReason | startswith(\"BLOCKED by harness guard (no-jq): jq is required\"))" >/dev/null'
 nojq ask-gate '{"tool_name":"Bash","tool_input":{"command":"ls"}}'
 expect nj-ask-gate-asks '[ $rc = 0 ] && printf "%s" "$out" | grep -q "\"permissionDecision\":\"ask\"" && printf "%s" "$out" | grep -q "harness ask-gate (no-jq)"'
 nojq lint-on-edit "{\"tool_input\":{\"file_path\":\"$R/src/bad.ts\"}}" HARNESS_LINT_CMD="$LINTER"
