@@ -64,9 +64,9 @@
 ```sh
 # プロダクトのリポジトリで（既定ブランチが GitHub 上に既にあること）
 git switch -c fix/adopt-agentic-harness
-uvx copier@9.18.2 copy --vcs-ref v0.3.0 gh:joe-yama/agentic-harness .
-git add -A && git commit -m "chore: adopt agentic-harness v0.3.0"
-claude            # 対話モードで信頼ダイアログを承認する。v0.3.0 に固定されたマーケットプレイスが登録される
+uvx copier@9.18.2 copy --vcs-ref v0.4.0 gh:joe-yama/agentic-harness .
+git add -A && git commit -m "chore: adopt agentic-harness v0.4.0"
+claude            # 対話モードで信頼ダイアログを承認する。v0.4.0 に固定されたマーケットプレイスが登録される
 claude plugin install harness@agentic-harness --scope project
 ```
 
@@ -104,8 +104,8 @@ claude plugin install harness@agentic-harness --scope project
 ## 更新
 
 ```sh
-git switch -c fix/harness-v0.3.0
-uvx copier@9.18.2 update --vcs-ref v0.3.0      # .claude/settings.json のプラグインの固定も新しいタグに移る
+git switch -c fix/harness-v0.4.0
+uvx copier@9.18.2 update --vcs-ref v0.4.0      # .claude/settings.json のプラグインの固定も新しいタグに移る
 grep -rnE '^(<<<<<<<|>>>>>>>) ' . --exclude-dir=.git   # 衝突は .rej ではなくファイル内に印として書かれる
 ```
 
