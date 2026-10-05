@@ -1,6 +1,6 @@
 # agentic-harness
 
-[Claude Code](https://code.claude.com/docs) 向けのプロダクト開発ハーネスです。人間の **PO** が舵を取り、エージェントが実行します。流れは設計の対話 → OpenSpec の change（spec、design、計画を兼ねる `tasks.md`）→ サブエージェントによるテスト先行の実装 → 別コンテキストでの敵対的レビュー → PR → PO の受け入れ、です。実際のプロジェクトで作り、測りながら育てたハーネスを一般化しました。Claude Code・GitHub・サプライチェーンの現行の指針にも照らしています。
+[Claude Code](https://code.claude.com/docs)、[OpenAI Codex CLI](https://github.com/openai/codex)、[GitHub Copilot CLI](https://docs.github.com/copilot/concepts/agents/about-copilot-cli) 向けのプロダクト開発ハーネスです。人間の **PO** が舵を取り、エージェントが実行します。流れは設計の対話 → OpenSpec の change（spec、design、計画を兼ねる `tasks.md`）→ サブエージェントによるテスト先行の実装 → 別コンテキストでの敵対的レビュー → PR → PO の受け入れ、です。実際のプロジェクトで作り、測りながら育てたハーネスを一般化しました。エージェント・GitHub・サプライチェーンの現行の指針にも照らしています。既定は Claude Code で、Codex と Copilot CLI はリポジトリごとに選びます（[エージェント](#エージェント)）。
 
 > 英語版の [README.md](README.md) が正本です。
 
@@ -10,8 +10,8 @@
 
 | 経路 | 運ぶもの | 更新方法 |
 |---|---|---|
-| **プラグイン** `harness@agentic-harness`（`plugins/harness/`） | hooks: `guard`（無条件ブロック）、`ask-gate`（PO の確認に回す）、`lint-on-edit`、`test-on-stop`。サブエージェント: `harness:implementer`（Sonnet、effort medium）、`harness:reviewer`（Opus、effort high）。スキル: `harness:workflow`、`harness:design`、`harness:execute`、`harness:mutation-check`、`harness:adopt` | `claude plugin update` |
-| **Copier テンプレート**（`copier.yml`、`template/`） | プラグインでは運べないもの: `AGENTS.md`、`CLAUDE.md`（`@AGENTS.md` + Claude 固有の差分）、`.claude/rules/`、`.claude/settings.json`（permissions・sandbox・`HARNESS_*` の env・プラグインの版の固定）、CI の job `check`、Dependabot、PR テンプレート、OpenSpec の設定、状態・台帳・教訓の各ドキュメント、ブランチの ruleset | `copier update`（レビューできる PR になる） |
+| **プラグイン** `harness@agentic-harness`（`plugins/harness/`） | hooks: `guard`（無条件ブロック）、`ask-gate`（PO の確認に回す）、`lint-on-edit`、`test-on-stop`。サブエージェント: `harness:implementer`（Sonnet、effort medium）、`harness:reviewer`（Opus、effort high）（Claude Code の場合。ほかのエージェントのモデルは `docs/harness/models.md`）。スキル: `harness:workflow`、`harness:design`、`harness:execute`、`harness:mutation-check`、`harness:adopt` | `claude plugin update` |
+| **Copier テンプレート**（`copier.yml`、`template/`） | プラグインでは運べないもの: `AGENTS.md`、`CLAUDE.md`（`@AGENTS.md` + Claude 固有の差分）、`.claude/rules/`、`.claude/settings.json`（permissions・sandbox・`HARNESS_*` の env・プラグインの版の固定）、CI の job `check`、Dependabot、PR テンプレート、OpenSpec の設定、状態・台帳・教訓の各ドキュメント、ブランチの ruleset。Copier の質問 `agents`（`claude`・`codex`・`copilot`、既定は `claude`）で選んだエージェントごとに: Codex は `.codex/config.toml`・`.codex/rules/harness.rules`・`.codex/agents/harness-*.toml`、Copilot CLI は `.github/copilot/settings.json`・`.github/copilot-instructions.md`、両者に `.harness/env.json`（hook の設定）。`CLAUDE.md` と `.claude/settings.json` は `claude` を選んだときだけ描画する。`.claude/rules/` はどの選択でも描画する（Codex にはセッションの最初に読むよう指示する） | `copier update`（レビューできる PR になる） |
 
 プラグインは別のプラグインに依存しません。OpenSpec は OpenSpec 自身の CLI から入れます。ハーネスが使うのは `/opsx:propose`、`/opsx:archive`、`/opsx:update`（と、`/opsx:archive` が内から呼ぶ `opsx/sync.md`）だけです。テンプレートの CI の job `check` は、`.claude/skills/openspec-*` やほかの `opsx` のコマンドがあると失敗します。`openspec update` が既定の profile でそれらを戻すためです。生成させないために、各自が OpenSpec のグローバルな profile を設定できます（リポジトリごとには持てません）: `openspec config set profile custom`、`openspec config set workflows '["propose","archive","update"]'`、`openspec config set delivery commands`。
 
@@ -26,9 +26,36 @@
 | `lint-on-edit`（PostToolUse） | 編集したファイルごとに `HARNESS_LINT_CMD <file>` を実行し、失敗をその場で直させる |
 | `test-on-stop`（Stop） | ドキュメント以外が変わっていれば、ターンを終える前に `HARNESS_TEST_CMD` を実行する。失敗している間は作業を続けさせる |
 
+## エージェント
+
+同じプラグインが 3 つのエージェントの hooks・サブエージェント・スキルを運びます。どのエージェントのファイルを渡すかは、Copier の質問 `agents` で決まります。確認した版: Claude Code 2.1.289、Codex CLI 0.160.0、Copilot CLI 1.0.91。
+
+| | Claude Code | Codex CLI | Copilot CLI |
+|---|---|---|---|
+| `guard` | exit 2 と stderr の理由 | 同じ。ただしプラグインの hooks を信頼した後だけ。信頼していない hooks は読み飛ばされ、`codex exec` では何も表示されない。`apply_patch` はパスを検査し、パッチ本文はコマンドとして読まない | `COPILOT_CLI=1`（Copilot が hooks に設定する）のとき拒否を stdout の JSON（入れ子の `hookSpecificOutput` の deny だけ）で返し、モデルには `BLOCKED by harness guard (<rule>)` が届く（exit 2 の拒否の stderr はモデルに届かない）。Codex と Claude Code も、この変数を引き継いだときは同じ JSON を受け付ける（`git checkout .` と `rm -rf` はブロックされたまま）。パッチと `create` はパスで検査する |
+| `ask-gate` | PO に確認する | 確認できない。`.codex/rules/harness.rules` が `rm`・`curl`・`wget`・`gh` の書き込み（マージ、リリース、Issue の編集と close、リポジトリの作成と削除、workflow の実行）・push・`git worktree remove --force`・lockfile の変更で確認を求め、`codex exec` ではそれらを拒否する。対話で確認が出るかは未確認 | 対話では確認する（未確認）。headless では拒否される |
+| `lint-on-edit` | `decision: block` の JSON。エージェントがファイルを直す | 同じ | ブロックできない。lint の出力はコンテキストとして届く（トップレベルの `additionalContext`） |
+| `test-on-stop` | テストが失敗している間は作業を続けさせる | 同じ | 同じ |
+| サブエージェント | `harness:implementer`、`harness:reviewer` | `.codex/agents/` の `harness-implementer`、`harness-reviewer`、`harness-reviewer-intermediate`（プラグインのエージェントから `scripts/gen-codex-agents.sh` で生成）。子が親のコンテキストを引き継がないよう `fork_turns: "none"` で起動する | `harness:implementer`、`harness:reviewer`。呼び出しのたびに `docs/harness/models.md` の `model` と `reasoning_effort` を渡す |
+| スキル | `harness:workflow`、`harness:design`、`harness:execute`、`harness:mutation-check`、`harness:adopt` | 同じ。`$harness:<skill>` で呼ぶ | 同じ。`harness:` の接頭辞なしで表示される（`workflow`、`design` …） |
+| OpenSpec | `/opsx:propose`、`/opsx:archive`、`/opsx:update` | `.agents/skills` の `openspec-propose`、`openspec-archive-change`、`openspec-update-change`、`openspec-sync-specs` | `.agents/skills` の同じスキル（`.claude/skills` の `openspec-*` は CI の job `check` が拒否します） |
+| 権限 / sandbox | `.claude/settings.json` の permissions と sandbox | `.codex/config.toml`: `approval_policy`、`sandbox_mode = "workspace-write"`、ネットワークは無効。信頼したプロジェクトでだけ読まれる | なし。リポジトリの権限も sandbox も無い |
+| 自動導入 | 信頼ダイアログが固定したマーケットプレイスを登録する | なし。`codex plugin marketplace add joe-yama/agentic-harness --ref <tag>`、インストール、信頼（`harness:adopt`） | `.github/copilot/settings.json` が、信頼したときに固定したマーケットプレイスを登録する（未確認。`harness:adopt` が導入を確かめる） |
+
+### 既知の穴
+
+- **Codex の hooks は信頼するまで動きません。** それまで Codex はプラグインの hooks を読み飛ばし（`codex exec` では何も表示されません）、guard は動きません。プロジェクトの設定と rules も、`~/.codex/config.toml` で信頼したプロジェクトでしか読まれません。
+- **Codex の hooks は確認できません。** `.codex/rules` は `rm`・`curl`・`wget`・`gh` の書き込み・push・`git worktree remove --force`・lockfile の変更で確認を求めます。対話では確認が出るはずですが未確認で、`codex exec` ではそれらのコマンドを拒否します。一致させるのはコマンドの前方だけです（保護ブランチ以外への push も含めて `git push` はすべて確認になり、`git -C . push` は一致しません）。Codex のネットワークは無効で、ホストの許可リストはありません。
+- **Codex はエージェントのファイルの `sandbox_mode` を無視します。** reviewer は親のセッションの sandbox（書き込み可）で動きます。編集の禁止は指示に書いてあるだけで、それが唯一の歯止めです。
+- **Copilot CLI にはリポジトリの権限も sandbox もありません。** guard・CI・ブランチの ruleset が歯止めです。
+- **Copilot の PostToolUse はブロックできません。** lint のフィードバックはコンテキストとして届くので、モデルがそのまま進むことがあります。
+- Copilot は `CLAUDE.md` もあると、AGENTS の規則を二重に表示することがあります。
+- `.harness/env.json` は Codex と Copilot 用の `HARNESS_*` の設定です。Claude Code の hooks も、`.claude/settings.json` の `env` が設定していない変数についてはこれを読みます。編集するのは PO だけで（guard の規則 `harness-env` がエージェントのアクセスを拒否します）、guard を緩める `HARNESS_ALLOW_LEASE_PUSH` と `HARNESS_RM_RF_ALLOW` は入れません。パスは `<segment>/../` を畳んでから比べます。コマンドでは最後の要素にある glob だけを数えるので、`ls .harness/*/progress.md` は通ります。`.harness/` の後のブレース展開（`{a,b}`、`{x..y}`）は拒否し、`${name}` のパラメータは拒否しません（`cat .harness/${name}/progress.md` は通ります）。この規則はコマンドの文字列を見るので、`.harness` 自体にある glob（`.h*/env.json`）は見えません。
+- `test-on-stop` は、テストが失敗している間、エージェントが PO への質問のために止まっていても、作業を続けさせます（3 つのエージェントすべて）。
+
 ## はじめ方
 
-前提: Claude Code 2.1.277 以上、`jq`、`git`、[`uv`](https://docs.astral.sh/uv/)、`gh`、OpenSpec CLI。
+前提: Claude Code 2.1.277 以上（Codex CLI 0.160.0 以上、Copilot CLI 1.0.91 以上は選んだときだけ）、`jq`、`git`、[`uv`](https://docs.astral.sh/uv/)、`gh`、OpenSpec CLI。
 
 ```sh
 # プロダクトのリポジトリで（既定ブランチが GitHub 上に既にあること）
@@ -39,7 +66,7 @@ claude            # 対話モードで信頼ダイアログを承認する。v0.
 claude plugin install harness@agentic-harness --scope project
 ```
 
-`claude plugin marketplace add joe-yama/agentic-harness` は自分で実行しないでください。固定のない既定ブランチが同じ名前で登録されてしまいます。
+ほかのエージェントのファイルも描画するには、`--data agents="[claude,codex]"` を付けるか、質問 `agents` に答えます（既定は `[claude]`）。Codex と Copilot CLI のインストール・OpenSpec・検証の手順は `harness:adopt` にあります。`claude plugin marketplace add joe-yama/agentic-harness` は自分で実行しないでください。固定のない既定ブランチが同じ名前で登録されてしまいます。
 
 続けて新しいセッションで、Claude に **`harness:adopt`** の手順 4 以降を実行させてください。このスキルが次を行います。
 
@@ -51,7 +78,7 @@ claude plugin install harness@agentic-harness --scope project
 
 ## 設定
 
-テンプレートは次の変数を `.claude/settings.json` の `env` に書きます。コマンドが未設定なら hook は何もしないので、技術スタックを決める前からハーネスを導入できます。
+テンプレートは次の変数を `.claude/settings.json` の `env` に書きます。Codex と Copilot CLI では、hooks が `.harness/env.json` から読みます。同名の環境変数があればそちらが優先です。コマンドが未設定なら hook は何もしないので、技術スタックを決める前からハーネスを導入できます。
 
 | 変数 | 既定値 | 使うもの |
 |---|---|---|
@@ -99,6 +126,8 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
 
 - **プラグインはあなたのユーザー権限で動きます。** インストールするタグの `plugins/harness/scripts/` を読んでください。hooks が必要とするのは `bash`・`jq`・`git` だけです。
 - `HARNESS_*_CMD` の値は、リポジトリにコミットされた設定から読み、`bash -c` で実行します。値の変更はコードの変更と同じように扱ってください。
+- Codex と Copilot CLI のプラグインの hooks も、あなたの権限で動きます。Codex が信頼を求めたときに hooks を確認してください。信頼したプロジェクトの設定と rules は、あなたとして実行されます。
+- `.harness/env.json` は Claude Code を含むすべてのエージェントの hooks が読みます（`.claude/settings.json` の `env` が設定していない `HARNESS_*` の変数）。その `HARNESS_LINT_CMD` と `HARNESS_TEST_CMD` は `bash -c` で実行されます。変更は `.claude/settings.json` の変更と同じように確認してください。guard がエージェントの編集を防ぎ、編集するのは PO です。
 - 信頼していないリポジトリで `--bare` なしに `claude -p` を実行しないでください。headless モードでもコミット済みの hooks が動きます。
 - hooks はコマンドの文字列を見ているだけで、仕掛け線であってサンドボックスではありません。OS レベルの境界として、テンプレートは Claude Code の sandbox を有効にします（認証情報のディレクトリは読めず、ネットワークは GitHub とパッケージレジストリに限定）。既知の穴と誤検知は次のとおりです。
   - 引用文字列をコマンドとして検査するのは、`-c`（`sh -c '…'`、`bash -lc "…"`。間にオプションがあってもよい: `bash -c -- '…'`）と `eval` の直後、シェルへの here-string（`bash <<< '…'`）、`watch` と `ssh <host>` の引数だけ。`grep`・`wc`・`head` などの `-c` はフラグとして扱う。それ以外の引用文字列（コミットメッセージ、grep のパターン、Issue 本文）はデータとして扱い、二重引用符の中のコマンド置換もデータになる（`echo "$(rm -rf x)"` は通る）
@@ -128,11 +157,11 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
 ## 開発
 
 ```sh
-bash tests/all.sh   # shellcheck、hook のケース（tests/hooks/cases.tsv）、lifecycle テスト、hook の所要時間、規則の変異テスト、マニフェスト + claude plugin validate、テンプレートの描画
+bash tests/all.sh   # shellcheck、Codex のエージェントファイル、hook のケース（tests/hooks/cases.tsv）、lifecycle テスト、hook の所要時間、規則の変異テスト、マニフェスト + claude plugin validate、テンプレートの描画
 claude --plugin-dir plugins/harness   # 開発中のプラグインを読み込む
 ```
 
-コミットの前は `tests/lint.sh`・`tests/hooks/run.sh`・`tests/hooks/lifecycle.sh`（テンプレートを変えたときは `tests/template/run.sh` も）で足ります。レビューの依頼前と PR の前に `all.sh` を実行します。`jq`・`git`・`uv`・`claude` CLI が必要です。hook の規則はそれぞれ `# rule:<id>` と `# end:<id>` の間に置きます。`tests/hooks/mutate.sh` が規則を 1 つずつ消し、どのテストも落ちなければ失敗します。
+コミットの前は `tests/lint.sh`・`tests/hooks/run.sh`・`tests/hooks/lifecycle.sh`（テンプレートを変えたときは `tests/template/run.sh`、`plugins/harness/agents/*.md` を編集したときは `bash scripts/gen-codex-agents.sh` の後に `tests/codex-agents.sh` も）で足ります。レビューの依頼前と PR の前に `all.sh` を実行します。`jq`・`git`・`uv`・`claude` CLI が必要です。hook の規則はそれぞれ `# rule:<id>` と `# end:<id>` の間に置きます。`tests/hooks/mutate.sh` が規則を 1 つずつ消し、どのテストも落ちなければ失敗します。
 
 ## クレジット
 

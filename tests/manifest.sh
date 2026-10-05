@@ -23,15 +23,17 @@ check p-semver 'jq -r .version $p | grep -Eq "$semver"'
 check p-semver-forms 'echo 0.4.0 | grep -Eq "$semver" && echo 0.4.0-rc.1 | grep -Eq "$semver" && ! echo 0.4.0-rc | grep -Eq "$semver" && ! echo 0.4.0-beta.1 | grep -Eq "$semver"'
 check p-dep '! jq -e "has(\"dependencies\")" $p >/dev/null'
 check p-changelog 'grep -q "^## \[$(jq -r .version $p)\]" CHANGELOG.md'
-# exec form: command "bash" and the script path as the only argument, never spliced into a string
+# string form: Codex and Copilot CLI do not run the exec form (command + args), so every hook is
+# `bash "${CLAUDE_PLUGIN_ROOT}/scripts/<name>.sh"`; the quotes keep a path with spaces in one argument
 hooks='[.hooks[][].hooks[]]'
-check h-has-scripts 'jq -r "${hooks}[].args[]?" $h | grep -q "scripts/"'
-check h-exec-form 'jq -e "$hooks | all(.type == \"command\" and .command == \"bash\" and (.args | length) == 1)" $h >/dev/null'
+check h-has-scripts 'jq -r "${hooks}[].command" $h | grep -q "scripts/"'
+check h-string-form 'jq -e "$hooks | all(.type == \"command\" and (has(\"args\") | not))" $h >/dev/null && ! jq -r "${hooks}[].command" $h | grep -vE "^bash \"\\\$\{CLAUDE_PLUGIN_ROOT\}/scripts/[a-z-]+\.sh\"\$" | grep -q .'
 while IFS= read -r s; do
   check "h-exists-$s" "[ -f plugins/harness/$s ]"
-done < <(jq -r "${hooks}[].args[]?" $h | grep -oE 'scripts/[a-z-]+\.sh')
+done < <(jq -r "${hooks}[].command" $h | grep -oE 'scripts/[a-z-]+\.sh')
 check h-monitor '[ "$(jq -r "[.hooks.PreToolUse[] | select(.matcher == \"Bash|Monitor\")] | length" $h)" = 1 ]'
-check h-plugin-root '! jq -r "${hooks}[].args[]?" $h | grep -vE "^\\\$\{CLAUDE_PLUGIN_ROOT\}/scripts/[a-z-]+\.sh\$" | grep -q .'
+check h-plugin-root '! jq -r "${hooks}[].command" $h | grep -vE "^bash \"\\\$\{CLAUDE_PLUGIN_ROOT\}/scripts/" | grep -q .'
+check h-patch-matcher '[ "$(jq -r "[.hooks.PreToolUse[] | select(.matcher == \"Read|Edit|Write|MultiEdit|NotebookEdit|apply_patch\")] | length" $h)" = 1 ]'
 for s in plugins/harness/scripts/*.sh; do
   check "h-wired-$(basename "$s")" "grep -qF 'scripts/$(basename "$s")' $h"
 done
@@ -39,6 +41,10 @@ done
 # The settings line `"superpowers@claude-plugins-official": false` has no colon after the name,
 # so it does not match. Offending lines (path:line:text) print on stdout.
 check no-superpowers '! grep -rnI "superpowers:" plugins template'
+# Skills and agents are agent-neutral: Claude-only mechanisms appear only in table rows (per-agent tables).
+# adopt is included: its per-agent subsections keep Claude-only tokens in table rows.
+# Offending lines (path:line:text) print on stdout.
+check neutral-skills '! grep -rnE "subagent_type|/goal|claude -p|scratchpad|SendMessage|Claude Code builds|/opsx:" plugins/harness/skills plugins/harness/agents | grep -vE "^[^:]+:[0-9]+:\|"'
 if command -v claude >/dev/null 2>&1; then
   check validate-marketplace 'claude plugin validate . --strict >/dev/null 2>&1'
   check validate-plugin 'claude plugin validate plugins/harness --strict >/dev/null 2>&1'

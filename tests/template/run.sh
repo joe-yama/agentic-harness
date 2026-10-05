@@ -49,10 +49,11 @@ os_run() {
   for f in "$@"; do mkdir -p "$w/$(dirname "$f")" && : > "$w/$f"; done
   (cd "$w" && bash -e -c "$run") > "$TMP_ROOT/os.log" 2>&1
 }
-# Reads the table rows (lines starting with "|") of models.md. Decision and final review must be Opus / high, implementation and
+# Reads the rows (lines starting with "|") of the first table of models.md (it stops at the first "## " line). Decision and final review must be Opus / high, implementation and
 # intermediate review Sonnet / medium; no row may use another model (Haiku included) or be a planning role (planning is part of the decision).
 models_ok() { awk -F'|' '
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return tolower(s) }
+  /^## / { exit }
   /^\|/ {
     r = trim($2); m = trim($3); e = trim($4)
     if (m == "model" || m ~ /^[-: ]+$/) next
@@ -66,6 +67,20 @@ models_ok() { awk -F'|' '
     if (r ~ /^intermediate review/) { mid++; if (m != "sonnet") bad = 1 }
   }
   END { exit (bad || dec != 1 || fin != 1 || imp != 1 || mid != 1) }' "$1"; }
+# rows of the table under "## <heading>": four roles, a model, an effort, no Haiku
+agent_models_ok() { awk -F'|' -v h="## $2" '
+  function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return tolower(s) }
+  $0 == h { on = 1; next }
+  on && /^## / { on = 0 }
+  on && /^\|/ { m = trim($3); if (m == "model" || m ~ /^[-: ]+$/) next; n++; if (m == "" || trim($4) == "" || tolower($0) ~ /haiku/) bad = 1 }
+  END { exit (bad || n != 4) }' "$1"; }
+# "<role prefix>=<model>/<effort>" lines of the Codex table of models.md, for comparison with .codex/agents/*.toml
+codex_table() { awk -F'|' '
+  function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+  $0 == "## Codex" { on = 1; next }
+  on && /^## / { on = 0 }
+  on && /^\|/ { a = trim($5); gsub(/`/, "", a); if (a ~ /^harness-/) print a "=" trim($3) "/" trim($4) }' "$1" | sort; }
+codex_toml() { for f in "$1"/.codex/agents/*.toml; do n=$(basename "$f" .toml); printf '%s=%s/%s\n' "$n" "$(sed -n 's/^model = "\(.*\)"$/\1/p' "$f")" "$(sed -n 's/^model_reasoning_effort = "\(.*\)"$/\1/p' "$f")"; done | sort; }
 settings() { jq -r "$2" "$1/.claude/settings.json"; }
 common() { # <name> <dest>
   local n=$1 d=$2
@@ -96,6 +111,103 @@ common() { # <name> <dest>
 D1="$TMP_ROOT/defaults"
 render "$D1" v9.9.0
 common defaults "$D1"
+check defaults-agents 'grep -qx "agents:" "$D1/.copier-answers.yml" && grep -qx -- "- claude" "$D1/.copier-answers.yml"'
+check defaults-no-codex '[ ! -e "$D1/.codex" ] && [ ! -e "$D1/.github/copilot" ] && [ ! -e "$D1/.github/copilot-instructions.md" ] && [ ! -e "$D1/.harness" ]'
+
+DC="$TMP_ROOT/codex-only"
+render "$DC" v9.9.0 --data 'agents=[codex]'
+check codex-rendered '[ -f "$DC/AGENTS.md" ]'
+check codex-no-jinja '! grep -rIlE "\{\{|\{%" "$DC" --exclude-dir=.git --exclude=ci.yml | grep -q .'
+check codex-workflow-schema '$CJS --builtin-schema vendor.github-workflows "$DC/.github/workflows/ci.yml" >/dev/null 2>&1'
+check codex-no-claude '[ ! -e "$DC/CLAUDE.md" ] && [ ! -e "$DC/.claude/settings.json" ]'
+check codex-claude-rules '[ "$(ls -A "$DC/.claude")" = rules ] && [ -f "$DC/.claude/rules/scope.md" ] && [ -f "$DC/.claude/rules/git.md" ]'
+check codex-agents-md '! grep -qF "CLAUDE.md" "$DC/AGENTS.md"'
+check codex-ci-budget '$CJS --builtin-schema vendor.github-workflows "$DC/.github/workflows/ci.yml" >/dev/null 2>&1 && ! grep -qF "CLAUDE.md" "$DC/.github/workflows/ci.yml" && grep -qF ".claude/rules/*.md" "$DC/.github/workflows/ci.yml"'
+toml_ok() { uvx --from copier@9.18.2 python -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$1"; }
+check codex-config 'toml_ok "$DC/.codex/config.toml" && grep -qx "sandbox_mode = \"workspace-write\"" "$DC/.codex/config.toml" && grep -qx "approval_policy = \"on-request\"" "$DC/.codex/config.toml"'
+check codex-agents '[ -f "$DC/.codex/agents/harness-implementer.toml" ] && [ -f "$DC/.codex/agents/harness-reviewer.toml" ] && [ -f "$DC/.codex/agents/harness-reviewer-intermediate.toml" ]'
+check codex-rules 'grep -qF "prefix_rule(pattern = [\"git\", \"push\"], decision = \"prompt\"" "$DC/.codex/rules/harness.rules" && grep -qF "[\"git\", \"push\", \"--force\"], decision = \"forbidden\"" "$DC/.codex/rules/harness.rules"'
+check codex-env 'jq -e ".HARNESS_PROTECTED_BRANCHES == \"main\" and (has(\"HARNESS_RM_RF_ALLOW\") | not) and (has(\"HARNESS_ALLOW_LEASE_PUSH\") | not)" "$DC/.harness/env.json" >/dev/null'
+check codex-gitignore 'grep -qx ".harness/\*" "$DC/.gitignore" && grep -qx "!.harness/env.json" "$DC/.gitignore" && ! grep -qx ".harness/" "$DC/.gitignore"'
+check codex-section 'grep -qF "## Codex specifics" "$DC/AGENTS.md" && grep -qF "harness-reviewer-intermediate" "$DC/AGENTS.md"'
+check codex-reads-rules 'grep -qF "\`.claude/rules/*.md\`" "$DC/AGENTS.md" && grep -qF "read them at the start of every session" "$DC/AGENTS.md" && grep -qE "^\| Codex: .*\| \`\.claude/rules/\*\.md\` \|$" "$DC/AGENTS.md" && ! grep -qF "read them at the start of every session" "$D1/AGENTS.md"'
+check codex-sandbox-gap 'grep -qF "sandbox_mode" "$DC/AGENTS.md" && grep -qF "sandbox_mode" "$DC/docs/harness/models.md" && ! grep -qF "sandbox_mode" "$D1/docs/harness/models.md"'
+check codex-rules-list '( for w in "\`rm\`" "\`curl\`" "\`wget\`" "\`gh\`" pushes lockfile; do grep -F "Codex hooks cannot ask" "$DC/AGENTS.md" | grep -qF "$w" || exit 1; done )'
+check codex-intermediate-same 'grep -qF "currently equals \`harness-reviewer\`" "$DC/docs/harness/models.md"'
+check env-po-only 'grep -qF "ask the PO to add them to \`.harness/env.json\`" "$DC/AGENTS.md" && ! grep -qF "and to \`.harness/env.json\`" "$DC/AGENTS.md"'
+check defaults-gitignore 'grep -qx ".harness/" "$D1/.gitignore"'
+if command -v codex >/dev/null 2>&1; then
+  execpolicy() { perl -e 'alarm shift; exec @ARGV' 120 codex execpolicy check --rules "$DC/.codex/rules/harness.rules" "$@" </dev/null; }
+  check codex-execpolicy '[ "$(execpolicy git push --force origin x | jq -r .decision)" = forbidden ] && [ "$(execpolicy git push -f origin x | jq -r .decision)" = forbidden ] && [ "$(execpolicy git push origin x | jq -r .decision)" = prompt ] && [ "$(execpolicy git push --force-with-lease origin x | jq -r .decision)" = forbidden ] && [ "$(execpolicy pnpm i | jq -r .decision)" = prompt ] && [ "$(execpolicy uv sync | jq -r .decision)" = prompt ] && [ "$(execpolicy pip3 install x | jq -r .decision)" = prompt ] && [ "$(execpolicy npm update | jq -r .decision)" = prompt ] && [ "$(execpolicy pnpm rm x | jq -r .decision)" = prompt ] && [ "$(execpolicy bun install | jq -r .decision)" = prompt ]'
+else
+  echo "template: codex CLI not found; execpolicy check skipped" >&2
+fi
+
+DE="$TMP_ROOT/env-both"
+cat > "$TMP_ROOT/env-answers.yml" <<'YML'
+lint_cmd: 'eslint "a\b" é'
+lint_pattern: '\.(ts|tsx)$'
+test_cmd: 'pnpm test -- --grep "x\y"'
+YML
+render "$DE" v9.9.0 --data 'agents=[claude, codex]' --data-file "$TMP_ROOT/env-answers.yml"
+check codex-env-escapes 'jq -S . "$DE/.harness/env.json" > "$TMP_ROOT/e1.json" && jq -S "[.env | to_entries[] | select(.key | IN(\"HARNESS_PROTECTED_BRANCHES\",\"HARNESS_LINT_CMD\",\"HARNESS_LINT_PATTERN\",\"HARNESS_TEST_CMD\"))] | from_entries" "$DE/.claude/settings.json" > "$TMP_ROOT/e2.json" && cmp -s "$TMP_ROOT/e1.json" "$TMP_ROOT/e2.json" && jq -e ".HARNESS_LINT_CMD | contains(\"é\")" "$DE/.harness/env.json" >/dev/null'
+check codex-agents-md-eol '[ "$(tail -c 1 "$DC/AGENTS.md" | od -An -c | tr -d " ")" = "\\n" ] && ! tail -n 1 "$DC/AGENTS.md" | grep -q "[[:space:]]$" && [ -n "$(tail -n 1 "$DC/AGENTS.md")" ]'
+
+DP="$TMP_ROOT/copilot-only"
+render "$DP" v9.9.0 --data 'agents=[copilot]'
+check copilot-rendered '[ -f "$DP/AGENTS.md" ]'
+check copilot-no-jinja '! grep -rIlE "\{\{|\{%" "$DP" --exclude-dir=.git --exclude=ci.yml | grep -q .'
+check copilot-workflow-schema '$CJS --builtin-schema vendor.github-workflows "$DP/.github/workflows/ci.yml" >/dev/null 2>&1'
+check copilot-rules '[ -d "$DP/.claude/rules" ] && [ ! -e "$DP/.claude/settings.json" ] && [ ! -e "$DP/CLAUDE.md" ]'
+check copilot-ci-budget '! grep -qF "CLAUDE.md" "$DP/.github/workflows/ci.yml" && grep -qF ".claude/rules" "$DP/.github/workflows/ci.yml"'
+
+check copilot-settings 'jq -e ".enabledPlugins[\"harness@agentic-harness\"] == true and .extraKnownMarketplaces[\"agentic-harness\"].source.ref == \"v9.9.0\" and .extraKnownMarketplaces[\"agentic-harness\"].source.repo == \"joe-yama/agentic-harness\"" "$DP/.github/copilot/settings.json" >/dev/null'
+check copilot-instructions 'grep -qF "Copilot CLI specifics" "$DP/.github/copilot-instructions.md"'
+check copilot-instructions-dispatch 'grep -qF "gpt-5.6-luna" "$DP/.github/copilot-instructions.md" && grep -qF "without \`model\` the dispatch fails" "$DP/.github/copilot-instructions.md" && grep -qF "openspec-propose" "$DP/.github/copilot-instructions.md" && ! grep -qF "twice" "$DP/.github/copilot-instructions.md"'
+check copilot-skill-names 'grep -qF "without the \`harness:\` prefix" "$DP/.github/copilot-instructions.md" && grep -qF "\`workflow\` (harness plugin)" "$DP/.github/copilot-instructions.md" && ! grep -qF "\`harness:workflow\`" "$DP/.github/copilot-instructions.md"'
+check codex-headless-rules 'grep -qF "prompt\` rules still apply" "$DC/AGENTS.md" && ! grep -qF "does not stop for" "$DC/AGENTS.md"'
+check copilot-env '[ -f "$DP/.harness/env.json" ]'
+DA="$TMP_ROOT/all-agents"
+render "$DA" v9.9.0 --data 'agents=[claude, codex, copilot]'
+common all "$DA"
+check all-files '[ -f "$DA/CLAUDE.md" ] && [ -f "$DA/.codex/config.toml" ] && [ -f "$DA/.github/copilot/settings.json" ] && [ -f "$DA/.harness/env.json" ]'
+check all-same-ref '[ "$(jq -r ".extraKnownMarketplaces[\"agentic-harness\"].source.ref" "$DA/.github/copilot/settings.json")" = "$(settings "$DA" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" ]'
+check all-instructions-twice 'grep -qF "may show the rules twice" "$DA/.github/copilot-instructions.md"'
+check codex-models 'agent_models_ok "$DC/docs/harness/models.md" Codex'
+check copilot-models 'agent_models_ok "$DP/docs/harness/models.md" "Copilot CLI"'
+check all-models 'models_ok "$DA/docs/harness/models.md" && agent_models_ok "$DA/docs/harness/models.md" Codex && agent_models_ok "$DA/docs/harness/models.md" "Copilot CLI"'
+check codex-models-values '[ -n "$(codex_table "$DC/docs/harness/models.md")" ] && [ "$(codex_table "$DC/docs/harness/models.md")" = "$(codex_toml "$DC")" ]'
+check codex-models-pinned 'grep -qF "gpt-6-luna" "$DC/docs/harness/models.md" && grep -qF "sets the model in each agent file" "$DC/docs/harness/models.md"'
+check copilot-models-values 'grep -qF "claude-opus-5.5" "$DP/docs/harness/models.md" && grep -qF "claude-sonnet-5.5" "$DP/docs/harness/models.md" && grep -qF "reasoning_effort" "$DP/docs/harness/models.md" && grep -qF "without \`model\` the dispatch fails" "$DP/docs/harness/models.md" && grep -qF "If \`task\` answers that a model is not available, use \`gpt-5.6-luna\`, or another id from the list in that error." "$DP/docs/harness/models.md" && ! grep -qE "<F[0-9]|\{\{|\{%" "$DP/docs/harness/models.md"'
+check models-intro 'head -3 "$DC/docs/harness/models.md" | grep -qF "AGENTS.md" && ! head -3 "$DC/docs/harness/models.md" | grep -qF "CLAUDE.md" && head -3 "$DC/docs/harness/models.md" | grep -qF ".claude/rules/" && head -3 "$DP/docs/harness/models.md" | grep -qF ".claude/rules/" && ! head -3 "$DP/docs/harness/models.md" | grep -qF "CLAUDE.md" && head -3 "$DA/docs/harness/models.md" | grep -qF "CLAUDE.md"'
+check codex-openspec-skills 'os_run "$DC" .agents/skills/openspec-propose/SKILL.md .agents/skills/openspec-archive-change/SKILL.md .agents/skills/openspec-update-change/SKILL.md .agents/skills/openspec-sync-specs/SKILL.md .agents/skills/.openspec-target'
+check codex-openspec-extra '! os_run "$DC" .agents/skills/openspec-explore/SKILL.md && grep -q "openspec-explore" "$TMP_ROOT/os.log"'
+DPC="$TMP_ROOT/claude-copilot"
+render "$DPC" v9.9.0 --data 'agents=[claude, copilot]'
+check claude-copilot-openspec-skills 'os_run "$DPC" .agents/skills/openspec-propose/SKILL.md .agents/skills/openspec-archive-change/SKILL.md .agents/skills/openspec-update-change/SKILL.md .agents/skills/openspec-sync-specs/SKILL.md .agents/skills/.openspec-target'
+check claude-copilot-openspec-claude-dir '! os_run "$DPC" .claude/skills/openspec-propose/SKILL.md && grep -q "openspec-propose" "$TMP_ROOT/os.log"'
+check copilot-openspec-agents-dir 'grep -qF "\`.agents/skills\`" "$DP/.github/copilot-instructions.md" && ! grep -qF ".claude/skills" "$DP/.github/copilot-instructions.md"'
+check agents-openspec-step-name 'os_step "$DC/.github/workflows/ci.yml" >/dev/null && grep -qF "OpenSpec agent files (only propose, archive, update and sync stay)" "$DC/.github/workflows/ci.yml" && grep -qF "OpenSpec agent files (only the opsx commands propose, archive, update and sync stay)" "$D1/.github/workflows/ci.yml"'
+# Every file the ci.yml context-budget step cats must exist in the render (glob entries must match something).
+budget_files_ok() { # <rendered dir>
+  local d=$1 line f n=0
+  line=$(grep -E "^[[:space:]]*bytes=\\$\(cat " "$d/.github/workflows/ci.yml") || return 1
+  line=${line#*cat }
+  line=${line%% | wc*}
+  for f in $line; do
+    n=$((n + 1))
+    # shellcheck disable=SC2086 # the glob entries are meant to expand
+    [ -n "$(cd "$d" && ls -d $f 2>/dev/null)" ] || { echo "missing budget file: $f" >&2; return 1; }
+  done
+  [ "$n" -ge 1 ]
+}
+for pair in "claude:$D1" "codex:$DC" "copilot:$DP" "all:$DA"; do
+  check "budget-files-${pair%%:*}" 'budget_files_ok "${pair#*:}"'
+done
+check budget-copilot-counted 'grep -qF ".github/copilot-instructions.md" "$DP/.github/workflows/ci.yml" && grep -qF ".github/copilot-instructions.md" "$DA/.github/workflows/ci.yml" && ! grep -qF "copilot-instructions" "$D1/.github/workflows/ci.yml"'
+
+check none-rejected '! $COPIER copy --quiet --defaults --vcs-ref v9.9.0 --data project_name=S --data github_owner=o --data "agents=[]" "$SRC" "$TMP_ROOT/none" >/dev/null 2>&1'
+
 check defaults-ref '[ "$(settings "$D1" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = v9.9.0 ]'
 check defaults-no-lint '[ "$(settings "$D1" ".env.HARNESS_LINT_CMD // \"unset\"")" = unset ]'
 check defaults-sandbox-excludes '[ "$(settings "$D1" ".sandbox.excludedCommands | sort | join(\",\")")" = "gh,gh *,git,git *" ]'
@@ -166,7 +278,7 @@ check notag-ref '[ "$(settings "$D5" ".extraKnownMarketplaces[\"agentic-harness\
 
 # copier update from v9.9.0 to v9.9.1 applies cleanly and moves the pin.
 git -C "$D1" init -q && git -C "$D1" add -A && git -C "$D1" commit -q -m init
-printf '\n<!-- updated -->\n' >> "$SRC/template/CLAUDE.md.jinja"
+printf '\n<!-- updated -->\n' >> "$SRC/template/{% if use_claude %}CLAUDE.md{% endif %}.jinja"
 git -C "$SRC" commit -q -am update && git -C "$SRC" tag -a v9.9.1 -m v9.9.1 && sleep 1 && git -C "$SRC" tag -a harness--v9.9.1 -m harness--v9.9.1
 if ! (cd "$D1" && $COPIER update --quiet --defaults --vcs-ref v9.9.1 > "$TMP_ROOT/update.log" 2>&1); then
   tail -20 "$TMP_ROOT/update.log" >&2

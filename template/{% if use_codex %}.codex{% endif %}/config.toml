@@ -1,0 +1,9 @@
+# harness: Codex settings for this repository. Codex reads this file only after you trust the project.
+# Hooks come from the harness plugin; commands that ask or are refused are in rules/harness.rules.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+# No host allowlist in Codex: network stays off and commands that need it (git push, gh, installs)
+# ask for approval. The Claude Code sandbox allows GitHub and package registries instead.
+network_access = false

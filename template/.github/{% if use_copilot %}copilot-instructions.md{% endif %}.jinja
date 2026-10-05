@@ -1,0 +1,19 @@
+# Copilot CLI specifics
+
+`AGENTS.md` holds the rules; this file adds what differs in GitHub Copilot CLI. The `harness@agentic-harness` plugin (installed from `.github/copilot/settings.json`, see `harness:adopt`) supplies the hooks, the subagents and the skills. Copilot CLI lists the plugin's skills without the `harness:` prefix (`workflow`, `design`, `execute`, `adopt`, `mutation-check`); they come from the harness plugin. Subagents keep the prefix (`harness:implementer`).
+
+| Situation | Use |
+|---|---|
+| Starting, resuming or finishing a change | `workflow` (harness plugin) |
+| Design session | `design` (harness plugin) |
+| Proposal, archive, update | the skills `openspec-propose`, `openspec-archive-change`, `openspec-update-change` (from `.agents/skills`, set up by `harness:adopt`) |
+| Implementing `tasks.md` | `execute` (harness plugin) |
+{% if use_claude %}
+`CLAUDE.md` imports `AGENTS.md`, so Copilot CLI may show the rules twice; they are the same rules.
+{% endif %}
+- Subagents: start `harness:implementer` and `harness:reviewer` with the `task` tool: `task(agent_type: "harness:implementer" | "harness:reviewer", model: …, reasoning_effort: …, mode: "background")`. Pass the model from the Copilot CLI table in `docs/harness/models.md`; without `model` the dispatch fails. If that id is not available on the account, pass `gpt-5.6-luna`. Follow up with `write_agent {agent_id, message}`, then `read_agent {agent_id, wait: true}` (a `sync` agent rejects `write_agent`). The intermediate review uses `harness:reviewer` with the fast model. The context that implemented something never reviews it.
+- Permissions: Copilot CLI does not read the `permissions` or `sandbox` of `.claude/settings.json`. The plugin's `guard` hook is the barrier inside the agent (a push to the default branch asks for confirmation); CI job `check` and the branch ruleset are the barrier outside. Start interactive sessions without `--allow-all-tools`.
+- Hooks read `HARNESS_*` from `.harness/env.json`, which only the PO edits. A hook refusal is a policy decision: do not rephrase the command to get around it; ask the PO.
+- Headless: `copilot -p "<prompt>" --allow-all-tools --no-ask-user`; prompting operations are denied, so list them in the final report.
+{% if use_claude %}- `CLAUDE.md` is Claude Code's file; ignore its Claude-only instructions.
+{% endif %}

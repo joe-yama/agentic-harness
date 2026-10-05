@@ -7,9 +7,6 @@
 # under the same stop_hook_active protection, but every Claude Code version honors decision:block,
 # while a client that ignores additionalContext would let the turn end with failing tests.
 set -u
-# rule:stop-unset
-[ -n "${HARNESS_TEST_CMD:-}" ] || exit 0
-# end:stop-unset
 # rule:no-jq
 if ! command -v jq >/dev/null 2>&1; then
   echo "harness test-on-stop: jq not found; tests skipped" >&2
@@ -22,13 +19,19 @@ input=$(cat)
 # end:stop-active
 cwd=$(printf '%s' "$input" | jq -r '.cwd // ""')
 [ -n "$cwd" ] || cwd=$(pwd)
+# shellcheck source=lib/env.sh
+. "$(dirname "$0")/lib/env.sh" 2>/dev/null # a missing file only means no values from .harness/env.json
+declare -F harness_env >/dev/null && harness_env "$cwd"
+# rule:stop-unset
+[ -n "${HARNESS_TEST_CMD:-}" ] || exit 0
+# end:stop-unset
 root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || exit 0
 doc=${HARNESS_DOC_PATTERN:-'\.(md|txt)$|^docs/|^openspec/|^\.claude/'}
 # rule:stop-bad-pattern
 # grep exits 2 on an invalid regex; unchecked, no change would count as code and tests would be skipped silently
 grep -Eq -- "$doc" </dev/null
 if [ $? = 2 ]; then
-  jq -n --arg r "invalid HARNESS_DOC_PATTERN (not an extended regex): $doc. Fix it in .claude/settings.json; tests were not run." \
+  jq -n --arg r "invalid HARNESS_DOC_PATTERN (not an extended regex): $doc. Fix it in .claude/settings.json (Claude Code) or ask the PO to fix it in .harness/env.json (Codex, Copilot CLI); tests were not run." \
     '{decision:"block",reason:$r}'
   exit 0
 fi

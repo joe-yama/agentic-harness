@@ -9,11 +9,27 @@ set -f # tokens are split on whitespace below; never glob-expand them
 input=$(cat)
 # rule:no-jq
 if ! command -v jq >/dev/null 2>&1; then
-  echo "BLOCKED by harness guard (no-jq): jq is required (brew install jq / apt-get install jq)" >&2
+  r="jq is required (brew install jq / apt-get install jq)"
+  # rule:copilot-deny-form-nojq
+  if [ "${COPILOT_CLI:-}" = 1 ]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"BLOCKED by harness guard (no-jq): %s"}}\n' "$r"
+    exit 0
+  fi
+  # end:copilot-deny-form-nojq
+  echo "BLOCKED by harness guard (no-jq): $r" >&2
   exit 2
 fi
 # end:no-jq
 deny() {
+  # rule:copilot-deny-form
+  # Copilot CLI shows only "hook exited with code 2", so it gets the deny as JSON on stdout (F5).
+  # Only the nested form: Codex rejects top-level permissionDecision keys and fails open when it
+  # inherits COPILOT_CLI=1 (R14); Copilot and Claude Code read the nested form.
+  if [ "${COPILOT_CLI:-}" = 1 ]; then
+    jq -nc --arg r "BLOCKED by harness guard ($1): $2" \
+      '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}' && exit 0
+  fi
+  # end:copilot-deny-form
   printf 'BLOCKED by harness guard (%s): %s\n' "$1" "$2" >&2
   exit 2
 }
@@ -22,10 +38,13 @@ deny() {
 . "$(dirname "$0")/lib/parse.sh" 2>/dev/null
 parsed=$?
 # rule:bad-parser
-if [ "$parsed" != 0 ] || ! declare -F normalize is_abbrev segments git_segments >/dev/null; then
+if [ "$parsed" != 0 ] || ! declare -F normalize is_abbrev segments git_segments patch_paths >/dev/null; then
   deny bad-parser "lib/parse.sh is missing or broken, so the command could not be checked; reinstall the plugin"
 fi
 # end:bad-parser
+# shellcheck source=lib/env.sh
+. "$(dirname "$0")/lib/env.sh" 2>/dev/null # a missing file only means no values from .harness/env.json
+declare -F harness_env >/dev/null && harness_env "$(printf '%s' "$input" | jq -r '.cwd // ""' | sed 's/^$/./')"
 
 # rule:bad-input
 printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1 \
@@ -38,7 +57,16 @@ check_path() {
   # names match case-insensitively, as on macOS and Windows filesystems
   lp=$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')
   # end:path-case
-  base=${lp##*/}
+  # rule:path-normalize
+  # //, /./ and a leading ./ name the same file
+  lp=$(printf '%s' "$lp" | sed -E 's#/+#/#g; s#^\./##' | sed -e ':a' -e 's#/\./#/#' -e 'ta')
+  # end:path-normalize
+  lc=$lp
+  # rule:path-dotdot
+  # <segment>/../ names the parent, repeatedly (.harness/a/b/../../env.json); a .. segment stays
+  lc=$(printf '%s' "$lp" | sed -E -e ':a' -e 's#(^|/)([^/.][^/]*|\.[^/.][^/]*|\.\.[^/]+)/\.\./#\1#' -e 'ta')
+  # end:path-dotdot
+  base=${lc##*/}
   # rule:env-file-path
   case "$base" in
     .env.example) ;;
@@ -46,11 +74,20 @@ check_path() {
   esac
   # end:env-file-path
   # rule:secrets-dir-path
-  case "$lp" in
-    */.ssh | */.ssh/* | */.aws | */.aws/* | */.gnupg | */.gnupg/* | */.config/op | */.config/op/* | */.config/gh | */.config/gh/*)
-      deny secrets-dir "credential directories are off limits: $p" ;;
-  esac
+  # as written and with the .. segments collapsed (.config/x/../op only collapsed, x/../.ssh only as written)
+  for q in "$lp" "$lc"; do
+    case "$q" in
+      */.ssh | */.ssh/* | */.aws | */.aws/* | */.gnupg | */.gnupg/* | */.config/op | */.config/op/* | */.config/gh | */.config/gh/*)
+        deny secrets-dir "credential directories are off limits: $p" ;;
+    esac
+  done
   # end:secrets-dir-path
+  # rule:harness-env-path
+  # HARNESS_* for Codex and Copilot CLI hooks; the PO edits it, as with .claude/settings.json
+  case "$lc" in
+    .harness/env.json | */.harness/env.json) deny harness-env "the harness settings file is changed by the PO only: $p" ;;
+  esac
+  # end:harness-env-path
   return 0
 }
 
@@ -457,6 +494,27 @@ EOF
     fi
     # end:secrets-dir
 
+    # rule:harness-env
+    # Lowercase, // and /./ collapsed. Refused: .harness/env.json; a glob in the last component
+    # directly under .harness/ (.harness/*.json, .harness/?nv.json), also after **/ (zsh matches no
+    # directory); env.json after globbed directories (.harness/**/env.json); any brace expansion.
+    # A glob in a directory with another file name passes (ls .harness/*/progress.md).
+    hcmd=$(printf '%s\n' "$cmd" | tr '\001[:upper:]' ' [:lower:]' | sed -E 's#/+#/#g' | sed -e ':a' -e 's#/\./#/#' -e 'ta')
+    # rule:harness-env-dotdot
+    # <segment>/../ names the parent, repeatedly (.harness/x/../env.json)
+    hcmd=$(printf '%s\n' "$hcmd" | sed -E -e ':a' -e 's#(^|/)([^/.[:space:]][^/[:space:]]*|\.[^/.[:space:]][^/[:space:]]*|\.\.[^/[:space:]]+)/\.\./#\1#' -e 'ta')
+    # end:harness-env-dotdot
+    # rule:harness-env-param
+    # ${name} is a parameter, not a brace expansion (.harness/${name}/progress.md); ${n:-env} and
+    # other ${...} forms keep their brace and are refused
+    hcmd=$(printf '%s\n' "$hcmd" | sed -E 's#\$\{([a-z_][a-z0-9_]*)\}#$\1#g')
+    # end:harness-env-param
+    w='[^/[:space:];&|<>()`]'
+    printf '%s\n' "$hcmd" \
+      | grep -Eq "(^|[^a-z0-9_])\.harness/(([^[:space:];&|<>()\`]*\{)|(\*\*/)*$w*[*?[]$w*([[:space:];&|<>()\`]|\$)|($w*[*?[]$w*/)*env\.json)" \
+      && deny harness-env "the harness settings file is changed by the PO only"
+    # end:harness-env
+
     # rule:pipe-shell
     # A download (curl / wget) reaching a shell: a later pipe stage whose command word, after sudo
     # and its options and any path prefix, is a shell; <(download) given to a shell, source or .;
@@ -497,8 +555,55 @@ EOF
     fi
     # end:pipe-shell
     ;;
-  Read | Edit | Write | MultiEdit | NotebookEdit)
-    check_path "$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""')"
+  Read | Edit | Write | MultiEdit | NotebookEdit | apply_patch)
+    # tool_input is an object (Claude's tools, Codex, Copilot Read) or a string (Copilot's apply_patch
+    # reported as Edit, a double-encoded object): the filters never index a string
+    # rule:tool-input-type
+    ti=$(printf '%s' "$input" | jq -r '.tool_input | type')
+    case "$ti" in
+      object | string) ;;
+      *) deny bad-input "the tool input is neither an object nor a string, so it could not be checked" ;;
+    esac
+    # end:tool-input-type
+    body=$(printf '%s' "$input" | jq -r '.tool_input | if type == "string" then . else (.command // .input // "") end' | tr -d '\r')
+    # rule:patch-check
+    # an apply_patch envelope carries its paths in headers; the body is file content, not a command.
+    # Any header line, indented or not, makes it a patch (fail closed); every header path is checked.
+    patch=0
+    if printf '%s\n' "$body" | grep -Eq '^[[:space:]]*\*\*\* (Begin Patch|(Add|Update|Delete) File:|Move to:)'; then
+      patch=1
+      paths=$(patch_paths "$body")
+      [ -n "$paths" ] || deny bad-input "the patch names no file, so it could not be checked"
+      while IFS= read -r p; do check_path "$p"; done <<EOF
+$paths
+EOF
+    fi
+    # end:patch-check
+    # rule:patch-unreadable
+    if [ "$patch" = 0 ] && [ "$tool" = apply_patch ]; then
+      deny bad-input "the patch could not be read, so it could not be checked"
+    fi
+    # end:patch-unreadable
+    # the object itself, or the object a string holds (double-encoded)
+    if [ "$ti" = object ]; then sel='.tool_input | objects'; else sel='.tool_input | fromjson? | objects'; fi
+    pk='[.file_path, .notebook_path, .path]'
+    # rule:path-key-type
+    nbad=$(printf '%s' "$input" | jq -r "[$sel | $pk | map(select(. != null and type != \"string\")) | length] | add // 0")
+    [ "$nbad" = 0 ] || deny bad-input "a path key is not a string, so it could not be checked"
+    # end:path-key-type
+    # rule:file-path-keys
+    # every key counts, not the first: {"file_path":"a.ts","path":".env"} writes where the tool picks
+    fps=$(printf '%s' "$input" | jq -r "$sel | $pk | .[] | strings")
+    # end:file-path-keys
+    # rule:string-input
+    # a string with no patch header must hold a JSON object that names a path
+    if [ "$ti" = string ] && [ "$patch" = 0 ] && [ -z "$fps" ]; then
+      deny bad-input "the tool input has no patch header and no path, so it could not be checked"
+    fi
+    # end:string-input
+    while IFS= read -r p; do check_path "$p"; done <<EOF
+$fps
+EOF
     ;;
 esac
 exit 0

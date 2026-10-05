@@ -25,10 +25,13 @@ case "$(printf '%s' "$input" | jq -r '.tool_name // ""')" in Bash | Monitor) ;; 
 . "$(dirname "$0")/lib/parse.sh" 2>/dev/null
 parsed=$?
 # rule:bad-parser
-if [ "$parsed" != 0 ] || ! declare -F normalize is_abbrev segments git_segments >/dev/null; then
+if [ "$parsed" != 0 ] || ! declare -F normalize is_abbrev segments git_segments patch_paths >/dev/null; then
   ask bad-parser "lib/parse.sh is missing or broken, so the command could not be checked; reinstall the plugin"
 fi
 # end:bad-parser
+# shellcheck source=lib/env.sh
+. "$(dirname "$0")/lib/env.sh" 2>/dev/null # a missing file only means no values from .harness/env.json
+declare -F harness_env >/dev/null && harness_env "$(printf '%s' "$input" | jq -r '.cwd // ""' | sed 's/^$/./')"
 raw=$(printf '%s' "$input" | jq -r '.tool_input.command // ""')
 # rule:too-large
 # bytes, not ${#raw}: in a UTF-8 locale that counts characters (3x the bytes for CJK), and awk is byte-based

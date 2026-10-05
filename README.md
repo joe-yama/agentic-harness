@@ -1,6 +1,6 @@
 # agentic-harness
 
-A product-development harness for [Claude Code](https://code.claude.com/docs) in which a human **PO** steers and the agent executes: design dialogue → OpenSpec change (spec, design and `tasks.md`, which doubles as the plan) → test-first implementation by subagents → adversarial review in a separate context → PR → PO acceptance. It is the generalized form of a harness built and measured on a real project, checked against current Claude Code, GitHub and supply-chain guidance.
+A product-development harness for [Claude Code](https://code.claude.com/docs), [OpenAI Codex CLI](https://github.com/openai/codex) and [GitHub Copilot CLI](https://docs.github.com/copilot/concepts/agents/about-copilot-cli) in which a human **PO** steers and the agent executes: design dialogue → OpenSpec change (spec, design and `tasks.md`, which doubles as the plan) → test-first implementation by subagents → adversarial review in a separate context → PR → PO acceptance. It is the generalized form of a harness built and measured on a real project, checked against current agent, GitHub and supply-chain guidance. Claude Code is the default; Codex and Copilot CLI are opt-in per repository (see [Agents](#agents)).
 
 > 日本語版は [README.ja.md](README.ja.md)。この英語版が正本です。
 
@@ -10,8 +10,8 @@ One repository, two channels, one version line:
 
 | Channel | Carries | Updated by |
 |---|---|---|
-| **Plugin** `harness@agentic-harness` (`plugins/harness/`) | hooks: `guard` (hard blocks), `ask-gate` (routes to the PO), `lint-on-edit`, `test-on-stop`; subagents `harness:implementer` (Sonnet, effort medium) and `harness:reviewer` (Opus, effort high); skills `harness:workflow`, `harness:design`, `harness:execute`, `harness:mutation-check`, `harness:adopt` | `claude plugin update` |
-| **Copier template** (`copier.yml`, `template/`) | what a plugin cannot carry: `AGENTS.md`, `CLAUDE.md` (`@AGENTS.md` + Claude specifics), `.claude/rules/`, `.claude/settings.json` (permissions, sandbox, `HARNESS_*` env, plugin pin), CI job `check`, Dependabot, PR template, OpenSpec config, status / ledger / lessons docs, branch ruleset | `copier update` (a reviewable PR) |
+| **Plugin** `harness@agentic-harness` (`plugins/harness/`) | hooks: `guard` (hard blocks), `ask-gate` (routes to the PO), `lint-on-edit`, `test-on-stop`; subagents `harness:implementer` (Sonnet, effort medium) and `harness:reviewer` (Opus, effort high) in Claude Code, with the models of the other agents in `docs/harness/models.md`; skills `harness:workflow`, `harness:design`, `harness:execute`, `harness:mutation-check`, `harness:adopt` | `claude plugin update` |
+| **Copier template** (`copier.yml`, `template/`) | what a plugin cannot carry: `AGENTS.md`, `CLAUDE.md` (`@AGENTS.md` + Claude specifics), `.claude/rules/`, `.claude/settings.json` (permissions, sandbox, `HARNESS_*` env, plugin pin), CI job `check`, Dependabot, PR template, OpenSpec config, status / ledger / lessons docs, branch ruleset; for each agent selected with the Copier question `agents` (`claude`, `codex`, `copilot`; default `claude`): Codex gets `.codex/config.toml`, `.codex/rules/harness.rules` and `.codex/agents/harness-*.toml`, Copilot CLI gets `.github/copilot/settings.json` and `.github/copilot-instructions.md`, and both get `.harness/env.json` (hook settings); `CLAUDE.md` and `.claude/settings.json` render only with `claude`; `.claude/rules/` renders for every selection (Codex is told to read it at the start of every session) | `copier update` (a reviewable PR) |
 
 The plugin has no plugin dependencies. OpenSpec comes from its own CLI; the harness uses only `/opsx:propose`, `/opsx:archive` and `/opsx:update` (and `opsx/sync.md`, which `/opsx:archive` calls). The template's CI job `check` fails when `.claude/skills/openspec-*` or any other `opsx` command is present, because `openspec update` restores them under its default profile. To keep them from being generated, each person can set OpenSpec's global profile (it is not per repository): `openspec config set profile custom`, `openspec config set workflows '["propose","archive","update"]'`, `openspec config set delivery commands`.
 
@@ -26,9 +26,36 @@ The template's `.claude/settings.json` sets `superpowers@claude-plugins-official
 | `lint-on-edit` (PostToolUse) | runs `HARNESS_LINT_CMD <file>` on each edited file and makes Claude fix failures immediately |
 | `test-on-stop` (Stop) | runs `HARNESS_TEST_CMD` before the turn ends when non-doc files changed, and keeps Claude working while it fails |
 
+## Agents
+
+The same plugin carries the hooks, subagents and skills for all three agents; the Copier question `agents` decides which agent's files a repository gets. Versions verified: Claude Code 2.1.289, Codex CLI 0.160.0, Copilot CLI 1.0.91.
+
+| | Claude Code | Codex CLI | Copilot CLI |
+|---|---|---|---|
+| `guard` | exit 2 with the reason on stderr | same, but only after you trust the plugin hooks; untrusted hooks are skipped, silently in `codex exec`. `apply_patch` paths are checked, the patch body is not read as a command | with `COPILOT_CLI=1` (Copilot sets it for hooks) the denial is JSON on stdout, only the nested `hookSpecificOutput` deny, and the model sees `BLOCKED by harness guard (<rule>)` (it never sees stderr of an exit-2 denial). Codex and Claude Code honour the same JSON when they inherit the variable (`git checkout .` and `rm -rf` stayed blocked); patches and `create` payloads are checked by path |
+| `ask-gate` | asks the PO | cannot ask: `.codex/rules/harness.rules` prompts for `rm`, `curl`, `wget`, `gh` writes (merges, releases, Issue edits and closes, repository creation and deletion, workflow runs), pushes, `git worktree remove --force` and lockfile changes; `codex exec` rejects them. Whether the interactive prompt appears was not verified | asks interactively (not verified); headless the command is denied |
+| `lint-on-edit` | `decision: block` JSON, the agent fixes the file | `decision: block` JSON, the agent fixes the file | cannot block; the lint output arrives as context (top-level `additionalContext`) |
+| `test-on-stop` | keeps the agent working while tests fail | same | same |
+| subagents | `harness:implementer`, `harness:reviewer` | `harness-implementer`, `harness-reviewer`, `harness-reviewer-intermediate` from `.codex/agents/` (generated from the plugin agents by `scripts/gen-codex-agents.sh`); spawned with `fork_turns: "none"` so a child does not inherit the parent's context | `harness:implementer`, `harness:reviewer`; every dispatch passes `model` and `reasoning_effort` from `docs/harness/models.md` |
+| skills | `harness:workflow`, `harness:design`, `harness:execute`, `harness:mutation-check`, `harness:adopt` | the same, as `$harness:<skill>` | the same, shown without the `harness:` prefix (`workflow`, `design`, …) |
+| OpenSpec | `/opsx:propose`, `/opsx:archive`, `/opsx:update` | skills `openspec-propose`, `openspec-archive-change`, `openspec-update-change`, `openspec-sync-specs` under `.agents/skills` | the same skills under `.agents/skills` (CI job `check` rejects `openspec-*` under `.claude/skills`) |
+| permissions / sandbox | `.claude/settings.json` permissions and sandbox | `.codex/config.toml`: `approval_policy`, `sandbox_mode = "workspace-write"`, network off; read only for a trusted project | none: no repository permissions and no sandbox |
+| auto-install | the trust dialog registers the pinned marketplace | none: `codex plugin marketplace add joe-yama/agentic-harness --ref <tag>`, install, trust (see `harness:adopt`) | `.github/copilot/settings.json` registers the pinned marketplace on trust (not verified; `harness:adopt` checks the install) |
+
+### Known gaps
+
+- **Codex hooks run only after you trust them.** Until then Codex skips the plugin hooks, silently in `codex exec`, and the guard does not run. Project config and rules also load only for a project trusted in `~/.codex/config.toml`.
+- **Codex hooks cannot ask.** `.codex/rules` prompts for `rm`, `curl`, `wget`, `gh` writes, pushes, `git worktree remove --force` and lockfile changes. Interactively it should ask (not verified); `codex exec` rejects those commands. The rules match command prefixes only (every `git push` prompts, not only pushes to protected branches, and `git -C . push` is not matched). Codex network is off, with no host allowlist.
+- **Codex ignores `sandbox_mode` in agent files.** The reviewer runs with the parent session's sandbox, writable; its instructions forbid edits and that is the only barrier.
+- **Copilot CLI has no repository permissions or sandbox.** The guard, CI and the branch ruleset are the barriers.
+- **Copilot PostToolUse cannot block.** Lint feedback arrives as context, so the model may carry on.
+- Copilot may show the AGENTS rules twice when `CLAUDE.md` is also present.
+- `.harness/env.json` holds the `HARNESS_*` settings for Codex and Copilot. Claude Code hooks read it too, for any variable that `.claude/settings.json` `env` leaves unset. Only the PO edits it (the guard rule `harness-env` refuses agent access) and it never carries the guard relaxations `HARNESS_ALLOW_LEASE_PUSH` and `HARNESS_RM_RF_ALLOW`. Paths are compared with `<segment>/../` collapsed; in commands a glob counts only in the last component, so `ls .harness/*/progress.md` passes. A brace expansion after `.harness/` (`{a,b}`, `{x..y}`) is refused; a `${name}` parameter is not (`cat .harness/${name}/progress.md` passes). The rule reads command text, so a glob in `.harness` itself (`.h*/env.json`) is not seen.
+- `test-on-stop` keeps an agent working while tests fail, even when it had paused to ask the PO a question (all three agents).
+
 ## Quick start
 
-Prerequisites: Claude Code ≥ 2.1.277, `jq`, `git`, [`uv`](https://docs.astral.sh/uv/), `gh`, and the OpenSpec CLI.
+Prerequisites: Claude Code ≥ 2.1.277 (Codex CLI ≥ 0.160.0 or Copilot CLI ≥ 1.0.91 when you select them), `jq`, `git`, [`uv`](https://docs.astral.sh/uv/), `gh`, and the OpenSpec CLI.
 
 ```sh
 # in the product repository (its default branch must already exist on GitHub)
@@ -39,11 +66,11 @@ claude            # interactive: accept the trust dialog; this registers the mar
 claude plugin install harness@agentic-harness --scope project
 ```
 
-Do not run `claude plugin marketplace add joe-yama/agentic-harness` yourself: that registers the unpinned default branch under the same name. Then, in a new session, ask Claude to run **`harness:adopt`** from step 4 on: it sets up OpenSpec (without its extra skills and commands), applies the branch ruleset (after you confirm) and verifies that the guard is live. The skill is the full procedure, including creating the repository.
+Add `--data agents="[claude,codex]"` (or answer the question `agents`) to render another agent's files; the default is `[claude]`. `harness:adopt` has the per-agent install, OpenSpec and verification steps for Codex and Copilot CLI. Do not run `claude plugin marketplace add joe-yama/agentic-harness` yourself: that registers the unpinned default branch under the same name. Then, in a new session, ask Claude to run **`harness:adopt`** from step 4 on: it sets up OpenSpec (without its extra skills and commands), applies the branch ruleset (after you confirm) and verifies that the guard is live. The skill is the full procedure, including creating the repository.
 
 ## Configuration
 
-The template writes these into `.claude/settings.json` → `env`. The hooks do nothing for an unset command, so a repository can adopt the harness before choosing a stack.
+The template writes these into `.claude/settings.json` → `env`. For Codex and Copilot CLI the hooks read them from `.harness/env.json`; an environment variable of the same name wins over the file. The hooks do nothing for an unset command, so a repository can adopt the harness before choosing a stack.
 
 | Variable | Default | Used by |
 |---|---|---|
@@ -77,6 +104,8 @@ Moving from 0.3.x to 0.4.0 is not backward compatible; `harness:adopt` has the f
 
 - **Plugins run with your user privileges.** Read `plugins/harness/scripts/` at the tag you install. Hooks need only `bash`, `jq` and `git`.
 - `HARNESS_*_CMD` values come from the repository's own committed settings and run with `bash -c`. Treat a change to them like any code change.
+- Codex and Copilot CLI plugin hooks run with your privileges too. Review the hooks when Codex asks you to trust them; a trusted project config and rules run as you.
+- `.harness/env.json` is read by the hooks of every agent, Claude Code included (for a `HARNESS_*` variable that `.claude/settings.json` `env` leaves unset), and its `HARNESS_LINT_CMD` and `HARNESS_TEST_CMD` run with `bash -c`. Review a change to it like a change to `.claude/settings.json`; the guard keeps agents from editing it, the PO edits it.
 - Do not run `claude -p` over repositories you do not trust without `--bare`: committed hooks run in headless mode.
 - The hooks match command text; they are a tripwire, not a sandbox. The template turns on the Claude Code sandbox (credential directories unreadable, network limited to GitHub and package registries) as the OS-level boundary. Known gaps and false positives:
   - a quoted string is checked as a command only after `-c` (`sh -c '…'`, `bash -lc "…"`, also with options in between: `bash -c -- '…'`) or `eval`, as a here-string to a shell (`bash <<< '…'`), and as an argument of `watch` or `ssh <host>`; `-c` of `grep`, `wc`, `head` and the like is a flag. Other quoted strings (commit messages, grep patterns, Issue bodies) are data, and so is a command substitution inside double quotes (`echo "$(rm -rf x)"` passes);
@@ -99,11 +128,11 @@ Tags `vX.Y.Z` (template) and `harness--vX.Y.Z` (plugin, from `claude plugin tag`
 ## Development
 
 ```sh
-bash tests/all.sh   # shellcheck, hook cases (tests/hooks/cases.tsv), lifecycle tests, hook timing, rule mutation test, manifests + claude plugin validate, template renders
+bash tests/all.sh   # shellcheck, Codex agent files, hook cases (tests/hooks/cases.tsv), lifecycle tests, hook timing, rule mutation test, manifests + claude plugin validate, template renders
 claude --plugin-dir plugins/harness   # load the plugin under development
 ```
 
-Before each commit, `tests/lint.sh`, `tests/hooks/run.sh` and `tests/hooks/lifecycle.sh` (and `tests/template/run.sh` for template changes) are enough; run `all.sh` before review and before a PR. Requires `jq`, `git`, `uv` and the `claude` CLI. Every hook rule sits between `# rule:<id>` and `# end:<id>`; `tests/hooks/mutate.sh` deletes each rule in turn and fails if no test notices.
+Before each commit, `tests/lint.sh`, `tests/hooks/run.sh` and `tests/hooks/lifecycle.sh` (`tests/template/run.sh` for template changes; after editing `plugins/harness/agents/*.md`, `bash scripts/gen-codex-agents.sh` and then `tests/codex-agents.sh`) are enough; run `all.sh` before review and before a PR. Requires `jq`, `git`, `uv` and the `claude` CLI. Every hook rule sits between `# rule:<id>` and `# end:<id>`; `tests/hooks/mutate.sh` deletes each rule in turn and fails if no test notices.
 
 ## Credits
 

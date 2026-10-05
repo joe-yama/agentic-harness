@@ -1,6 +1,17 @@
 _min_copier_version: "9.18"
 _subdirectory: template
 _answers_file: .copier-answers.yml
+# A custom _exclude replaces Copier's default list, so the defaults are repeated; includes/ holds shared Jinja and is never rendered.
+_exclude:
+  - copier.yml
+  - copier.yaml
+  - "~*"
+  - "*.py[co]"
+  - __pycache__
+  - .git
+  - .DS_Store
+  - .svn
+  - includes
 
 project_name:
   type: str
@@ -41,3 +52,25 @@ ui_review:
   type: bool
   default: false
   help: Add Playwright MCP so the reviewer can drive the running UI
+agents:
+  type: str
+  multiselect: true
+  default: [claude]
+  choices:
+    Claude Code: claude
+    OpenAI Codex CLI: codex
+    GitHub Copilot CLI: copilot
+  help: Coding agents this repository is worked with (each gets its own settings)
+  validator: "{% if not agents %}Pick at least one{% endif %}"
+use_claude:
+  type: bool
+  default: "{{ 'claude' in agents }}"
+  when: false
+use_codex:
+  type: bool
+  default: "{{ 'codex' in agents }}"
+  when: false
+use_copilot:
+  type: bool
+  default: "{{ 'copilot' in agents }}"
+  when: false
