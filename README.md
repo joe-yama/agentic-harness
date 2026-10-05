@@ -10,7 +10,7 @@ One repository, two channels, one version line:
 
 | Channel | Carries | Updated by |
 |---|---|---|
-| **Plugin** `harness@agentic-harness` (`plugins/harness/`) | hooks: `guard` (hard blocks), `ask-gate` (routes to the PO), `lint-on-edit`, `test-on-stop`; subagents `harness:implementer` (Sonnet, effort medium) and `harness:reviewer` (Opus, effort high) in Claude Code, with the models of the other agents in `docs/harness/models.md`; skills `harness:workflow`, `harness:design`, `harness:execute`, `harness:mutation-check`, `harness:adopt` | `claude plugin update` |
+| **Plugin** `harness@agentic-harness` (`plugins/harness/`) | hooks: `guard` (hard blocks), `ask-gate` (routes to the PO), `lint-on-edit`, `test-on-stop`, `subagent-start` / `subagent-stop`; the monitor `watchdog`; subagents `harness:implementer` (Sonnet, effort medium) and `harness:reviewer` (Opus, effort high) in Claude Code, with the models of the other agents in `docs/harness/models.md`; skills `harness:workflow`, `harness:design`, `harness:execute`, `harness:mutation-check`, `harness:adopt` | `claude plugin update` |
 | **Copier template** (`copier.yml`, `template/`) | what a plugin cannot carry: `AGENTS.md`, `CLAUDE.md` (`@AGENTS.md` + Claude specifics), `.claude/rules/`, `.claude/settings.json` (permissions, sandbox, `HARNESS_*` env, plugin pin), CI job `check`, Dependabot, PR template, OpenSpec config, status / ledger / lessons docs, branch ruleset; for each agent selected with the Copier question `agents` (`claude`, `codex`, `copilot`; default `claude`): Codex gets `.codex/config.toml`, `.codex/rules/harness.rules` and `.codex/agents/harness-*.toml`, Copilot CLI gets `.github/copilot/settings.json` and `.github/copilot-instructions.md`, and both get `.harness/env.json` (hook settings); `CLAUDE.md` and `.claude/settings.json` render only with `claude`; `.claude/rules/` renders for every selection (Codex is told to read it at the start of every session) | `copier update` (a reviewable PR) |
 
 The plugin has no plugin dependencies. OpenSpec comes from its own CLI; the harness uses only `/opsx:propose`, `/opsx:archive` and `/opsx:update` (and `opsx/sync.md`, which `/opsx:archive` calls). The template's CI job `check` fails when `.claude/skills/openspec-*` or any other `opsx` command is present, because `openspec update` restores them under its default profile. To keep them from being generated, each person can set OpenSpec's global profile (it is not per repository): `openspec config set profile custom`, `openspec config set workflows '["propose","archive","update"]'`, `openspec config set delivery commands`.
@@ -25,6 +25,8 @@ The template's `.claude/settings.json` sets `superpowers@claude-plugins-official
 | `ask-gate` (PreToolUse on Bash and Monitor) | asks the PO for pushes to protected branches (and refspec-less pushes from them), remote branch deletion, `--all` / `--mirror` / `--prune`, `git worktree remove --force`, and lockfile-changing installs (pnpm, npm, yarn, bun, uv, pip, cargo) |
 | `lint-on-edit` (PostToolUse) | runs `HARNESS_LINT_CMD <file>` on each edited file and makes Claude fix failures immediately |
 | `test-on-stop` (Stop) | runs `HARNESS_TEST_CMD` before the turn ends when non-doc files changed, and keeps Claude working while it fails |
+| `subagent-start` / `subagent-stop` (SubagentStart / SubagentStop) | record each subagent (transcript path, start, done) under the plugin data directory for the watchdog; `subagent-stop` sends a `harness:implementer` or `harness:reviewer` reply back once when it is not the short block of its agent file (`STATUS`, the reviewer's `VERDICT`, `ARTIFACT` naming an existing report, at most 8 lines), so the controller's context gets a few lines per subagent and the report stays in a file |
+| `watchdog` (plugin monitor) | runs beside every interactive session and prints one line only when a running subagent has not written its transcript for 15 min (`STALL`) or has run 2 h (`TIMEOUT`); silent otherwise, so waiting for a subagent costs no tokens |
 
 ## Agents
 
@@ -37,6 +39,7 @@ The same plugin carries the hooks, subagents and skills for all three agents; th
 | `lint-on-edit` | `decision: block` JSON, the agent fixes the file | `decision: block` JSON, the agent fixes the file | cannot block; the lint output arrives as context (top-level `additionalContext`) |
 | `test-on-stop` | keeps the agent working while tests fail | same | same |
 | subagents | `harness:implementer`, `harness:reviewer` | `harness-implementer`, `harness-reviewer`, `harness-reviewer-intermediate` from `.codex/agents/` (generated from the plugin agents by `scripts/gen-codex-agents.sh`); spawned with `fork_turns: "none"` so a child does not inherit the parent's context | `harness:implementer`, `harness:reviewer`; every dispatch passes `model` and `reasoning_effort` from `docs/harness/models.md` |
+| subagent monitoring | the completion notice, Claude Code's own 10-minute stall timeout, `subagent-start` / `subagent-stop` and the `watchdog` monitor (interactive sessions only) | the reply block and report file by instruction only; no watchdog | the reply block and report file by instruction only; no watchdog |
 | skills | `harness:workflow`, `harness:design`, `harness:execute`, `harness:mutation-check`, `harness:adopt` | the same, as `$harness:<skill>` | the same, shown without the `harness:` prefix (`workflow`, `design`, …) |
 | OpenSpec | `/opsx:propose`, `/opsx:archive`, `/opsx:update` | skills `openspec-propose`, `openspec-archive-change`, `openspec-update-change`, `openspec-sync-specs` under `.agents/skills` | the same skills under `.agents/skills` (CI job `check` rejects `openspec-*` under `.claude/skills`) |
 | permissions / sandbox | `.claude/settings.json` permissions and sandbox | `.codex/config.toml`: `approval_policy`, `sandbox_mode = "workspace-write"`, network off; read only for a trusted project | none: no repository permissions and no sandbox |
@@ -52,6 +55,7 @@ The same plugin carries the hooks, subagents and skills for all three agents; th
 - Copilot may show the AGENTS rules twice when `CLAUDE.md` is also present.
 - `.harness/env.json` holds the `HARNESS_*` settings for Codex and Copilot. Claude Code hooks read it too, for any variable that `.claude/settings.json` `env` leaves unset. Only the PO edits it (the guard rule `harness-env` refuses agent access) and it never carries the guard relaxations `HARNESS_ALLOW_LEASE_PUSH` and `HARNESS_RM_RF_ALLOW`. Paths are compared with `<segment>/../` collapsed; in commands a glob counts only in the last component, so `ls .harness/*/progress.md` passes. A brace expansion after `.harness/` (`{a,b}`, `{x..y}`) is refused; a `${name}` parameter is not (`cat .harness/${name}/progress.md` passes). The rule reads command text, so a glob in `.harness` itself (`.h*/env.json`) is not seen.
 - `test-on-stop` keeps an agent working while tests fail, even when it had paused to ask the PO a question (all three agents).
+- **The watchdog runs only in interactive Claude Code sessions.** Plugin monitors do not run under `claude -p`; there only Claude Code's own stall timeout (`CLAUDE_ASYNC_AGENT_STALL_TIMEOUT_MS`) applies. The heartbeat is the subagent's transcript, written once per message: a single model response that streams for longer than `HARNESS_WATCHDOG_IDLE` is reported as a stall.
 
 ## Quick start
 
@@ -79,6 +83,7 @@ The template writes these into `.claude/settings.json` → `env`. For Codex and 
 | `HARNESS_TEST_CMD` | unset (no test) | `test-on-stop` |
 | `HARNESS_DOC_PATTERN` | `\.(md\|txt)$\|^docs/\|^openspec/\|^\.claude/` | paths that never trigger lint or tests |
 | `HARNESS_PROTECTED_BRANCHES` | `main` | `ask-gate`, and `guard` for `HARNESS_ALLOW_LEASE_PUSH`; space-separated |
+| `HARNESS_WATCHDOG_IDLE` / `HARNESS_WATCHDOG_MAX` | `900` / `7200` | `watchdog`: seconds without a transcript write before `STALL`, and seconds since a subagent's start before `TIMEOUT` (Claude Code only; read from the session environment, not from `.harness/env.json`) |
 
 ### Opt-in guard exceptions
 

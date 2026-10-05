@@ -1,0 +1,7 @@
+[
+  {
+    "name": "watchdog",
+    "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/watchdog.sh\" \"${CLAUDE_PLUGIN_DATA}\"",
+    "description": "harness: stalled or overlong subagents"
+  }
+]

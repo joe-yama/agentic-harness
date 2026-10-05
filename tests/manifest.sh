@@ -9,6 +9,7 @@ cd "$repo" || exit 1
 # shellcheck disable=SC2034 # m and p are read only by the evals in check()
 m=.claude-plugin/marketplace.json p=plugins/harness/.claude-plugin/plugin.json
 h=plugins/harness/hooks/hooks.json
+mon=plugins/harness/monitors/monitors.json
 check() { if eval "$2"; then ok; else ng "$1"; fi; }
 
 check m-name '[ "$(jq -r .name $m)" = agentic-harness ]'
@@ -34,8 +35,12 @@ done < <(jq -r "${hooks}[].command" $h | grep -oE 'scripts/[a-z-]+\.sh')
 check h-monitor '[ "$(jq -r "[.hooks.PreToolUse[] | select(.matcher == \"Bash|Monitor\")] | length" $h)" = 1 ]'
 check h-plugin-root '! jq -r "${hooks}[].command" $h | grep -vE "^bash \"\\\$\{CLAUDE_PLUGIN_ROOT\}/scripts/" | grep -q .'
 check h-patch-matcher '[ "$(jq -r "[.hooks.PreToolUse[] | select(.matcher == \"Read|Edit|Write|MultiEdit|NotebookEdit|apply_patch\")] | length" $h)" = 1 ]'
+check h-subagent '[ "$(jq -r "[.hooks.SubagentStart[].hooks[].command, .hooks.SubagentStop[].hooks[].command] | join(\" \")" $h)" = "bash \"\${CLAUDE_PLUGIN_ROOT}/scripts/subagent-start.sh\" bash \"\${CLAUDE_PLUGIN_ROOT}/scripts/subagent-stop.sh\"" ]'
+# The watchdog is a plugin monitor (interactive sessions only), started with the plugin data directory
+# where subagent-start.sh and subagent-stop.sh keep the run records.
+check mon-watchdog '[ "$(jq -r "length" $mon)" = 1 ] && [ "$(jq -r ".[0].command" $mon)" = "bash \"\${CLAUDE_PLUGIN_ROOT}/scripts/watchdog.sh\" \"\${CLAUDE_PLUGIN_DATA}\"" ]'
 for s in plugins/harness/scripts/*.sh; do
-  check "h-wired-$(basename "$s")" "grep -qF 'scripts/$(basename "$s")' $h"
+  check "h-wired-$(basename "$s")" "grep -qF 'scripts/$(basename "$s")' $h $mon"
 done
 # No skill, agent, hook or template file may call a Superpowers skill (`superpowers:<skill>`).
 # The settings line `"superpowers@claude-plugins-official": false` has no colon after the name,
