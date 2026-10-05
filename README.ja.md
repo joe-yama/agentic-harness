@@ -10,7 +10,7 @@
 
 | 経路 | 運ぶもの | 更新方法 |
 |---|---|---|
-| **プラグイン** `harness@agentic-harness`（`plugins/harness/`） | hooks: `guard`（無条件ブロック）、`ask-gate`（PO の確認に回す）、`lint-on-edit`、`test-on-stop`。サブエージェント: `harness:implementer`（Sonnet、effort medium）、`harness:reviewer`（Opus、effort high）（Claude Code の場合。ほかのエージェントのモデルは `docs/harness/models.md`）。スキル: `harness:workflow`、`harness:design`、`harness:execute`、`harness:mutation-check`、`harness:adopt` | `claude plugin update` |
+| **プラグイン** `harness@agentic-harness`（`plugins/harness/`） | hooks: `guard`（無条件ブロック）、`ask-gate`（PO の確認に回す）、`lint-on-edit`、`test-on-stop`、`subagent-start` / `subagent-stop`。monitor: `watchdog`。サブエージェント: `harness:implementer`（Sonnet、effort medium）、`harness:reviewer`（Opus、effort high）（Claude Code の場合。ほかのエージェントのモデルは `docs/harness/models.md`）。スキル: `harness:workflow`、`harness:design`、`harness:execute`、`harness:mutation-check`、`harness:adopt` | `claude plugin update` |
 | **Copier テンプレート**（`copier.yml`、`template/`） | プラグインでは運べないもの: `AGENTS.md`、`CLAUDE.md`（`@AGENTS.md` + Claude 固有の差分）、`.claude/rules/`、`.claude/settings.json`（permissions・sandbox・`HARNESS_*` の env・プラグインの版の固定）、CI の job `check`、Dependabot、PR テンプレート、OpenSpec の設定、状態・台帳・教訓の各ドキュメント、ブランチの ruleset。Copier の質問 `agents`（`claude`・`codex`・`copilot`、既定は `claude`）で選んだエージェントごとに: Codex は `.codex/config.toml`・`.codex/rules/harness.rules`・`.codex/agents/harness-*.toml`、Copilot CLI は `.github/copilot/settings.json`・`.github/copilot-instructions.md`、両者に `.harness/env.json`（hook の設定）。`CLAUDE.md` と `.claude/settings.json` は `claude` を選んだときだけ描画する。`.claude/rules/` はどの選択でも描画する（Codex にはセッションの最初に読むよう指示する） | `copier update`（レビューできる PR になる） |
 
 プラグインは別のプラグインに依存しません。OpenSpec は OpenSpec 自身の CLI から入れます。ハーネスが使うのは `/opsx:propose`、`/opsx:archive`、`/opsx:update`（と、`/opsx:archive` が内から呼ぶ `opsx/sync.md`）だけです。テンプレートの CI の job `check` は、`.claude/skills/openspec-*` やほかの `opsx` のコマンドがあると失敗します。`openspec update` が既定の profile でそれらを戻すためです。生成させないために、各自が OpenSpec のグローバルな profile を設定できます（リポジトリごとには持てません）: `openspec config set profile custom`、`openspec config set workflows '["propose","archive","update"]'`、`openspec config set delivery commands`。
@@ -25,6 +25,8 @@
 | `ask-gate`（Bash・Monitor の PreToolUse） | 次を PO の確認に回す: 保護ブランチへの push（保護ブランチ上での refspec 無しの push を含む）、リモートブランチの削除、`--all` / `--mirror` / `--prune`、`git worktree remove --force`、lockfile を変える install（pnpm・npm・yarn・bun・uv・pip・cargo） |
 | `lint-on-edit`（PostToolUse） | 編集したファイルごとに `HARNESS_LINT_CMD <file>` を実行し、失敗をその場で直させる |
 | `test-on-stop`（Stop） | ドキュメント以外が変わっていれば、ターンを終える前に `HARNESS_TEST_CMD` を実行する。失敗している間は作業を続けさせる |
+| `subagent-start` / `subagent-stop`（SubagentStart / SubagentStop） | watchdog のために、サブエージェントごとの記録（transcript のパス・開始・終了）をプラグインのデータディレクトリに残す。`subagent-stop` は、`harness:implementer` と `harness:reviewer` の返答がエージェントのファイルにある短いブロック（`STATUS`、reviewer の `VERDICT`、実在するレポートを指す `ARTIFACT`、8 行以内）でなければ一度だけ差し戻す。コントローラのコンテキストにはサブエージェント 1 つにつき数行だけが入り、レポートはファイルに残る |
+| `watchdog`（プラグインの monitor） | 対話セッションごとに並走し、実行中のサブエージェントが transcript を 15 分書いていない（`STALL`）か、2 時間動き続けている（`TIMEOUT`）ときだけ 1 行出す。それ以外は何も出さないので、サブエージェントを待つ間トークンを使わない |
 
 ## エージェント
 
@@ -37,6 +39,7 @@
 | `lint-on-edit` | `decision: block` の JSON。エージェントがファイルを直す | 同じ | ブロックできない。lint の出力はコンテキストとして届く（トップレベルの `additionalContext`） |
 | `test-on-stop` | テストが失敗している間は作業を続けさせる | 同じ | 同じ |
 | サブエージェント | `harness:implementer`、`harness:reviewer` | `.codex/agents/` の `harness-implementer`、`harness-reviewer`、`harness-reviewer-intermediate`（プラグインのエージェントから `scripts/gen-codex-agents.sh` で生成）。子が親のコンテキストを引き継がないよう `fork_turns: "none"` で起動する | `harness:implementer`、`harness:reviewer`。呼び出しのたびに `docs/harness/models.md` の `model` と `reasoning_effort` を渡す |
+| サブエージェントの監視 | 完了通知、Claude Code 自身の 10 分の stall timeout、`subagent-start` / `subagent-stop`、monitor `watchdog`（対話セッションのみ） | 返答ブロックとレポートファイルは指示だけ。watchdog なし | 返答ブロックとレポートファイルは指示だけ。watchdog なし |
 | スキル | `harness:workflow`、`harness:design`、`harness:execute`、`harness:mutation-check`、`harness:adopt` | 同じ。`$harness:<skill>` で呼ぶ | 同じ。`harness:` の接頭辞なしで表示される（`workflow`、`design` …） |
 | OpenSpec | `/opsx:propose`、`/opsx:archive`、`/opsx:update` | `.agents/skills` の `openspec-propose`、`openspec-archive-change`、`openspec-update-change`、`openspec-sync-specs` | `.agents/skills` の同じスキル（`.claude/skills` の `openspec-*` は CI の job `check` が拒否します） |
 | 権限 / sandbox | `.claude/settings.json` の permissions と sandbox | `.codex/config.toml`: `approval_policy`、`sandbox_mode = "workspace-write"`、ネットワークは無効。信頼したプロジェクトでだけ読まれる | なし。リポジトリの権限も sandbox も無い |
@@ -52,6 +55,7 @@
 - Copilot は `CLAUDE.md` もあると、AGENTS の規則を二重に表示することがあります。
 - `.harness/env.json` は Codex と Copilot 用の `HARNESS_*` の設定です。Claude Code の hooks も、`.claude/settings.json` の `env` が設定していない変数についてはこれを読みます。編集するのは PO だけで（guard の規則 `harness-env` がエージェントのアクセスを拒否します）、guard を緩める `HARNESS_ALLOW_LEASE_PUSH` と `HARNESS_RM_RF_ALLOW` は入れません。パスは `<segment>/../` を畳んでから比べます。コマンドでは最後の要素にある glob だけを数えるので、`ls .harness/*/progress.md` は通ります。`.harness/` の後のブレース展開（`{a,b}`、`{x..y}`）は拒否し、`${name}` のパラメータは拒否しません（`cat .harness/${name}/progress.md` は通ります）。この規則はコマンドの文字列を見るので、`.harness` 自体にある glob（`.h*/env.json`）は見えません。
 - `test-on-stop` は、テストが失敗している間、エージェントが PO への質問のために止まっていても、作業を続けさせます（3 つのエージェントすべて）。
+- **watchdog は Claude Code の対話セッションでしか動きません。** プラグインの monitor は `claude -p` では動かず、そこで効くのは Claude Code 自身の stall timeout（`CLAUDE_ASYNC_AGENT_STALL_TIMEOUT_MS`）だけです。ハートビートはサブエージェントの transcript で、メッセージ 1 つごとに書かれます。1 回のモデルの応答が `HARNESS_WATCHDOG_IDLE` より長くストリームし続けると stall として報告されます。
 
 ## はじめ方
 
@@ -87,6 +91,7 @@ claude plugin install harness@agentic-harness --scope project
 | `HARNESS_TEST_CMD` | 未設定（テストしない） | `test-on-stop` |
 | `HARNESS_DOC_PATTERN` | `\.(md\|txt)$\|^docs/\|^openspec/\|^\.claude/` | lint もテストも起こさないパス |
 | `HARNESS_PROTECTED_BRANCHES` | `main` | `ask-gate` と、`HARNESS_ALLOW_LEASE_PUSH` の `guard`。空白区切り |
+| `HARNESS_WATCHDOG_IDLE` / `HARNESS_WATCHDOG_MAX` | `900` / `7200` | `watchdog`。`STALL` までの transcript 無更新の秒数と、`TIMEOUT` までのサブエージェント開始からの秒数（Claude Code のみ。`.harness/env.json` ではなくセッションの環境変数から読む） |
 
 ### guard の例外（オプトイン）
 

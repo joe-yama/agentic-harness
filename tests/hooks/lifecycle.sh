@@ -205,6 +205,166 @@ cop=$(printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf build"},"
 coprc=$?
 expect cp-form-json '[ $coprc = 0 ] && printf "%s" "$cop" | jq -e "keys == [\"hookSpecificOutput\"] and .hookSpecificOutput.permissionDecision == \"deny\" and .hookSpecificOutput.hookEventName == \"PreToolUse\" and (.hookSpecificOutput.permissionDecisionReason | startswith(\"BLOCKED by harness guard (rm-rf)\"))" >/dev/null'
 
+# Subagent monitoring: subagent-start records each subagent under $CLAUDE_PLUGIN_DATA/runs/<session>/<agent>/,
+# subagent-stop marks it done and checks the reply contract of harness agents, watchdog reports stalls.
+PD="$TMP_ROOT/pdata"
+SESS="$TMP_ROOT/sessions/s1.jsonl" # the session transcript; the subagent's is s1/subagents/agent-<id>.jsonl
+mkdir -p "$TMP_ROOT/sessions/s1/subagents"
+rec() { printf '%s' "$PD/runs/s1/$1"; }
+sub() { # <script> <json> [env args] -> sets rc, out
+  local s=$1 j=$2
+  shift 2
+  # shellcheck disable=SC2034 # read by the eval in expect()
+  out=$(printf '%s' "$j" | env CLAUDE_PLUGIN_DATA="$PD" "$@" "$HOOK_BASH" "$HOOKS_DIR/$s.sh" 2>/dev/null)
+  rc=$?
+}
+start() { # <agent id> [extra json] [env args]
+  local id=$1 x=${2:-'{}'}
+  shift 2 2>/dev/null || shift $#
+  sub subagent-start "$(jq -nc --arg id "$id" --arg tp "$SESS" --argjson x "$x" \
+    '{hook_event_name:"SubagentStart",session_id:"s1",transcript_path:$tp,agent_id:$id,agent_type:"harness:implementer",cwd:"/"} + $x')" "$@"
+}
+start a1
+expect sa-record '[ $rc = 0 ] && [ -z "$out" ] && [ "$(cat "$(rec a1)/transcript")" = "$TMP_ROOT/sessions/s1/subagents/agent-a1.jsonl" ] && grep -Eq "^[0-9]+$" "$(rec a1)/start" && [ "$(cat "$(rec a1)/type")" = harness:implementer ]'
+start a2 '{}' CLAUDE_PLUGIN_DATA=
+expect sa-no-data '[ $rc = 0 ] && [ -z "$out" ] && [ ! -e "$(rec a2)" ]'
+start '../../escape'
+expect sa-unsafe-id '[ $rc = 0 ] && [ ! -e "$PD/escape" ] && [ ! -e "$PD/runs/escape" ]'
+start a3 '{"transcript_path":null}'
+expect sa-no-transcript '[ $rc = 0 ] && [ -e "$(rec a3)/start" ] && [ ! -s "$(rec a3)/transcript" ]'
+echo stall > "$(rec a1)/alerted" && : > "$(rec a1)/done"
+start a1
+expect sa-restart-resets '[ ! -e "$(rec a1)/done" ] && [ ! -e "$(rec a1)/alerted" ]'
+
+ART="$R/report.md"
+: > "$ART"
+good="STATUS: ok
+ARTIFACT: report.md
+SUMMARY:
+- task 1 committed (abc123..def456), tests green"
+stopj() { # <agent type> <message> [extra json] [env args]
+  local t=$1 m=$2 x=${3:-'{}'}
+  shift 3 2>/dev/null || shift $#
+  sub subagent-stop "$(jq -nc --arg t "$t" --arg m "$m" --arg d "$R" --arg tp "$SESS" --argjson x "$x" \
+    '{hook_event_name:"SubagentStop",session_id:"s1",transcript_path:$tp,agent_id:"a1",agent_type:$t,cwd:$d,stop_hook_active:false,last_assistant_message:$m,background_tasks:[]} + $x')" "$@"
+}
+sentback() { printf '%s' "$out" | jq -e --arg w "$1" '.decision == "block" and (.reason | contains($w))' >/dev/null 2>&1; }
+stopj harness:implementer "$good"
+expect sp-done '[ $rc = 0 ] && [ -z "$out" ] && [ -e "$(rec a1)/done" ]'
+rm -f "$(rec a1)/done"
+stopj harness:implementer "$good" '{}' CLAUDE_PLUGIN_DATA=
+expect sp-done-needs-data '[ $rc = 0 ] && [ -z "$out" ] && [ ! -e "$(rec a1)/done" ]'
+# Claude Code also sends SubagentStop for internal agents that had no SubagentStart: no record for them
+stopj general-purpose "x" '{"agent_id":"ghost"}'
+expect sp-no-record '[ $rc = 0 ] && [ ! -e "$(rec ghost)" ]'
+stopj general-purpose "Here is a long free-form answer."
+expect sp-other-type '[ $rc = 0 ] && [ -z "$out" ] && [ -e "$(rec a1)/done" ]'
+stopj harness:implementer "I implemented task 1. $good"
+expect sp-first-line '[ $rc = 0 ] && sentback "STATUS:"'
+stopj harness:implementer "STATUS: ok
+SUMMARY:
+- done"
+expect sp-no-artifact '[ $rc = 0 ] && sentback "ARTIFACT:"'
+stopj harness:implementer "STATUS: ok
+ARTIFACT: missing.md
+SUMMARY:
+- done"
+expect sp-artifact-missing '[ $rc = 0 ] && sentback "missing.md"'
+stopj harness:implementer "STATUS: ok
+ARTIFACT: $ART
+SUMMARY:
+- an absolute path counts"
+expect sp-artifact-absolute '[ $rc = 0 ] && [ -z "$out" ]'
+stopj harness:implementer "$good
+- 2
+- 3
+- 4
+- 5
+- 6"
+expect sp-too-long '[ $rc = 0 ] && sentback "8 lines"'
+stopj harness:reviewer "$good"
+expect sp-reviewer-verdict '[ $rc = 0 ] && sentback "VERDICT:"'
+stopj harness:reviewer "STATUS: ok
+VERDICT: Needs fixes
+ARTIFACT: report.md
+SUMMARY:
+- Critical 0, Important 2, Minor 1"
+expect sp-reviewer-ok '[ $rc = 0 ] && [ -z "$out" ]'
+stopj harness:reviewer "STATUS: partial
+ARTIFACT: report.md
+SUMMARY:
+- turn budget spent after spec compliance"
+expect sp-reviewer-partial '[ $rc = 0 ] && [ -z "$out" ]'
+stopj harness:implementer "free text" '{"stop_hook_active":true}'
+expect sp-active '[ $rc = 0 ] && [ -z "$out" ]'
+stopj harness:implementer "free text" '{"stop_hook_active":null}'
+expect sp-active-absent '[ $rc = 0 ] && [ -z "$out" ]'
+stopj harness:implementer "free text" '{"background_tasks":[{"id":"b1"}]}'
+expect sp-background '[ $rc = 0 ] && [ -z "$out" ]'
+
+# watchdog: one pass (--once) over the session's records, with small limits
+wd() { # [env args] -> sets rc, out
+  # shellcheck disable=SC2034 # read by the eval in expect()
+  out=$(env CLAUDE_CODE_SESSION_ID=s1 HARNESS_WATCHDOG_IDLE=100 HARNESS_WATCHDOG_MAX=1000 "$@" "$HOOK_BASH" "$HOOKS_DIR/watchdog.sh" "$PD" --once 2>/dev/null)
+  rc=$?
+}
+age() { perl -e 'my $t = time - shift; utime $t, $t, @ARGV' "$@"; } # <seconds ago> <file>...
+mkrec() { # <session> <agent> <started seconds ago> [transcript]
+  local d="$PD/runs/$1/$2"
+  rm -rf "$d" && mkdir -p "$d"
+  echo $(($(date +%s) - $3)) > "$d/start"
+  printf '%s\n' "${4:-}" > "$d/transcript"
+  echo harness:implementer > "$d/type"
+}
+rm -rf "$PD/runs"
+TR="$TMP_ROOT/sessions/s1/subagents/agent-w1.jsonl"
+: > "$TR"
+mkrec s1 w1 300 "$TR"
+wd
+expect wd-quiet '[ $rc = 0 ] && [ -z "$out" ]'
+age 200 "$TR"
+wd
+expect wd-stall '[ $rc = 0 ] && printf "%s" "$out" | grep -q "STALL harness:implementer w1" && [ "$(printf "%s\n" "$out" | wc -l)" -eq 1 ] && [ "$(cat "$PD/runs/s1/w1/alerted")" = stall ]'
+wd
+expect wd-once '[ -z "$out" ]'
+: > "$TR"
+wd
+expect wd-rearm '[ -z "$out" ] && [ ! -e "$PD/runs/s1/w1/alerted" ]'
+: > "$PD/runs/s1/w1/done"
+age 200 "$TR"
+wd
+expect wd-skip-done '[ -z "$out" ]'
+mkrec s1 w1 2000 "$TR"
+: > "$TR"
+wd
+expect wd-timeout '[ $rc = 0 ] && printf "%s" "$out" | grep -q "TIMEOUT harness:implementer w1" && [ "$(cat "$PD/runs/s1/w1/alerted")" = timeout ]'
+wd
+expect wd-timeout-once '[ -z "$out" ]'
+mkrec s1 w1 200 "$TMP_ROOT/sessions/s1/subagents/agent-none.jsonl"
+wd
+expect wd-no-transcript-file '[ $rc = 0 ] && printf "%s" "$out" | grep -q "STALL harness:implementer w1"'
+mkrec s1 w1 10 "$TR"
+age 500 "$TR"
+wd
+expect wd-resumed '[ -z "$out" ]' # an older transcript belongs to the run before the restart
+mkrec s1 w1 200
+wd
+expect wd-unknown-transcript '[ -z "$out" ]' # without a transcript path only the run limit applies
+echo soon > "$PD/runs/s1/w1/start"
+wd
+expect wd-bad-start '[ $rc = 0 ] && [ -z "$out" ]'
+rm -rf "$PD/runs/s1/w1"
+mkrec s2 x1 200 "$TR"
+age 200 "$TR"
+wd
+expect wd-other-session '[ -z "$out" ]'
+wd CLAUDE_CODE_SESSION_ID=
+expect wd-all-sessions 'printf "%s" "$out" | grep -q "STALL harness:implementer x1"'
+mkdir -p "$PD/runs/old"
+perl -e 'my $t = time - 8 * 86400; utime $t, $t, @ARGV' "$PD/runs/old"
+wd
+expect wd-prune '[ ! -e "$PD/runs/old" ] && [ -e "$PD/runs/s2" ]'
+
 # jq missing: a PATH with only the tools the hooks need, minus jq.
 NOJQ="$TMP_ROOT/nojq-bin"
 mkdir -p "$NOJQ"
@@ -233,5 +393,9 @@ expect nj-lint-skips '[ $rc = 0 ] && printf "%s" "$err" | grep -q "jq not found;
 rm -f "$M"
 nojq test-on-stop "{\"cwd\":\"$R\"}" HARNESS_TEST_CMD="$T"
 expect nj-stop-skips '[ $rc = 0 ] && [ -z "$out" ] && [ ! -e "$M" ] && printf "%s" "$err" | grep -q "jq not found; tests skipped"'
+nojq subagent-start '{"session_id":"s1","agent_id":"nj","transcript_path":"/x.jsonl"}' CLAUDE_PLUGIN_DATA="$PD"
+expect nj-subagent-start '[ $rc = 0 ] && [ -z "$out" ] && [ ! -e "$PD/runs/s1/nj" ]'
+nojq subagent-stop '{"session_id":"s1","agent_id":"nj","agent_type":"harness:implementer","stop_hook_active":false,"last_assistant_message":"x"}' CLAUDE_PLUGIN_DATA="$PD"
+expect nj-subagent-stop '[ $rc = 0 ] && [ -z "$out" ]'
 
 report "lifecycle"

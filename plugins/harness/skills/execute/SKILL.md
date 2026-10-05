@@ -18,9 +18,10 @@ Models and effort for every role (implementation, intermediate review, final rev
 
 ## 2. Dispatch
 
-- For each task, or each batch the plan marks, start `harness:implementer` (how to start each subagent: the table in section 3). Pass only: the change path, the task number(s) and the BASE SHA (the commit before the task starts). The task text is `tasks.md` itself; do not write a brief.
+- For each task, or each batch the plan marks, start `harness:implementer` (how to start each subagent: the table in section 3). Pass only: the change path, the task number(s), the BASE SHA (the commit before the task starts) and the report path `REPORT: .harness/<change>/reports/task-<N>-implementer.md` (`-r<k>` before `.md` for fix round k). The task text is `tasks.md` itself; do not write a brief.
 - **One implementer per worktree at a time.** They share the git index, build output and ports.
-- Note `Task N: dispatched (BASE <sha>)` in the ledger; on completion note the commit range and the review verdict.
+- Note `Task N: dispatched (BASE <sha>)` in the ledger; on completion note the commit range, the review verdict and the report paths.
+- **Replies.** Every harness subagent writes its full report to the report path and replies with a short block: `STATUS: ok | partial | blocked | failed`, the reviewer's `VERDICT`, `ARTIFACT: <report path>` and at most three summary lines. Judge from the block; open the report only when the next step needs it (findings to verify, a question, a failure). `partial`: resume the same subagent with a follow-up (table in section 3; the cache rule in section 4 applies). `blocked`: answer its question as below, by a follow-up. `failed`: read the report, then fix the cause or rebuild (section 3).
 - If an implementer asks a question that the change files answer, answer from them. If the files do not answer it and every way forward is a guess, that is a plan defect: stop and ask the PO (see `harness:workflow`). Otherwise rule by the spec, record the ruling, continue.
 
 ## 3. Review
@@ -32,7 +33,7 @@ Models and effort for every role (implementation, intermediate review, final rev
 - If `tasks.md` declares nothing, apply the same rule yourself and write the units into the ledger.
 - **Always review the whole branch once** at the end (section 5).
 
-**Package.** Give the reviewer paths and a range, never a diff body: the change path, the range `BASE..HEAD`, the task numbers under review, and the UI URL when there is UI. The reviewer's ground truth is the change's delta specs, `design.md` and `tasks.md`; it reads the diff itself (`git log`, `git diff BASE..HEAD`).
+**Package.** Give the reviewer paths and a range, never a diff body: the change path, the range `BASE..HEAD`, the task numbers under review, the report path `REPORT: .harness/<change>/reports/<unit>-review.md` (`-r<k>` for re-review k), the implementer reports of the unit, and the UI URL when there is UI. The reviewer's ground truth is the change's delta specs, `design.md` and `tasks.md`; it reads the diff itself (`git log`, `git diff BASE..HEAD`).
 
 **UI.** If the unit has UI, build and start the preview server yourself and pass its HTTP URL. The reviewer never builds (it must not change the working tree). List the UI items to check; the reviewer has a turn budget. Follow the project's rules on when UI is checked over HTTP (often once, at the final review). **Stop any preview server you started before handing work back to an implementer**: a running server can hold the port the test suite needs.
 
@@ -48,7 +49,7 @@ Codex: without `fork_turns: "none"` the child inherits the parent's context, and
 
 **Mutation checks.** Where a new refusal or security test needs `harness:mutation-check`, follow the project's rules (`AGENTS.md`, `.claude/rules/` where present, and project docs) for which tests it is required for. Otherwise run it only when the reviewer doubts a test.
 
-**Fix round.** On "Needs fixes", send **all** Critical and Important findings to the implementer in **one** follow-up to the same subagent (table above); split messages get findings dropped. When the implementer reports back, verify every "fixed" claim yourself with the diff and `grep` before re-review. Then re-review by a follow-up to the same reviewer (history and prompt cache are kept; this also resumes a reviewer that hit its turn limit). For mechanical one-line fixes (a rename, wording, a single value), verify with diff and grep yourself and skip the re-review.
+**Fix round.** On "Needs fixes", send **all** Critical and Important findings to the implementer in **one** follow-up to the same subagent (table above): the reviewer's report path and a new report path; split messages get findings dropped. When the implementer reports back, verify every "fixed" claim yourself with the diff and `grep` before re-review. Then re-review by a follow-up to the same reviewer (history and prompt cache are kept; this also resumes a reviewer that hit its turn limit). For mechanical one-line fixes (a rename, wording, a single value), verify with diff and grep yourself and skip the re-review.
 
 **Minor findings.** They never start a fix round. Copy them to the "Proposals" section at the end of the change's `tasks.md` and note them in the ledger.
 
@@ -65,8 +66,17 @@ Record the rebuild and its reason in the change's `openspec/changes/<name>/` (co
 
 ## 4. Waiting
 
+- **Wait for the completion notice; never poll.** After a dispatch, end your turn. No sleep loops, no reading a subagent's output file or transcript while it runs, no recurring check-ins: each costs a turn and fills your context.
+- **Stalls.** Claude Code stops a subagent that streams nothing for 10 minutes and reports it. The plugin's watchdog covers the rest:
+
+| Agent | Watchdog | On an alert |
+|---|---|---|
+| Claude Code | The plugin monitor `watchdog` starts with every interactive session and prints a `harness watchdog: STALL` line (no transcript write for 15 min) or `TIMEOUT` line (2 h since start) per subagent; it is silent otherwise. Limits: `HARNESS_WATCHDOG_IDLE`, `HARNESS_WATCHDOG_MAX` (seconds). Headless `claude -p` runs no monitors | Check for a pending permission prompt first. Otherwise `TaskStop` the agent id, then resume it with `SendMessage` (it keeps the cache when the rule below allows) or dispatch a fresh one with the same inputs and its report so far |
+| Codex | none | — |
+| Copilot CLI | none | — |
+
 - **Never leave a subagent waiting.** Do not dispatch a subagent whose answer you will not read soon, and do not hold one open while you wait for CI or the PO. Only the controller waits for CI.
-- A subagent's prompt cache expires after about five minutes. If more than five minutes passed since its last turn, do **not** resume it with a follow-up (table above); dispatch a fresh one with the same inputs plus what it needs to continue. If your agent cannot send a follow-up to a finished subagent, dispatch a fresh one with the same inputs plus the findings.
+- A subagent's prompt cache expires after about five minutes (an hour for `harness:implementer` in Claude Code: its `experimental.cacheTtl`, so a fix round after a review still hits the cache). If more than that passed since its last turn, do **not** resume it with a follow-up (table above); dispatch a fresh one with the same inputs plus what it needs to continue. If your agent cannot send a follow-up to a finished subagent, dispatch a fresh one with the same inputs plus the findings.
 - **Before re-dispatching,** check that the earlier subagent is not still running (list the running agents). A restarted or resumed session can find the previous subagent still working, and two on one worktree corrupt each other's state. Wait for it or stop it first.
 - **Context limit.** When your context passes about 200k tokens, or you must wait for the PO for more than an hour, write a handoff into the ledger (state, next task, open findings, first file to read) and end the session. Do not rely on compaction: it is itself a large request. A new session resumes from the ledger and the change files.
 

@@ -8,6 +8,7 @@ This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace
 |---|---|
 | `plugins/harness/scripts/` | hook scripts (bash + jq + git only) |
 | `plugins/harness/hooks/hooks.json` | hook wiring, commands via `${CLAUDE_PLUGIN_ROOT}` |
+| `plugins/harness/monitors/monitors.json` | the `watchdog` plugin monitor (interactive Claude Code sessions) |
 | `plugins/harness/agents/`, `plugins/harness/skills/` | subagents and skills (English) |
 | `scripts/` | maintainer tools (`gen-codex-agents.sh`); not shipped |
 | `template/` | files rendered into product repositories |
