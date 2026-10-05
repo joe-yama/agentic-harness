@@ -5,6 +5,10 @@ All notable changes to this project are documented here. The plugin version in
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-05
+
+The final 0.4.0: everything in 0.4.0-rc.1 (below; **not backward compatible**, the steps to move an adopted repository are in `harness:adopt`, "From 0.3.x to 0.4.0") plus the changes in this section. The README install and update commands now pin `v0.4.0`.
+
 ### Added
 
 - Codex CLI and GitHub Copilot CLI support. Copier question `agents` (`claude`, `codex`, `copilot`; default `claude`) renders each selected agent's files: `.codex/config.toml`, `.codex/rules/harness.rules`, `.codex/agents/harness-*.toml` (generated from the plugin agents by `scripts/gen-codex-agents.sh`; `tests/codex-agents.sh` checks them), `.github/copilot/settings.json`, `.github/copilot-instructions.md`, and `.harness/env.json` for hook settings. `CLAUDE.md` and `.claude/settings.json` render only when `claude` is selected; `.claude/rules/` renders for every selection, and the Codex specifics in `AGENTS.md` tell Codex to read `.claude/rules/*.md` at the start of every session.
