@@ -502,6 +502,11 @@ EOF
     # <segment>/../ names the parent, repeatedly (.harness/x/../env.json)
     hcmd=$(printf '%s\n' "$hcmd" | sed -E -e ':a' -e 's#(^|/)([^/.[:space:]][^/[:space:]]*|\.[^/.[:space:]][^/[:space:]]*|\.\.[^/[:space:]]+)/\.\./#\1#' -e 'ta')
     # end:harness-env-dotdot
+    # rule:harness-env-param
+    # ${name} is a parameter, not a brace expansion (.harness/${name}/progress.md); ${n:-env} and
+    # other ${...} forms keep their brace and are refused
+    hcmd=$(printf '%s\n' "$hcmd" | sed -E 's#\$\{([a-z_][a-z0-9_]*)\}#$\1#g')
+    # end:harness-env-param
     w='[^/[:space:];&|<>()`]'
     printf '%s\n' "$hcmd" \
       | grep -Eq "(^|[^a-z0-9_])\.harness/(([^[:space:];&|<>()\`]*\{)|(\*\*/)*$w*[*?[]$w*([[:space:];&|<>()\`]|\$)|($w*[*?[]$w*/)*env\.json)" \

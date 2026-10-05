@@ -479,6 +479,13 @@ g-henv-27	guard	none	-	block:harness-env	bash:cat .harness/**/env.json
 g-henv-28	guard	none	-	block:harness-env	bash:ls .harness/**/*.json
 g-henv-29	guard	none	-	block:harness-env	bash:cat .harness/{my-change/progress.md,env.json}
 g-henv-30	guard	none	-	pass	bash:cat .harness/a/../b.md
+g-henv-31	guard	none	-	pass	bash:cat .harness/${name}/progress.md
+g-henv-32	guard	none	-	pass	bash:cat .harness/$c/x
+g-henv-33	guard	none	-	block:harness-env	bash:cat .harness/{env,x}.json
+g-henv-34	guard	none	-	block:harness-env	bash:cat .harness/${name}{env,x}.json
+g-henv-35	guard	none	-	block:harness-env	bash:cat .harness/{e..f}nv.json
+g-henv-36	guard	none	-	block:harness-env	bash:cat .harness/${n:-env}.json
+g-henv-37	guard	none	-	block:harness-env	bash:ls .harness/${x}/{a,b}/progress.md
 g-sd-path-dotdot	guard	none	-	block:secrets-dir	file:Read:/Users/u/.config/x/../op/token
 g-obj-01	guard	none	-	block:env-file	raw:{"tool_name":"Edit","tool_input":{"file_path":".env","command":"*** Begin Patch\n*** Add File: a.ts\n*** End Patch"}}
 g-keys-01	guard	none	-	block:env-file	raw:{"tool_name":"Edit","tool_input":{"file_path":"src/a.ts","path":".env"}}
