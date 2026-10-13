@@ -52,13 +52,18 @@ check no-superpowers '! grep -rnI "superpowers:" plugins template'
 check neutral-skills '! grep -rnE "subagent_type|/goal|claude -p|scratchpad|SendMessage|Claude Code builds|/opsx:" plugins/harness/skills plugins/harness/agents | grep -vE "^[^:]+:[0-9]+:\|"'
 # One home per rule: the ruling format lives in harness:workflow, the mutation-check scope in harness:mutation-check,
 # the PR-time Issue comment contents in harness:workflow, the stop-and-ask list in the template AGENTS.md.
-# Others point to the owner. Offending lines (path:line:text) print on stdout.
+# Others point to the owner. Delivery copies of the mutation-check scope: the implementer agent (it has no Skill tool;
+# the Codex toml is generated from it) and the one dispatch line of harness:execute (the dispatch states the scope).
+# Offending lines (path:line:text) print on stdout.
 check one-home-ruling '! grep -rnF "Cost if wrong" plugins/harness template | grep -v "^plugins/harness/skills/workflow/SKILL.md:"'
-check one-home-mutation '! grep -rnF "refusal tests for authorization" plugins/harness template | grep -v "^plugins/harness/skills/mutation-check/SKILL.md:"'
+# shellcheck disable=SC2034 # read only by the evals in check()
+mut="refusal tests for authorization"
+check one-home-mutation '! grep -rnF "$mut" plugins/harness template | grep -vE "^(plugins/harness/skills/(mutation-check|execute)/SKILL\.md|plugins/harness/agents/implementer\.md|template/[^:]*/harness-implementer\.toml):" &&
+  [ "$(grep -c "$mut" plugins/harness/skills/execute/SKILL.md)" = 1 ] && grep -qF "$mut" plugins/harness/agents/implementer.md'
 check one-home-issue-comment '! grep -rnF "verdict per review unit" plugins/harness template | grep -v "^plugins/harness/skills/workflow/SKILL.md:"'
-check one-home-stop '! grep -rnE "rewriting pushed history|widens access" plugins/harness template | grep -v "^template/AGENTS.md.jinja:"'
-# The periodic retro runs the metrics script and archives stale lessons.
-check retro 'grep -qF "scripts/harness-metrics.sh --since" plugins/harness/skills/workflow/SKILL.md && grep -qF "docs/harness/lessons-archive.md" plugins/harness/skills/workflow/SKILL.md'
+check one-home-stop '! grep -rnE "rewriting pushed history|widens access|adding or changing a dependency" plugins/harness template | grep -v "^template/AGENTS.md.jinja:"'
+# The periodic retro reads and sets "Last retro:" in docs/status.md, runs the metrics script and archives stale lessons.
+check retro '( for w in "Last retro:" "scripts/harness-metrics.sh --since" "docs/harness/lessons-archive.md"; do grep -qF "$w" plugins/harness/skills/workflow/SKILL.md || exit 1; done )'
 if command -v claude >/dev/null 2>&1; then
   check validate-marketplace 'claude plugin validate . --strict >/dev/null 2>&1'
   check validate-plugin 'claude plugin validate plugins/harness --strict >/dev/null 2>&1'

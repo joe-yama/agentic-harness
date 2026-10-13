@@ -51,7 +51,7 @@ Splitting need not multiply the work around a change: several small changes can 
 
 ## Stop and ask
 
-Only for the four cases in the project's `AGENTS.md` ("Stop and ask only for"), which every session loads. For everything else, **do not stop**: rule, record the ruling (format below), continue.
+Only for the cases in the project's `AGENTS.md` ("Stop and ask only for"), which every session loads. For everything else during implementation, **do not stop**: rule, record the ruling (format below), continue.
 
 ## One home per fact
 
@@ -84,7 +84,7 @@ One Issue per change, titled with the change name. The body holds the goal, scop
 
 Rulings are linked (`design.md` and the heading), not pasted.
 
-Pass long bodies with `--body-file <file>`; command-like text in a heredoc body can trip hooks and the auto-mode classifier. Before any `gh` write, confirm `gh api user --jq .login` is the repository owner named in `AGENTS.md`.
+Pass long Issue and PR bodies with `--body-file <file>`; command-like text in a heredoc body can trip hooks and the auto-mode classifier. Before any `gh` write, confirm `gh api user --jq .login` is the repository owner named in `AGENTS.md`.
 
 ## Definition of done
 
@@ -100,11 +100,12 @@ Report "done" only when all of these hold, with evidence:
 
 Every 5 merged changes or once a month, whichever comes first, check what the harness itself costs:
 
-1. Run `scripts/harness-metrics.sh --since <date of the last retro>` where the period's ledgers (`.harness/`) still are. It prints one row per metric with its threshold; tune thresholds with the `HARNESS_METRIC_*` variables in its header.
-2. For a metric that says `over`, propose **one** small harness change to the PO as an Issue: a rule, a check or a budget cut, with the metric row as the evidence. Nothing over, no Issue.
-3. Move each lesson that is still prose 30 days after its date from `docs/harness/lessons.md` to `docs/harness/lessons-archive.md` (a `fix/` branch and PR).
+1. Read the line `Last retro: <YYYY-MM-DD>` in `docs/status.md`. The retro is due when a month has passed since then or 5 changes were archived after it (archive directories start with their date: `ls openspec/changes/archive/`).
+2. Run `scripts/harness-metrics.sh --since <that date>` where the period's ledgers (`.harness/`) still are. It prints one row per metric with its threshold; tune thresholds with the `HARNESS_METRIC_*` variables in its header. `--since` limits only the CI minutes; the other rows show the current state.
+3. For a metric that says `over`, propose **one** small harness change to the PO as an Issue: a rule, a check or a budget cut, with the metric row as the evidence. Nothing over, no Issue.
+4. Move each lesson that is still prose 30 days after its date from `docs/harness/lessons.md` to `docs/harness/lessons-archive.md`, and set `Last retro:` to today, on a `fix/` branch and PR.
 
-Record nothing else: no retro document and no metrics history.
+Record nothing else besides that line: no retro document and no metrics history.
 
 ## Models
 

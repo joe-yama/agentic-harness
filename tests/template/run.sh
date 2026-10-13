@@ -441,15 +441,16 @@ done
 check lessons-doc '( for w in "### <YYYY-MM-DD>" "30 days" "docs/harness/lessons-archive.md" "8,000 bytes" "harness:workflow"; do grep -qF "$w" "$D2/docs/harness/lessons.md" || exit 1; done )'
 check lessons-budget-ok 'step_run "$D2" "docs/harness/lessons.md size" : && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
 check lessons-budget-over 'step_run "$DP" "docs/harness/lessons.md size" "head -c 8001 /dev/zero | tr \"\0\" a >> docs/harness/lessons.md" && grep -qF "::warning" "$TMP_ROOT/step.log"'
-# One home per rule: the always-loaded files point to the owner instead of restating the mutation-check rule and the ruling format;
-# AGENTS.md holds the whole stop-and-ask list; the design.md heading rule sits in rules.design only.
-tasks_no_dn() { uvx --from copier@9.18.2 python -c 'import sys, yaml
-r = yaml.safe_load(open(sys.argv[1]))["rules"]
-sys.exit(0 if not any("### D<n>" in i for i in r["tasks"]) and any("### D<n>" in i for i in r["design"]) else 1)' "$1"; }
+check lessons-budget-absent 'step_run "$D2" "docs/harness/lessons.md size" "rm -f docs/harness/lessons.md" && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
+# The periodic retro reads and sets this current-state line.
+check status-last-retro 'grep -qE "^Last retro: <YYYY-MM-DD>" "$D2/docs/status.md"'
+# Render-specific half of one home per rule (tests/manifest.sh greps the sources): the rendered stop-and-ask section
+# holds every stop, testing.md keeps one mutation-check line, and `### D<n>` appears under rules.design only.
+stops() { sed -n '/^## Stop and ask/,/^## Definition/p' "$1"; }
+dn_design_only() { awk '/^  tasks:/ { t = 1 } /### D<n>/ { if (t) bad = 1; else d = 1 } END { exit !(d && !bad) }' "$1"; }
 for pair in "claude:$D2" "all:$DA"; do
-  check "one-home-${pair%%:*}" 'd=${pair#*:}; ! grep -qi "mutation" "$d/AGENTS.md" && [ "$(grep -c "mutation" "$d/.claude/rules/testing.md")" = 1 ] &&
-    ! grep -qF "Cost if wrong" "$d/AGENTS.md" "$d/openspec/config.yaml" && grep -qF "harness:workflow" "$d/openspec/config.yaml" &&
-    grep -qF "creating repositories" "$d/AGENTS.md" && grep -qF "widens access" "$d/AGENTS.md" && tasks_no_dn "$d/openspec/config.yaml"'
+  check "one-home-${pair%%:*}" 'd=${pair#*:}; ( for w in "rewriting pushed history" "widens access" "adding or changing a dependency" "creating repositories" "gh api user --jq .login" "octo" "every way forward is a guess"; do stops "$d/AGENTS.md" | grep -qF "$w" || exit 1; done ) &&
+    [ "$(grep -c "mutation" "$d/.claude/rules/testing.md")" = 1 ] && dn_design_only "$d/openspec/config.yaml"'
 done
 
 report template

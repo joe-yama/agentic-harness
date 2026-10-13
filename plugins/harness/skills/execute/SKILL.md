@@ -18,11 +18,11 @@ Models and effort for every role (implementation, intermediate review, final rev
 
 ## 2. Dispatch
 
-- For each task, or each batch the plan marks, start `harness:implementer` (how to start each subagent: the table in section 3). Pass only: the change path, the task number(s), the BASE SHA (the commit before the task starts), the report path `REPORT: .harness/<change>/reports/task-<N>-implementer.md` (`-r<k>` before `.md` for fix round k) and the line "Mutation checks: only within the scope of `harness:mutation-check`." The task text is `tasks.md` itself; do not write a brief. The implementer reads the task's paragraph, the Requirements and Scenarios its `Refs:` names and the `design.md` decisions (`D<n>`) it names, as files. To add context, point at a file section (a path and a heading), never paraphrase it. When a ruling or carry-over affects the task, add its `design.md` heading (or the ledger line) to the dispatch.
+- For each task, or each batch the plan marks, start `harness:implementer` (how to start each subagent: the table in section 3). Pass only: the change path, the task number(s), the BASE SHA (the commit before the task starts), the report path `REPORT: .harness/<change>/reports/task-<N>-implementer.md` (`-r<k>` before `.md` for fix round k) and the scope of `harness:mutation-check` in these words: "Mutation checks: refusal tests for authorization and data access, security tests, and tests the reviewer doubts; nothing else." The task text is `tasks.md` itself; do not write a brief. The implementer reads the task's paragraph, the Requirements and Scenarios its `Refs:` names and the `design.md` decisions (`D<n>`) it names, as files. To add context, point at a file section (a path and a heading), never paraphrase it. When a ruling or carry-over affects the task, add its `design.md` heading (or the ledger line) to the dispatch.
 - **One implementer per worktree at a time.** They share the git index, build output and ports.
 - Note `Task N: dispatched (BASE <sha>)` in the ledger; on completion note the commit range, the review verdict and the report paths.
 - **Replies.** Every harness subagent writes its full report to the report path and replies with a short block: `STATUS: ok | partial | blocked | failed`, the reviewer's `VERDICT`, `ARTIFACT: <report path>` and at most three summary lines. Judge from the block; open the report only when the next step needs it (findings to verify, a question, a failure). `partial`: resume the same subagent with a follow-up (table in section 3; the cache rule in section 4 applies). `blocked`: answer its question as below, by a follow-up. `failed`: read the report, then fix the cause or rebuild (section 3).
-- If an implementer asks a question that the change files answer, answer from them. If the files do not answer it and every way forward is a guess, that is a plan defect: stop and ask the PO (`AGENTS.md`, stop-and-ask item 4). Otherwise rule by the spec, record the ruling in `design.md`, continue.
+- If an implementer asks a question that the change files answer, answer from them. If the files do not answer it and every way forward is a guess, that is a plan defect: stop and ask the PO (`AGENTS.md`, "Stop and ask only for"). Otherwise rule by the spec, record the ruling in `design.md`, continue.
 - A task without `Refs:` (planned before `Refs:` existed): answer the blocked implementer by a follow-up with the section pointers. Do not edit `tasks.md`.
 
 ## 3. Review
@@ -49,11 +49,11 @@ Models and effort for every role (implementation, intermediate review, final rev
 
 Codex: without `fork_turns: "none"` the child inherits the parent's context, and the context that implemented something must never review it. `fork_turns: "none"` is verified with Codex CLI 0.160.0: the child starts without the parent's context (without it the child forks the parent). Copilot CLI: take `model` from the Copilot section of `docs/harness/models.md`; a dispatch without `model` fails (fallback `gpt-5.6-luna`).
 
-**Mutation checks.** Their scope is in `harness:mutation-check`; every implementer dispatch points to it (section 2). Record each result in the ledger.
+**Mutation checks.** Their scope is owned by `harness:mutation-check`; every implementer dispatch states it (section 2). Record each result in the ledger.
 
 **Fix round.** On "Needs fixes", send **all** Critical and Important findings to the implementer in **one** follow-up to the same subagent (table above): the reviewer's report path and a new report path; split messages get findings dropped. When the implementer reports back, verify every "fixed" claim yourself with the diff and `grep` before re-review. Then re-review by a follow-up to the same reviewer (history and prompt cache are kept; this also resumes a reviewer that hit its turn limit). For mechanical one-line fixes (a rename, wording, a single value), verify with diff and grep yourself and skip the re-review.
 
-**Minor findings.** They never start a fix round and are not copied anywhere: they stay in the review report, and the Issue comment at the PR gives their count and the report paths (section 5). The same holds for an implementer's out-of-scope observations. A repository may keep an optional `docs/proposals.md` that only the PO adds to.
+**Minor findings.** They never start a fix round and are not copied anywhere: they stay in the review report, and the Issue comment at the PR reports them (section 5). The same holds for an implementer's out-of-scope observations. A repository may keep an optional `docs/proposals.md` that only the PO adds to.
 
 - A report with only Minor and over-engineering findings counts as **Approved**.
 - Two exceptions: the PO asks for the fix, or someone shows why it is Important (an input that breaks, or a spec sentence it contradicts).
@@ -88,7 +88,7 @@ Record the rebuild and its reason in the ledger (`tasks.md` holds the plan only)
 2. **Pre-push checks.** Fix every Critical and Important finding of the final review (Minor findings stay in the report, as in section 3), then run the project's pre-commit and pre-push checks (its commands in `AGENTS.md` and its testing docs) once more.
 3. **Open the PR only after** implementation and the final review are done. No draft PR along the way, and do not open the PR at the start of a stage.
 4. **One push.** Collect fixes into a single push, so CI runs once per push; the archive commit after acceptance is the only planned second push. Intermediate state is not visible on GitHub; the ledger is where progress lives. If the PR needs more than a few CI runs, write the cause in the ledger.
-5. **PR body.** `Closes #<issue>` plus the evidence: commands and their results, the review verdict, the scenario-to-test map, and the CI run.
+5. **PR body** (pass it with `--body-file`). `Closes #<issue>` plus the evidence: commands and their results, the review verdict, the scenario-to-test map, and the CI run.
 6. **Issue comment.** Write **one** comment on the change's Issue when the PR is created, with the contents `harness:workflow` ("Issue") lists.
 7. **While CI runs,** prepare the archive commit: draft the new `docs/status.md` (current state only) in the ledger, so the commit is quick once the PO accepts. Record the CI result in the ledger. The CI result, not local green, is the final evidence.
 
