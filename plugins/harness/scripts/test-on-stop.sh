@@ -4,8 +4,8 @@
 # its turn when non-doc files have uncommitted changes; on failure returns {"decision":"block"} so
 # Claude keeps working. HARNESS_STOP_TEST_CMD is for a faster command than the full suite, such as
 # `vitest run --changed HEAD` or `pytest --testmon`: the hook pays it every turn, not every commit.
-# A worktree registered under the repository root (e.g. .worktrees/<name>/) and any other
-# repository inside it are another checkout's work and do not count as changes.
+# An untracked directory holding a .git file or directory (a worktree such as .worktrees/<name>/,
+# or another repository) is another checkout's work and does not count as a change.
 # stop_hook_active (set after a previous block) ends the loop.
 # {"decision":"block"} rather than hookSpecificOutput.additionalContext: both keep the turn going
 # under the same stop_hook_active protection, but every Claude Code version honors decision:block,
@@ -51,22 +51,12 @@ changed=$(
   } | sort -u
 )
 # rule:stop-nested-checkout
-# git lists an untracked repository or worktree as "<dir>/" without descending into it; a registered
-# worktree is also dropped by its path (a gitlink staged by mistake shows as "<dir>").
-# The case patterns open with "(": bash 3.2 misreads a bare ")" inside $(...).
-nested=$(
-  git -C "$root" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | while IFS= read -r w; do
-    case "$w" in ("$root"/*) printf '%s/\n' "${w#"$root"/}" ;; esac
-  done
-  printf '%s\n' "$changed" | while IFS= read -r p; do
-    case "$p" in (*/) [ -e "$root/$p.git" ] && printf '%s\n' "$p" ;; esac
-  done
-)
-if [ -n "$nested" ]; then
-  changed=$(printf '%s\n' "$changed" | NESTED=$nested awk '
-    BEGIN { k = split(ENVIRON["NESTED"], n, "\n") }
-    { for (i = 1; i <= k; i++) if (n[i] != "" && (index($0, n[i]) == 1 || $0 "/" == n[i])) next; print }')
-fi
+# git lists an untracked repository or worktree as "<dir>/" without descending into it.
+# The case pattern opens with "(": bash 3.2 misreads a bare ")" inside $(...).
+changed=$(printf '%s\n' "$changed" | while IFS= read -r p; do
+  case "$p" in (*/) [ -e "$root/$p.git" ] && continue ;; esac
+  printf '%s\n' "$p"
+done)
 # end:stop-nested-checkout
 # rule:stop-doc-only
 code=$(printf '%s\n' "$changed" | grep -v '^$' | grep -Ev -- "$doc" || true)
