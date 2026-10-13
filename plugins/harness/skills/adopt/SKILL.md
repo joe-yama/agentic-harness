@@ -180,3 +180,5 @@ grep -rnE '^(<<<<<<<|>>>>>>>) ' . --exclude-dir=.git     # Copier writes conflic
 ### From 0.4.x to 0.5.0 (multi-agent)
 
 `copier update` asks the new question `agents` (default `[claude]`, so nothing changes for a Claude Code repository). Selecting `codex` or `copilot` renders that agent's files and changes `.gitignore` and `ci.yml` (the OpenSpec step and the context-budget step cover the selected agents). Then follow steps 5, 6 and 8 for the added agent. The plugin's `hooks.json` uses the string command form now; nothing to do in the product repository.
+
+Changes already in flight keep their `tasks.md`. A task without the new `Refs:` label makes the implementer ask; the controller answers with the section pointers instead of editing `tasks.md` (`harness:execute`, section 2).

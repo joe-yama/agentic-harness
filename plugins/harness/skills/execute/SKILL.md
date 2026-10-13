@@ -7,7 +7,7 @@ description: The implementation session of a change - read the change, keep a le
 
 One session, or a few, carries a change from its `tasks.md` to an open PR. The change directory `openspec/changes/<name>/` is the plan: there is no separate plan document and no separate task brief. The controller distributes the tasks, judges and records; it does not write code and does not review. The reviewer's own rules live in the `harness:reviewer` agent (`harness:reviewer-intermediate` carries the same instructions), the implementer's in `harness:implementer`.
 
-Models and effort for every role (implementation, intermediate review, final review, and this controller session) are in the project's `docs/harness/models.md`, in your agent's section. Where your agent passes a model per dispatch, always pass it; an omitted model inherits the session's.
+Models and effort for every role (implementation, intermediate review, final review; in Claude Code also this controller session, the Controller row) are in the project's `docs/harness/models.md`, in your agent's section. Where your agent passes a model per dispatch, always pass it; an omitted model inherits the session's.
 
 ## 1. Start
 
@@ -18,19 +18,20 @@ Models and effort for every role (implementation, intermediate review, final rev
 
 ## 2. Dispatch
 
-- For each task, or each batch the plan marks, start `harness:implementer` (how to start each subagent: the table in section 3). Pass only: the change path, the task number(s), the BASE SHA (the commit before the task starts), the report path `REPORT: .harness/<change>/reports/task-<N>-implementer.md` (`-r<k>` before `.md` for fix round k) and the mutation-check scope in these words: "Mutation checks: refusal tests for authorization and data access, security tests, and tests the reviewer doubts; nothing else." The task text is `tasks.md` itself; do not write a brief. The implementer reads the task's paragraph, the Requirements and Scenarios its `Refs:` names and the `design.md` decisions (`D<n>`) it names, as files. To add context, point at a file section (a path and a heading), never paraphrase it.
+- For each task, or each batch the plan marks, start `harness:implementer` (how to start each subagent: the table in section 3). Pass only: the change path, the task number(s), the BASE SHA (the commit before the task starts), the report path `REPORT: .harness/<change>/reports/task-<N>-implementer.md` (`-r<k>` before `.md` for fix round k) and the mutation-check scope in these words: "Mutation checks: refusal tests for authorization and data access, security tests, and tests the reviewer doubts; nothing else." The task text is `tasks.md` itself; do not write a brief. The implementer reads the task's paragraph, the Requirements and Scenarios its `Refs:` names and the `design.md` decisions (`D<n>`) it names, as files. To add context, point at a file section (a path and a heading), never paraphrase it. When a ruling or carry-over affects the task, add its `design.md` heading (or the ledger line) to the dispatch.
 - **One implementer per worktree at a time.** They share the git index, build output and ports.
 - Note `Task N: dispatched (BASE <sha>)` in the ledger; on completion note the commit range, the review verdict and the report paths.
 - **Replies.** Every harness subagent writes its full report to the report path and replies with a short block: `STATUS: ok | partial | blocked | failed`, the reviewer's `VERDICT`, `ARTIFACT: <report path>` and at most three summary lines. Judge from the block; open the report only when the next step needs it (findings to verify, a question, a failure). `partial`: resume the same subagent with a follow-up (table in section 3; the cache rule in section 4 applies). `blocked`: answer its question as below, by a follow-up. `failed`: read the report, then fix the cause or rebuild (section 3).
 - If an implementer asks a question that the change files answer, answer from them. If the files do not answer it and every way forward is a guess, that is a plan defect: stop and ask the PO (see `harness:workflow`). Otherwise rule by the spec, record the ruling in `design.md`, continue.
+- A task without `Refs:` (planned before `Refs:` existed): answer the blocked implementer by a follow-up with the section pointers. Do not edit `tasks.md`.
 
 ## 3. Review
 
 **Units.** Follow what each task declares in `tasks.md`: solo, a named batch, or `final`.
 
 - A task is reviewed **solo** only when it carries the risk mark `security`, `authz`, `data` or `migration`. `ui` is not a solo mark: UI tasks go into batches (CI checks them, and the final review drives the app).
-- Everything else is reviewed in batches of four to six tasks.
-- A change of three tasks or fewer may skip intermediate reviews (`Review: final`): the final review is its only review.
+- Everything else is reviewed in batches of four to six tasks; the remainder may form a smaller batch.
+- A change of three tasks or fewer may skip intermediate reviews (`Review: final` on every task, risk marks included): the final review is its only review.
 - If `tasks.md` declares nothing, apply the same rule yourself and write the units into the ledger.
 - **Always review the whole branch once** at the end (section 5).
 
