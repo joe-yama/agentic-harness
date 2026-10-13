@@ -81,7 +81,7 @@ The template writes these into `.claude/settings.json` → `env`. For Codex and 
 | `HARNESS_LINT_CMD` | unset (no lint) | `lint-on-edit`; the edited file is passed as the last argument, never spliced into the command |
 | `HARNESS_LINT_PATTERN` | every non-doc file | `lint-on-edit`; extended regex on the repo-relative path |
 | `HARNESS_TEST_CMD` | unset (no test) | `test-on-stop` |
-| `HARNESS_STOP_TEST_CMD` | `HARNESS_TEST_CMD` | `test-on-stop` instead of `HARNESS_TEST_CMD`: a faster command for the end of every turn, such as `vitest run --changed HEAD` or `pytest --testmon`, while CI keeps the full suite. The template does not write it; add it yourself |
+| `HARNESS_STOP_TEST_CMD` | `HARNESS_TEST_CMD` | `test-on-stop` instead of `HARNESS_TEST_CMD`: a faster command for the end of every turn, such as `vitest run --changed HEAD` or `pytest --testmon`, while CI keeps the full suite. The template does not write it; add it yourself. A value in `.harness/env.json` applies to Claude Code too when `.claude/settings.json` `env` leaves this variable unset, even if `env` sets `HARNESS_TEST_CMD` |
 | `HARNESS_DOC_PATTERN` | `\.(md\|txt)$\|^docs/\|^openspec/\|^\.claude/` | paths that never trigger lint or tests |
 | `HARNESS_PROTECTED_BRANCHES` | `main` | `ask-gate`, and `guard` for `HARNESS_ALLOW_LEASE_PUSH`; space-separated |
 | `HARNESS_WATCHDOG_IDLE` / `HARNESS_WATCHDOG_MAX` | `900` / `7200` | `watchdog`: seconds without a transcript write before `STALL`, and seconds since a subagent's start before `TIMEOUT` (Claude Code only; read from the session environment, not from `.harness/env.json`) |

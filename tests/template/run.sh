@@ -297,8 +297,8 @@ mkdir -p "$MF/scripts" "$MF/src" "$MF/tests" "$MF/docs" "$MF/.claude/rules" "$MF
   "$MF/openspec/changes/feat-a" "$MF/openspec/changes/big" "$MF/openspec/changes/archive/2026-01-01-old"
 cp "$MS" "$MF/scripts/"
 printf '.harness/\n' > "$MF/.gitignore"
-seq 1 10 > "$MF/src/a.ts" && seq 1 6 > "$MF/src/b.py" # source: 16 lines
-seq 1 12 > "$MF/tests/test_b.py" && seq 1 12 > "$MF/src/a.test.ts" # tests: 24 lines
+seq 1 10 > "$MF/src/a.ts" && seq 1 6 > "$MF/src/b.py" && seq 1 4 > "$MF/src/日本.ts" # source: 20 lines (a quoted path would drop 4)
+seq 1 12 > "$MF/tests/test_b.py" && seq 1 12 > "$MF/src/a.test.ts" && seq 1 6 > "$MF/src/test_c.py" # tests: 30 lines
 seq 1 50 > "$MF/docs/guide.md" && seq 1 40 > "$MF/pnpm-lock.yaml" && echo '{}' > "$MF/package.json"
 printf '%01000d' 0 > "$MF/AGENTS.md" && printf '%0200d' 0 > "$MF/CLAUDE.md" && printf '%034d' 0 > "$MF/.claude/rules/x.md"
 printf 'Task 1: dispatched (BASE a1)\nTask 1: done a1..b2, Approved\nTask 2: dispatched (BASE b2)\nTask 3: dispatched (BASE c3)\n' > "$MF/.harness/feat-a/progress.md"
@@ -335,7 +335,7 @@ metrics() { # <PATH> [args]: runs the fixture's script from a subdirectory; sets
 }
 TAB=$(printf "\t")
 mrows() { # rows after the CI part, shared by the fixture runs
-  printf '%s\n' "dispatches_per_change${TAB}feat-a${TAB}3${TAB}20${TAB}ok" \
+  printf '%s\n' "dispatches_per_change${TAB}feat-a${TAB}6${TAB}20${TAB}ok" \
     "fix_rounds_per_unit${TAB}feat-a/batch-a${TAB}2${TAB}2${TAB}ok" \
     "fix_rounds_per_unit${TAB}feat-a/task-3${TAB}3${TAB}2${TAB}over" \
     "test_source_ratio${TAB}repo${TAB}1.50${TAB}1.5${TAB}ok" \

@@ -5,11 +5,13 @@
 #   --check  exit 1 when any metric is over its threshold (default: always exit 0)
 # Prints TSV with a header: metric, scope, value, threshold, status (ok | over; over means value > threshold).
 # Lines starting with "#" are notes (a metric that could not be measured). Needs bash, git and jq;
-# CI minutes also need an authenticated gh and are skipped without it.
+# CI minutes also need an authenticated gh and are skipped without it. Run it in the worktree of the
+# change: the ledger metrics read .harness/, which is gitignored and per checkout.
 # Thresholds (HARNESS_METRIC_* overrides):
 #   ci_minutes_per_pr       CI_MINUTES=20      sum of workflow run durations on the head branch of each of the
 #                                              last PRS=10 merged PRs
-#   dispatches_per_change   DISPATCHES=20      "dispatched" lines in the ledger .harness/<change>/progress.md
+#   dispatches_per_change   DISPATCHES=20      report files .harness/<change>/reports/*.md (every implementer run,
+#                                              review, fix round and re-review writes its own report)
 #   fix_rounds_per_unit     FIX_ROUNDS=2       highest k of .harness/<change>/reports/<unit>-review-r<k>.md
 #   test_source_ratio       TEST_RATIO=1.5     lines of tracked test files / lines of other tracked code files;
 #                                              TEST_PATTERN and CODE_PATTERN (extended regexes) pick them
@@ -51,7 +53,7 @@ t_ctx=${HARNESS_METRIC_CONTEXT_BYTES:-14400}
 t_solo=${HARNESS_METRIC_SOLO_SHARE:-40}
 t_tasks=${HARNESS_METRIC_CHANGE_TASKS:-15}
 t_chars=${HARNESS_METRIC_CHANGE_CHARS:-30000}
-test_re=${HARNESS_METRIC_TEST_PATTERN:-'(^|/)(tests?|__tests__|spec)/|[._-](test|spec)\.'}
+test_re=${HARNESS_METRIC_TEST_PATTERN:-'(^|/)(tests?|__tests__|spec)/|[._-](test|spec)\.|(^|/)test_[^/]*\.py$'}
 code_re=${HARNESS_METRIC_CODE_PATTERN:-'\.(ts|tsx|js|jsx|mjs|cjs|vue|svelte|astro|py|rb|go|rs|java|kt|kts|scala|swift|c|h|cc|cpp|hpp|cs|php|ex|exs|sh|sql)$'}
 not_code_re='^(docs|openspec|\.claude|\.github|\.codex|\.harness|\.agents)/|^scripts/harness-metrics\.sh$'
 
@@ -92,9 +94,9 @@ fi
 for led in .harness/*/; do
   [ -d "$led" ] || continue
   change=$(basename "$led")
-  if [ -f "$led/progress.md" ]; then
-    row dispatches_per_change "$change" "$(grep -cw dispatched "$led/progress.md")" "$t_disp"
-  fi
+  n=0
+  for r in "$led"/reports/*.md; do [ -f "$r" ] && n=$((n + 1)); done
+  row dispatches_per_change "$change" "$n" "$t_disp"
   [ -d "$led/reports" ] || continue
   units=$(for r in "$led"/reports/*-review.md "$led"/reports/*-review-r*.md; do
     [ -f "$r" ] || continue
@@ -119,7 +121,7 @@ lines() { # reads paths on stdin, prints their total line count
   done
   echo "$n"
 }
-code=$(git ls-files | grep -E -- "$code_re" | grep -Ev -- "$not_code_re")
+code=$(git -c core.quotePath=false ls-files | grep -E -- "$code_re" | grep -Ev -- "$not_code_re")
 tl=$(printf '%s\n' "$code" | grep -E -- "$test_re" | lines)
 sl=$(printf '%s\n' "$code" | grep -Ev -- "$test_re" | grep -v '^$' | lines)
 if [ "$sl" -gt 0 ]; then

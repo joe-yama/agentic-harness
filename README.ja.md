@@ -89,7 +89,7 @@ claude plugin install harness@agentic-harness --scope project
 | `HARNESS_LINT_CMD` | 未設定（lint しない） | `lint-on-edit`。編集したファイルは最後の引数として渡す。コマンド文字列には埋め込まない |
 | `HARNESS_LINT_PATTERN` | ドキュメント以外の全ファイル | `lint-on-edit`。リポジトリからの相対パスに対する拡張正規表現 |
 | `HARNESS_TEST_CMD` | 未設定（テストしない） | `test-on-stop` |
-| `HARNESS_STOP_TEST_CMD` | `HARNESS_TEST_CMD` | `HARNESS_TEST_CMD` の代わりに `test-on-stop` が使う。毎ターンの終わりに走らせる速いコマンド（`vitest run --changed HEAD`、`pytest --testmon` など）で、CI は全体のテストのまま。テンプレートは書かないので、使うなら自分で足す |
+| `HARNESS_STOP_TEST_CMD` | `HARNESS_TEST_CMD` | `HARNESS_TEST_CMD` の代わりに `test-on-stop` が使う。毎ターンの終わりに走らせる速いコマンド（`vitest run --changed HEAD`、`pytest --testmon` など）で、CI は全体のテストのまま。テンプレートは書かないので、使うなら自分で足す。`.claude/settings.json` の `env` がこの変数を設定していなければ、`env` が `HARNESS_TEST_CMD` を設定していても、`.harness/env.json` の値が Claude Code にも効く |
 | `HARNESS_DOC_PATTERN` | `\.(md\|txt)$\|^docs/\|^openspec/\|^\.claude/` | lint もテストも起こさないパス |
 | `HARNESS_PROTECTED_BRANCHES` | `main` | `ask-gate` と、`HARNESS_ALLOW_LEASE_PUSH` の `guard`。空白区切り |
 | `HARNESS_WATCHDOG_IDLE` / `HARNESS_WATCHDOG_MAX` | `900` / `7200` | `watchdog`。`STALL` までの transcript 無更新の秒数と、`TIMEOUT` までのサブエージェント開始からの秒数（Claude Code のみ。`.harness/env.json` ではなくセッションの環境変数から読む） |
