@@ -177,12 +177,13 @@ grep -rnE '^(<<<<<<<|>>>>>>>) ' . --exclude-dir=.git     # Copier writes conflic
 4. **`ci.yml` conflicts.** Keep the new OpenSpec-files step next to your own steps.
 5. **`docs/harness/models.md`** is new: the role-to-model table. Keep any project-specific history below it and make `CLAUDE.md` refer to it instead of naming models.
 
-### From 0.4.x to 0.5.0 (multi-agent)
+### Adding Codex or Copilot CLI (0.4.0 and later)
 
-`copier update` asks the new question `agents` (default `[claude]`, so nothing changes for a Claude Code repository). Selecting `codex` or `copilot` renders that agent's files and changes `.gitignore` and `ci.yml` (the OpenSpec step and the context-budget step cover the selected agents). Then follow steps 5, 6 and 8 for the added agent. The plugin's `hooks.json` uses the string command form now; nothing to do in the product repository.
+`copier update` asks the question `agents` (default `[claude]`, so nothing changes for a Claude Code repository). Selecting `codex` or `copilot` renders that agent's files and changes `.gitignore` and `ci.yml` (the OpenSpec step and the context-budget step cover the selected agents). Then follow steps 5, 6 and 8 for the added agent. The plugin's `hooks.json` uses the string command form now; nothing to do in the product repository.
 
-Changes already in flight keep their `tasks.md`. A task without the new `Refs:` label makes the implementer ask; the controller answers with the section pointers instead of editing `tasks.md` (`harness:execute`, section 2).
-Records, archive and tests (also 0.5.0):
+### From 0.4.x to 0.5.0
+
+0.5.0 cuts the harness's own cost: smaller changes, cheaper reviews, one home per fact and per rule, archive inside the feature PR. After `copier update`:
 
 1. **`docs/changes.md`** is no longer in the template, and `copier update` does not delete an existing one. Keep it as frozen history and stop appending: rulings now live only in each change's `design.md`, history in `openspec/changes/archive/`. When `AGENTS.md` conflicts, take the new index rows (archive instead of `docs/changes.md`, plus `docs/harness/testing.md`). Old `Proposals` sections in archived `tasks.md` files can stay.
 2. **`docs/status.md`** holds the current state only, at most 20,000 bytes. If it is larger, cut the history out of it (the archive has it).
@@ -191,3 +192,5 @@ Records, archive and tests (also 0.5.0):
 5. **`docs/harness/testing.md`** is new: adapt its layer table to the stack. Changes designed from now on carry a test plan table and `### D<n>` decision headings in `design.md`.
 6. **`docs/harness/lessons.md`** gets a lifecycle (its new header) and a budget of 8,000 bytes. Head each existing lesson `### <YYYY-MM-DD> <title>` with the date it was written (`git log` shows it), cut a lesson that already became a check to one line naming the check, and move prose-only lessons older than 30 days to `docs/harness/lessons-archive.md`. From then on the periodic retro (`harness:workflow`) moves them; add the line `Last retro: <YYYY-MM-DD>` to `docs/status.md` for it.
 7. **Rules now point to their owner.** When `AGENTS.md`, `.claude/rules/*.md` or `openspec/config.yaml` conflict, take the template's pointer lines: the ruling format lives in `harness:workflow`, the mutation-check scope in `harness:mutation-check` (the old rule that every guarding test needs a mutation check no longer holds), and the stop-and-ask list only in `AGENTS.md`.
+8. **Changes already in flight** keep their `tasks.md`. A task without the new `Refs:` label makes the implementer ask; the controller answers with the section pointers instead of editing `tasks.md` (`harness:execute`, section 2). Start new `harness:execute` sessions on the Controller row of `docs/harness/models.md` (Sonnet / medium). Codex projects get the regenerated `.codex/agents/harness-reviewer-intermediate.toml`.
+9. **`HARNESS_STOP_TEST_CMD`** (optional) sets a faster test command for `test-on-stop` (for example `vitest run --changed HEAD`); add it to `.claude/settings.json` `env`, or ask the PO to add it to `.harness/env.json`.

@@ -5,6 +5,39 @@ All notable changes to this project are documented here. The plugin version in
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-14
+
+Cuts the harness's own cost: smaller changes, cheaper reviews, one home per fact and per rule, no archive PR, a stop hook that runs less, and metrics with a periodic retro to keep it that way (#12–#20). The steps to move an adopted repository are in `harness:adopt`, "From 0.4.x to 0.5.0". The README install and update commands now pin `v0.5.0`.
+
+### Added
+
+- `harness:reviewer-intermediate` (Sonnet, effort medium) for task and batch reviews and their re-reviews; `harness:reviewer` stays the final whole-branch reviewer. `scripts/gen-codex-agents.sh` generates it from `reviewer.md` (whole frontmatter copied), `tests/codex-agents.sh` fails when it drifts, and `subagent-stop` holds it to the reviewer reply contract. The Codex `harness-reviewer-intermediate` and the Copilot intermediate review use effort medium. (#13)
+- `docs/harness/models.md`: a Controller row (the `harness:execute` session) on Sonnet / medium. (#13)
+- `Refs:` on every task in `tasks.md`: the Requirement names and the `design.md` decisions (`### D<n> <title>`) the task implements. Implementers and intermediate reviewers read only the task's paragraph and what its `Refs:` names; only the final review reads the whole change. (#20)
+- Change size budget: at most 15 tasks and 30,000 characters across `tasks.md` + `design.md`. `harness:design` checks it before proposing and splits an over-budget idea into independently shippable changes. (#12)
+- `design.md` gets a mandatory test plan table (behavior → one test layer); template `docs/harness/testing.md` holds the guidance (one layer per behavior, tests we do not write, invariants over per-feature tests). (#18)
+- Template CI job `check`: four warning-only steps (they never fail): change size per active change (`HARNESS_CHANGE_MAX_TASKS`, `HARNESS_CHANGE_MAX_CHARS`), `docs/status.md` size (`HARNESS_STATUS_MAX_BYTES`, 20,000), `docs/harness/lessons.md` size (`HARNESS_LESSONS_MAX_BYTES`, 8,000), and on pull requests the test-to-source line ratio (`HARNESS_TEST_RATIO_MAX`, 3; silenced by a PR body line starting `Test ratio:`; the PR body is read through `env`). Checkout uses `fetch-depth: 2`. (#12, #15, #18, #19)
+- Template `scripts/harness-metrics.sh` (bash + jq + git; `gh` optional): prints TSV `metric scope value threshold ok|over` for CI minutes per PR, subagent dispatches and fix rounds per change (from the ledgers), test/source line ratio, always-loaded context size, solo-review share and change size. Thresholds via `HARNESS_METRIC_*`; `--since` limits the CI minutes; `--check` exits non-zero when a metric is over. (#19)
+- `harness:workflow` "Periodic retro": every 5 archived changes or monthly, judged from a `Last retro: <YYYY-MM-DD>` line in `docs/status.md`, run the metrics; for each metric over its threshold propose one small harness change to the PO as an Issue; move stale lessons to the archive; set the date. Nothing else is recorded. (#19)
+- Lessons lifecycle in template `docs/harness/lessons.md`: each lesson is dated (`### <YYYY-MM-DD> <title>`) and either becomes a check (and shrinks to one line naming it) or moves to `docs/harness/lessons-archive.md` 30 days after its date. (#19)
+- `test-on-stop`: `HARNESS_STOP_TEST_CMD` (falls back to `HARNESS_TEST_CMD`) for a faster stop-time test command, for example `vitest run --changed HEAD` or `pytest --testmon`. (#14)
+
+### Changed
+
+- Review units: solo review only for `security`, `authz`, `data`, `migration`; `ui` is a batch mark; batches hold four to six tasks; a change of three tasks or fewer may use `Review: final`. (#13)
+- `tasks.md` holds the plan only: during execution it changes only by its checkboxes. Verdicts, carry-overs, mutation-check results and rebuilds go to the ledger; rulings go to the change's `design.md`. (#17, #20)
+- Mutation-check scope: refusal tests for authorization and data access, security tests, and tests the reviewer doubts. `harness:mutation-check` owns it; every implementer dispatch states it, and the implementer declines anything else. Template `.claude/rules/testing.md` no longer says every guarding test needs one. (#17, #19)
+- Archive moves into the feature PR: after PO acceptance and before merge, the last commit runs OpenSpec archive, syncs the specs and updates `docs/status.md`; it is reverted if the PR is sent back. A separate archive PR stays as an option. (#16)
+- One home per fact: rulings only in the change's `design.md` (the Issue links them), current state in `docs/status.md` (current state only, 20,000-byte budget), history in `openspec/changes/archive/`. Issue comments: two routine ones (implementation started; PR created with the final verdict, per-unit verdicts, Minor count and report path) plus blockers and changes of direction. (#15)
+- One home per rule: the ruling format and the PR-time Issue comment only in `harness:workflow`; the stop-and-ask list only in `AGENTS.md`, now complete (anything that widens access, dependency changes, creating repositories, the `gh` account check); `### D<n>` only in `openspec/config.yaml` `rules.design`. Restatements were removed from `AGENTS.md`, `.claude/rules/{scope,testing,git}.md`, `harness:design` and `harness:execute`. Always-loaded context of an all-agents render: 15,375 → 14,939 bytes. (#19)
+- `harness:reviewer`: the over-engineering pass covers tests (duplicated layers, brittle copy assertions, test/source ratio). (#18)
+- `test-on-stop` ignores untracked nested worktrees and repositories (a directory holding `.git`); template `.gitignore` ignores `.worktrees/`. (#14)
+
+### Removed
+
+- The `Proposals` section of `tasks.md`; Minor findings stay in the review reports. (#17)
+- `docs/changes.md` from the template, and the "Bundle changes" guidance from `harness:workflow` (replaced by the change size budget). (#12, #15)
+
 ## [0.4.0] - 2026-10-05
 
 The final 0.4.0: everything in 0.4.0-rc.1 (below; **not backward compatible**, the steps to move an adopted repository are in `harness:adopt`, "From 0.3.x to 0.4.0") plus the changes in this section. The README install and update commands now pin `v0.4.0`.
