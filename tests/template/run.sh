@@ -287,4 +287,64 @@ check update-ref '[ "$(settings "$D1" ".extraKnownMarketplaces[\"agentic-harness
 check update-applied 'grep -q "<!-- updated -->" "$D1/CLAUDE.md"'
 check update-no-conflict '! grep -rlE "^(<<<<<<<|>>>>>>>) " "$D1" --exclude-dir=.git | grep -q .'
 
+# One home per fact: no docs/changes.md copy; history is the OpenSpec archive. Test guidance lives in docs/harness/testing.md.
+for pair in "claude:$D2" "codex:$DC" "copilot:$DP" "all:$DA"; do
+  check "records-${pair%%:*}" 'd=${pair#*:}; [ ! -e "$d/docs/changes.md" ] && [ -f "$d/docs/harness/testing.md" ] && ! grep -rqF "docs/changes.md" "$d" --exclude-dir=.git &&
+    grep -qF "openspec/changes/archive/" "$d/AGENTS.md" && grep -qF "\`docs/harness/testing.md\`" "$d/AGENTS.md" && grep -qF "docs/harness/testing.md" "$d/.claude/rules/testing.md"'
+done
+check status-current-only 'grep -qiF "current state only" "$D2/docs/status.md" && grep -qF "20,000 bytes" "$D2/docs/status.md" && ! grep -qF "Proposals" "$D2/docs/status.md"'
+check testing-doc '( for w in "Tests we do not write" "Invariants" "one happy path" "route × audience"; do grep -qiF "$w" "$D2/docs/harness/testing.md" || exit 1; done )'
+check config-test-plan 'grep -qF "test plan" "$D2/openspec/config.yaml" && grep -qF "### D<n>" "$D2/openspec/config.yaml"'
+# <ci.yml> <step name prefix> [K=V ...]: the step's env as exports (K=V overrides one), then its run script. Fails unless exactly one step matches.
+step_script() { uvx --from copier@9.18.2 python -c 'import sys, yaml, shlex
+w = yaml.safe_load(open(sys.argv[1]))
+s = [x for x in w["jobs"]["check"]["steps"] if x.get("name", "").startswith(sys.argv[2])]
+if len(s) != 1: sys.exit(1)
+env = {k: str(v) for k, v in (s[0].get("env") or {}).items()}
+env.update(a.split("=", 1) for a in sys.argv[3:])
+print("".join("export %s=%s\n" % (k, shlex.quote(v)) for k, v in env.items()) + s[0]["run"])' "$@"; }
+# <rendered dir> <step name prefix> <setup run in the copy> [K=V ...]: runs the step as CI does (bash -e) in a copy; output in $TMP_ROOT/step.log.
+step_run() {
+  local d=$1 name=$2 setup=$3 script w
+  shift 3
+  script=$(step_script "$d/.github/workflows/ci.yml" "$name" "$@") && [ -n "$script" ] || return 99
+  w=$(mktemp -d "$TMP_ROOT/step.XXXXXX")
+  cp -R "$d/." "$w"
+  (cd "$w" && eval "$setup") >/dev/null 2>&1 || return 98
+  (cd "$w" && bash -e -c "$script") > "$TMP_ROOT/step.log" 2>&1
+}
+for pair in "claude:$D2" "codex:$DC" "copilot:$DP" "all:$DA" "claude-copilot:$DPC" "python:$D3"; do
+  check "context-budget-step-${pair%%:*}" 'step_run "${pair#*:}" "Context budget" :'
+done
+tasks() { local i; for i in $(seq "$2"); do echo "- [ ] 1.$i task"; done > "$1"; }
+big='mkdir -p openspec/changes/big openspec/changes/small openspec/changes/long openspec/changes/archive/2026-01-01-old
+tasks openspec/changes/big/tasks.md 16; tasks openspec/changes/small/tasks.md 15; tasks openspec/changes/archive/2026-01-01-old/tasks.md 40
+head -c 30001 /dev/zero | tr "\0" a > openspec/changes/long/design.md; : > openspec/changes/long/tasks.md'
+check change-budget-empty 'step_run "$D2" "Change size budget" : && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
+check change-budget-over 'step_run "$DA" "Change size budget" "$big" && grep -qF "::warning" "$TMP_ROOT/step.log" && grep -F "::warning" "$TMP_ROOT/step.log" | grep -qF "changes/big/" && grep -F "::warning" "$TMP_ROOT/step.log" | grep -qF "changes/long/" && ! grep -F "::warning" "$TMP_ROOT/step.log" | grep -qE "changes/(small|archive)/"'
+check change-budget-env 'step_run "$D2" "Change size budget" "$big" HARNESS_CHANGE_MAX_TASKS=16 HARNESS_CHANGE_MAX_CHARS=40000 && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
+check status-budget-ok 'step_run "$D2" "docs/status.md size" : && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
+pad='head -c 20001 /dev/zero | tr "\0" a >> docs/status.md'
+check status-budget-over 'step_run "$DC" "docs/status.md size" "$pad" && grep -qF "::warning" "$TMP_ROOT/step.log"'
+ratio='git init -q && git add -A && git commit -q -m base && mkdir -p src tests && seq 10 > src/a.js && seq $N > tests/a.test.js && seq 50 > README2.md && git add -A && git commit -q -m pr'
+check ratio-over 'step_run "$D2" "Test-to-source ratio" "N=31; $ratio" PR_BODY= && grep -qF "::warning" "$TMP_ROOT/step.log"'
+check ratio-ok 'step_run "$D2" "Test-to-source ratio" "N=30; $ratio" PR_BODY= && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
+check ratio-explained 'step_run "$DP" "Test-to-source ratio" "N=99; $ratio" "PR_BODY=$(printf "Closes #1\r\nTest ratio: one invariant table replaces 40 tests\r\n")" && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
+check ratio-no-base 'step_run "$D2" "Test-to-source ratio" : PR_BODY= && grep -qF "::warning" "$TMP_ROOT/step.log"'
+# Warning steps never fail the job and the PR body reaches the script only through env (never interpolated into run).
+warn_steps_ok() { uvx --from copier@9.18.2 python -c 'import sys, yaml
+w = yaml.safe_load(open(sys.argv[1]))
+st = w["jobs"]["check"]["steps"]
+co = [x for x in st if x.get("uses", "").startswith("actions/checkout@")][0]["with"]
+r = [x for x in st if x.get("name", "").startswith("Test-to-source ratio")][0]
+names = ("Change size budget", "docs/status.md size", "Test-to-source ratio")
+ok = co.get("persist-credentials") is False and int(co.get("fetch-depth", 1)) >= 2
+ok = ok and r.get("if") == "github.event_name == '"'"'pull_request'"'"'" and r["env"]["PR_BODY"] == "${{ github.event.pull_request.body }}"
+ok = ok and all("${{" not in x.get("run", "") and "continue-on-error" not in x for x in st if x.get("name", "").startswith(names))
+ok = ok and sum(1 for x in st if x.get("name", "").startswith(names)) == 3
+sys.exit(0 if ok else 1)' "$1"; }
+for pair in "claude:$D2" "codex:$DC" "copilot:$DP" "all:$DA"; do
+  check "warn-steps-${pair%%:*}" 'warn_steps_ok "${pair#*:}/.github/workflows/ci.yml"'
+done
+
 report template

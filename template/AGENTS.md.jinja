@@ -13,7 +13,7 @@
 
 ## How work flows
 
-Every change goes: idea (1-4 sentences from the PO) → design (`harness:design`) approved by the PO → OpenSpec proposal (`openspec/changes/<name>/`) plus one GitHub Issue → implementation of `tasks.md`, which is the plan (`harness:execute`: test-first implementation by a subagent, adversarial review by a separate subagent) → PR → PO acceptance → archive → `docs/status.md` updated. Small changes (docs, config or styles only, or at most 5 files without a new spec requirement) skip the design step but still get an Issue.
+Every change goes: idea (1-4 sentences from the PO) → design (`harness:design`) approved by the PO → OpenSpec proposal (`openspec/changes/<name>/`) plus one GitHub Issue → implementation of `tasks.md`, which is the plan (`harness:execute`: test-first implementation by a subagent, adversarial review by a separate subagent) → PR → PO acceptance → archive commit in the same PR (specs synced, `docs/status.md` updated) → merge. Small changes (docs, config or styles only, or at most 5 files without a new spec requirement) skip the design step but still get an Issue.
 
 ## Stop and ask only for
 
@@ -22,7 +22,7 @@ Every change goes: idea (1-4 sentences from the PO) → design (`harness:design`
 3. side effects outside the working copy: pushing to `{{ default_branch }}`, publishing, releases, merging;
 4. a plan defect where every way forward is a guess.
 
-For anything else during implementation, decide by the spec, record `Ruling / Reason / Cost if wrong` in the ledger and the Issue, and continue. The PO can overturn it.
+For anything else during implementation, decide by the spec, record `Ruling / Reason / Cost if wrong` in the change's `design.md` (the Issue links it), and continue. The PO can overturn it.
 
 ## Definition of done
 
@@ -54,8 +54,9 @@ Write commits, Issues, PRs, OpenSpec artifacts and status docs in {{ 'Japanese' 
 | When | Read |
 |---|---|
 | Where things stand, what is next, PO to-dos | `docs/status.md` |
-| Past changes and rulings | `docs/changes.md` |
+| Past changes and rulings | `openspec/changes/archive/` (grep it) |
 | Current specs / changes in progress | `openspec/specs/`, `openspec/changes/` |
+| Writing or reviewing tests | `docs/harness/testing.md` |
 | Tests or CI failed in an unexpected way | `docs/harness/lessons.md` |
 {% if use_codex %}| Codex: at the start of every session (git, scope, security and testing rules) | `.claude/rules/*.md` |
 

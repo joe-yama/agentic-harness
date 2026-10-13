@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 2 # the PR merge commit and its base parent, for the test-to-source ratio step
 {%- set ctx = ["AGENTS.md"] + (["CLAUDE.md"] if use_claude else []) + [".claude/rules/*.md"] + ([".github/copilot-instructions.md"] if use_copilot else []) %}
       - name: Context budget ({{ ctx | join(" + ") | replace("/*.md", "") }} <= 16000 bytes)
         run: |
@@ -40,4 +41,55 @@ jobs:
             echo "$bad"
             exit 1
           fi
+      # The three steps below only warn (::warning::); they never fail the job. Tune them with their env values.
+      - name: Change size budget (warning only)
+        env:
+          HARNESS_CHANGE_MAX_TASKS: 15
+          HARNESS_CHANGE_MAX_CHARS: 30000
+        run: |
+          for d in openspec/changes/*/; do
+            [ -d "$d" ] && [ "$d" != openspec/changes/archive/ ] || continue
+            tasks=0
+            if [ -f "${d}tasks.md" ]; then tasks=$(grep -cE '^- \[[ x]\] ' "${d}tasks.md" || true); fi
+            chars=$(( $(cat "${d}tasks.md" "${d}design.md" 2>/dev/null | wc -m) ))
+            echo "$d: $tasks tasks, $chars characters in tasks.md + design.md"
+            if [ "$tasks" -gt "$HARNESS_CHANGE_MAX_TASKS" ] || [ "$chars" -gt "$HARNESS_CHANGE_MAX_CHARS" ]; then
+              echo "::warning file=${d}tasks.md::$d is over the change size budget ($tasks/$HARNESS_CHANGE_MAX_TASKS tasks, $chars/$HARNESS_CHANGE_MAX_CHARS characters). Split it into independently shippable changes (harness:workflow, Change size budget)."
+            fi
+          done
+      - name: docs/status.md size budget (warning only)
+        env:
+          HARNESS_STATUS_MAX_BYTES: 20000
+        run: |
+          bytes=0
+          if [ -f docs/status.md ]; then bytes=$(( $(wc -c < docs/status.md) )); fi
+          echo "docs/status.md: $bytes bytes"
+          if [ "$bytes" -gt "$HARNESS_STATUS_MAX_BYTES" ]; then
+            echo "::warning file=docs/status.md::docs/status.md is $bytes bytes, over $HARNESS_STATUS_MAX_BYTES. It holds the current state only; history is in openspec/changes/archive/."
+          fi
+      - name: Test-to-source ratio (warning only, pull requests)
+        if: github.event_name == 'pull_request'
+        env:
+          HARNESS_TEST_RATIO_MAX: 3
+          HARNESS_TEST_PATTERN: '(^|/)(tests?|__tests__|specs?|e2e)/|[._-](test|spec)\.[^/]+$|(^|/)test_[^/]+$'
+          HARNESS_NONSOURCE_PATTERN: '\.(md|txt|json|ya?ml|toml|lock|lockb|svg|png|jpg)$|^docs/|^openspec/|^\.'
+          PR_BODY: {% raw %}${{ github.event.pull_request.body }}{% endraw %}
+        run: |
+          if printf '%s\n' "$PR_BODY" | grep -q '^Test ratio:'; then
+            echo "The PR body explains the test ratio."
+            exit 0
+          fi
+          if ! git rev-parse -q --verify 'HEAD^1' >/dev/null; then
+            echo "::warning::Test-to-source ratio not checked: the base commit is not fetched."
+            exit 0
+          fi
+          git diff --numstat 'HEAD^1' HEAD | awk -F '\t' '
+            $1 == "-" { next }
+            $3 ~ ENVIRON["HARNESS_TEST_PATTERN"] { t += $1; next }
+            $3 !~ ENVIRON["HARNESS_NONSOURCE_PATTERN"] { s += $1 }
+            END {
+              m = ENVIRON["HARNESS_TEST_RATIO_MAX"]
+              printf "added lines: %d test, %d source\n", t, s
+              if (t > m * s) printf "::warning::This PR adds %d test lines for %d source lines (more than %sx). Cut duplicated layers (docs/harness/testing.md), or explain why in a PR body line starting \"Test ratio:\".\n", t, s, m
+            }'
       # The first change adds the stack's setup, lint, typecheck, test and build steps here.

@@ -8,7 +8,10 @@ context: |
 rules:
   design:
     - 'Write only the decisions the implementation needs. An agreement already made is referenced in one line with its source, not copied.'
-    - 'Write each ruling as `Ruling / Reason / Cost if wrong`, under a heading with the date and a title.'
+    - 'Write each decision under a heading `### D<n> <title>` (D1, D2, ...), so tasks can refer to it by number.'
+    - 'Include a test plan table: each behavior (each delta-spec scenario) and the one layer that tests it. Defaults are in docs/harness/testing.md: E2E only for one happy path per feature across API, UI and DB; UI detail in component tests; visual detail in style lint or visual tests only. A second layer for the same behavior needs a reason in the table.'
+    - 'Write each ruling as `Ruling / Reason / Cost if wrong`, under a heading with the date and a title. Rulings live only here; the Issue links them.'
+    - 'Keep the change within budget: at most 15 tasks and 30,000 characters across tasks.md and design.md together. Over budget, split it into independently shippable changes.'
   tasks:
     - 'tasks.md is also the implementation plan. Do not write a separate design or plan document outside the change directory.'
     - 'Write `Issue: #<n>` on the first line once the Issue exists.'
