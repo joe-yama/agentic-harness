@@ -50,7 +50,7 @@ os_run() {
   (cd "$w" && bash -e -c "$run") > "$TMP_ROOT/os.log" 2>&1
 }
 # Reads the rows (lines starting with "|") of the first table of models.md (it stops at the first "## " line). Decision and final review must be Opus / high, implementation and
-# intermediate review Sonnet / medium; no row may use another model (Haiku included) or be a planning role (planning is part of the decision).
+# intermediate review and the controller (the execute session) Sonnet / medium; no row may use another model (Haiku included) or be a planning role (planning is part of the decision).
 models_ok() { awk -F'|' '
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return tolower(s) }
   /^## / { exit }
@@ -65,8 +65,9 @@ models_ok() { awk -F'|' '
     if (r ~ /^final review/) { fin++; if (m != "opus") bad = 1 }
     if (r ~ /^implementation/) { imp++; if (m != "sonnet") bad = 1 }
     if (r ~ /^intermediate review/) { mid++; if (m != "sonnet") bad = 1 }
+    if (r ~ /^controller/) { ctl++; if (m != "sonnet") bad = 1 }
   }
-  END { exit (bad || dec != 1 || fin != 1 || imp != 1 || mid != 1) }' "$1"; }
+  END { exit (bad || dec != 1 || fin != 1 || imp != 1 || mid != 1 || ctl != 1) }' "$1"; }
 # rows of the table under "## <heading>": four roles, a model, an effort, no Haiku
 agent_models_ok() { awk -F'|' -v h="## $2" '
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return tolower(s) }
@@ -133,7 +134,7 @@ check codex-section 'grep -qF "## Codex specifics" "$DC/AGENTS.md" && grep -qF "
 check codex-reads-rules 'grep -qF "\`.claude/rules/*.md\`" "$DC/AGENTS.md" && grep -qF "read them at the start of every session" "$DC/AGENTS.md" && grep -qE "^\| Codex: .*\| \`\.claude/rules/\*\.md\` \|$" "$DC/AGENTS.md" && ! grep -qF "read them at the start of every session" "$D1/AGENTS.md"'
 check codex-sandbox-gap 'grep -qF "sandbox_mode" "$DC/AGENTS.md" && grep -qF "sandbox_mode" "$DC/docs/harness/models.md" && ! grep -qF "sandbox_mode" "$D1/docs/harness/models.md"'
 check codex-rules-list '( for w in "\`rm\`" "\`curl\`" "\`wget\`" "\`gh\`" pushes lockfile; do grep -F "Codex hooks cannot ask" "$DC/AGENTS.md" | grep -qF "$w" || exit 1; done )'
-check codex-intermediate-same 'grep -qF "currently equals \`harness-reviewer\`" "$DC/docs/harness/models.md"'
+check codex-intermediate-same 'grep -qF "the same instructions as \`harness-reviewer\` with effort medium" "$DC/docs/harness/models.md" && ! grep -qF "currently equals" "$DC/docs/harness/models.md"'
 check env-po-only 'grep -qF "ask the PO to add them to \`.harness/env.json\`" "$DC/AGENTS.md" && ! grep -qF "and to \`.harness/env.json\`" "$DC/AGENTS.md"'
 check defaults-gitignore 'grep -qx ".harness/" "$D1/.gitignore"'
 if command -v codex >/dev/null 2>&1; then
@@ -286,5 +287,12 @@ fi
 check update-ref '[ "$(settings "$D1" ".extraKnownMarketplaces[\"agentic-harness\"].source.ref")" = v9.9.1 ]'
 check update-applied 'grep -q "<!-- updated -->" "$D1/CLAUDE.md"'
 check update-no-conflict '! grep -rlE "^(<<<<<<<|>>>>>>>) " "$D1" --exclude-dir=.git | grep -q .'
+
+# Review dispatch cost: the intermediate reviewer agent, task references, no Proposals section.
+check claude-dispatch-intermediate 'grep -qF "\`harness:reviewer-intermediate\`" "$D1/CLAUDE.md" && grep -qF "dispatches \`harness:reviewer-intermediate\`, whose frontmatter is \`sonnet\` / \`medium\`" "$D1/docs/harness/models.md"'
+check copilot-intermediate-medium 'grep -qE "^\| Intermediate review \| claude-sonnet-5\.5 \| medium \|$" "$DP/docs/harness/models.md"'
+check tasks-refs 'grep -qF "\`Refs:\`" "$D1/openspec/config.yaml" && grep -qF "### D<n> <title>" "$D1/openspec/config.yaml"'
+check tasks-no-proposals '! grep -qF "Proposals" "$D1/openspec/config.yaml"'
+check tasks-solo-marks 'grep -F "\`Review:\`" "$D1/openspec/config.yaml" | grep -qF "four to six" && ! grep -F "\`Review:\`" "$D1/openspec/config.yaml" | grep -qF "three or four"'
 
 report template

@@ -1,6 +1,6 @@
 ---
 name: mutation-check
-description: Proves that a test is a real guardian by breaking the code it guards in an isolated copy of the repository and watching the test go red, with a control run. Use after writing any test meant to catch a specific regression, and whenever "the tests are green" is being used as proof.
+description: Proves that a test is a real guardian by breaking the code it guards in an isolated copy of the repository and watching the test go red, with a control run. Use for refusal tests for authorization and data access, security tests, and tests the reviewer doubts; nothing else.
 ---
 
 # Mutation check
@@ -41,4 +41,4 @@ Run the overlay line from the working tree root. `<install>` and `<test>` are th
 
 ## Where it goes in a change
 
-When a change adds a guardian test, its `tasks.md` gets one task: "prove <test> is a guardian with `harness:mutation-check`", with the mutation to apply. That task may be a check-only commit.
+Scope: refusal tests for authorization and data access, security tests, and tests the reviewer doubts; nothing else. When a change adds a refusal or security test, its `tasks.md` gets one task: "prove <test> is a guardian with `harness:mutation-check`", with the mutation to apply. That task may be a check-only commit.

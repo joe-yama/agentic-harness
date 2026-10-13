@@ -11,4 +11,4 @@ Closes #
 ## Review
 
 - Branch-wide review verdict: <Approved / Needs fixes>
-- Minor findings moved to tasks.md "Proposals": <count>
+- Minor findings (they stay in the review reports): <count>, <report paths>
