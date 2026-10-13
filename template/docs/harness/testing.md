@@ -34,4 +34,4 @@ Prove each invariant once with `harness:mutation-check`; a new row needs no muta
 
 ## Test-to-source ratio
 
-CI warns (step `Test-to-source ratio`) when a PR adds more than `HARNESS_TEST_RATIO_MAX` (default 3) test lines per added source line. Cut the duplicated layers, or give the reason in a PR body line starting `Test ratio:`.
+CI warns (step `Test-to-source ratio`) when a PR adds more than `HARNESS_TEST_RATIO_MAX` (default 3) test lines per added source line (docs, specs and config count as neither), so a test-only PR always warns. Cut the duplicated layers, or give the reason in a PR body line starting `Test ratio:`.

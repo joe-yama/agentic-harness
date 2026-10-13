@@ -83,10 +83,10 @@ jobs:
             echo "::warning::Test-to-source ratio not checked: the base commit is not fetched."
             exit 0
           fi
-          git diff --numstat 'HEAD^1' HEAD | awk -F '\t' '
-            $1 == "-" { next }
+          git -c core.quotePath=false diff --numstat 'HEAD^1' HEAD | awk -F '\t' '
+            $1 == "-" || $3 ~ ENVIRON["HARNESS_NONSOURCE_PATTERN"] { next }
             $3 ~ ENVIRON["HARNESS_TEST_PATTERN"] { t += $1; next }
-            $3 !~ ENVIRON["HARNESS_NONSOURCE_PATTERN"] { s += $1 }
+            { s += $1 }
             END {
               m = ENVIRON["HARNESS_TEST_RATIO_MAX"]
               printf "added lines: %d test, %d source\n", t, s

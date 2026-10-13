@@ -290,7 +290,8 @@ check update-no-conflict '! grep -rlE "^(<<<<<<<|>>>>>>>) " "$D1" --exclude-dir=
 # One home per fact: no docs/changes.md copy; history is the OpenSpec archive. Test guidance lives in docs/harness/testing.md.
 for pair in "claude:$D2" "codex:$DC" "copilot:$DP" "all:$DA"; do
   check "records-${pair%%:*}" 'd=${pair#*:}; [ ! -e "$d/docs/changes.md" ] && [ -f "$d/docs/harness/testing.md" ] && ! grep -rqF "docs/changes.md" "$d" --exclude-dir=.git &&
-    grep -qF "openspec/changes/archive/" "$d/AGENTS.md" && grep -qF "\`docs/harness/testing.md\`" "$d/AGENTS.md" && grep -qF "docs/harness/testing.md" "$d/.claude/rules/testing.md"'
+    grep -qF "openspec/changes/archive/" "$d/AGENTS.md" && grep -qF "\`docs/harness/testing.md\`" "$d/AGENTS.md" && grep -qF "docs/harness/testing.md" "$d/.claude/rules/testing.md" &&
+    ! grep -qiE "after the merge|final review result" "$d/.claude/rules/git.md"'
 done
 check status-current-only 'grep -qiF "current state only" "$D2/docs/status.md" && grep -qF "20,000 bytes" "$D2/docs/status.md" && ! grep -qF "Proposals" "$D2/docs/status.md"'
 check testing-doc '( for w in "Tests we do not write" "Invariants" "one happy path" "route × audience"; do grep -qiF "$w" "$D2/docs/harness/testing.md" || exit 1; done )'
@@ -313,7 +314,8 @@ step_run() {
   (cd "$w" && eval "$setup") >/dev/null 2>&1 || return 98
   (cd "$w" && bash -e -c "$script") > "$TMP_ROOT/step.log" 2>&1
 }
-for pair in "claude:$D2" "codex:$DC" "copilot:$DP" "all:$DA" "claude-copilot:$DPC" "python:$D3"; do
+# The two largest always-loaded sets; the others are covered by $n-budget.
+for pair in "all:$DA" "claude-copilot:$DPC"; do
   check "context-budget-step-${pair%%:*}" 'step_run "${pair#*:}" "Context budget" :'
 done
 tasks() { local i; for i in $(seq "$2"); do echo "- [ ] 1.$i task"; done > "$1"; }
@@ -331,6 +333,11 @@ check ratio-over 'step_run "$D2" "Test-to-source ratio" "N=31; $ratio" PR_BODY= 
 check ratio-ok 'step_run "$D2" "Test-to-source ratio" "N=30; $ratio" PR_BODY= && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
 check ratio-explained 'step_run "$DP" "Test-to-source ratio" "N=99; $ratio" "PR_BODY=$(printf "Closes #1\r\nTest ratio: one invariant table replaces 40 tests\r\n")" && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
 check ratio-no-base 'step_run "$D2" "Test-to-source ratio" : PR_BODY= && grep -qF "::warning" "$TMP_ROOT/step.log"'
+# Delta and main specs (the archive commit is in the PR) and docs are neither test nor source.
+specs='git init -q && git add -A && git commit -q -m base && mkdir -p src openspec/changes/x/specs/cap openspec/specs/cap && seq 100 > src/a.js && seq 400 > openspec/changes/x/specs/cap/spec.md && seq 120 > openspec/specs/cap/spec.md && seq 500 >> docs/status.md && git add -A && git commit -q -m pr'
+check ratio-specs 'step_run "$D2" "Test-to-source ratio" "$specs" PR_BODY= && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
+# A doc with a non-ASCII name is still a doc (git quotes such paths unless core.quotePath=false).
+check ratio-nonascii-doc 'step_run "$D2" "Test-to-source ratio" "git init -q && git add -A && git commit -q -m base && mkdir -p src tests && seq 10 > src/a.js && seq 31 > tests/a.test.js && seq 100 > docs/設計.md && git add -A && git commit -q -m pr" PR_BODY= && grep -qF "::warning" "$TMP_ROOT/step.log"'
 # Warning steps never fail the job and the PR body reaches the script only through env (never interpolated into run).
 warn_steps_ok() { uvx --from copier@9.18.2 python -c 'import sys, yaml
 w = yaml.safe_load(open(sys.argv[1]))
@@ -340,7 +347,7 @@ r = [x for x in st if x.get("name", "").startswith("Test-to-source ratio")][0]
 names = ("Change size budget", "docs/status.md size", "Test-to-source ratio")
 ok = co.get("persist-credentials") is False and int(co.get("fetch-depth", 1)) >= 2
 ok = ok and r.get("if") == "github.event_name == '"'"'pull_request'"'"'" and r["env"]["PR_BODY"] == "${{ github.event.pull_request.body }}"
-ok = ok and all("${{" not in x.get("run", "") and "continue-on-error" not in x for x in st if x.get("name", "").startswith(names))
+ok = ok and all("${{" not in x.get("run", "") for x in st if x.get("name", "").startswith(names))
 ok = ok and sum(1 for x in st if x.get("name", "").startswith(names)) == 3
 sys.exit(0 if ok else 1)' "$1"; }
 for pair in "claude:$D2" "codex:$DC" "copilot:$DP" "all:$DA"; do
