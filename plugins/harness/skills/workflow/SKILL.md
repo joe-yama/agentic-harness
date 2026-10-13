@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: The per-change lifecycle of a PO-steered repository - design, OpenSpec proposal plus one GitHub Issue, implementation with review, PR, archive, status update, one new session per stage. Use when starting, resuming or finishing any change, or when unsure whether to stop and ask the PO.
+description: The per-change lifecycle of a PO-steered repository - design, OpenSpec proposal plus one GitHub Issue, change size budget, implementation with review, PR, archive and status update in the PR, where each record lives, one new session per stage. Use when starting, resuming or finishing any change, or when unsure whether to stop and ask the PO.
 ---
 
 # Change workflow
@@ -10,11 +10,11 @@ The PO (a human) decides what to build, priorities and acceptance, and does not 
 ## Lifecycle of one change
 
 1. **Idea.** The PO describes it in 1-4 sentences.
-2. **Design and proposal.** Run `harness:design`: the design dialogue with the PO, then OpenSpec propose writes the proposal, delta specs, `design.md` and `tasks.md` under `openspec/changes/<name>/`. `tasks.md` is also the implementation plan; there is no separate plan document. Create exactly one GitHub Issue for the change (see "Issue" below). Settle every open question here, so implementation never has to stop for the PO.
+2. **Design and proposal.** Run `harness:design`: the design dialogue with the PO, then OpenSpec propose writes the proposal, delta specs, `design.md` and `tasks.md` under `openspec/changes/<name>/`. `tasks.md` is also the implementation plan; there is no separate plan document. Create exactly one GitHub Issue for the change (see "Issue" below). Keep the change within the size budget (below). Settle every open question here, so implementation never has to stop for the PO.
 3. **Implementation.** In a **new session**, run `harness:execute`: ledger, one `harness:implementer` per task or batch, review in the units `tasks.md` declares, fix rounds. **One implementer per worktree at a time**, on a git worktree branch `feature/<change-name>`.
 4. **Final review and PR.** `harness:execute` ends with one review of the whole branch, then the PR with `Closes #<issue>` and the evidence (commands, results, CI run, review verdict). The implementing context never reviews its own work.
-5. **Acceptance.** The PO tries the result and merges.
-6. **Archive.** Run OpenSpec archive, copy the change's rulings into `docs/changes.md`, and update `docs/status.md` to the new current state.
+5. **Acceptance and archive.** The PO tries the result. When the PO says it is accepted (in the session or on the PR), the controller adds the last commit on the feature branch: OpenSpec archive (table below), which syncs the main specs, and the new current state in `docs/status.md`. It pushes once, and the PO merges after CI. If the PR is sent back after that commit, or CI fails on it, `git revert` it, fix, and archive again after the next acceptance.
+6. **Separate archive (option).** A project that wants acceptance after the merge says so in `AGENTS.md` and archives in a new session and PR after the merge, one per change or batched weekly.
 
 ## OpenSpec and agents
 
@@ -34,7 +34,7 @@ If a guardian test was written (a test meant to catch a specific regression), th
 
 ## One new session per stage
 
-Each stage runs in a new session: design and proposal; implementation (a few tasks at a time); final review and PR; archive. Hand-offs happen only through committed files (`design.md`, `tasks.md`, delta specs) and the ledger `.harness/<change>/progress.md`, never through conversation memory. Pass the next session the spec and design as files, not as a summary: a summary drops what the next session then has to re-read. Details for the implementation stage are in `harness:execute`.
+Each stage runs in a new session: design and proposal; implementation (a few tasks at a time); final review and PR. The archive commit belongs to the PR stage: the controller makes it if its session is still open, otherwise a short new session does, starting from the ledger. Only the separate archive option makes archive a stage of its own. Hand-offs happen only through committed files (`design.md`, `tasks.md`, delta specs) and the ledger `.harness/<change>/progress.md`, never through conversation memory. Pass the next session the spec and design as files, not as a summary: a summary drops what the next session then has to re-read. Details for the implementation stage are in `harness:execute`.
 
 ## Small-change path
 
@@ -45,9 +45,11 @@ For a change that touches only docs, agent settings (`.claude/`, `.codex/`, `.gi
 
 Edits to the harness or docs that belong to no change go straight to a `fix/<description>` branch and PR, without an Issue. When in doubt, use the full path.
 
-## Bundle changes
+## Change size budget
 
-Put as much as possible into one change. Split only where parallel worktrees would conflict, not by theme.
+One change holds at most **15 tasks** and **30,000 characters** across `tasks.md` and `design.md`. Every dispatch, the final review, CI round-trips and fix rounds grow with the size of a change, and an oversized change runs out of context. Over budget, `harness:design` splits it into independently shippable slices: each is its own change that passes CI and means something to the PO on its own. Also split where parallel worktrees would conflict.
+
+Splitting need not multiply the work around a change: several small changes can share one PR train (stacked branches, merged in order), and archiving happens in the feature PR, so no archive PR is added. CI warns (step `Change size budget`) when an active change is over budget.
 
 ## Stop and ask only for these
 
@@ -60,9 +62,20 @@ Put as much as possible into one change. Split only where parallel worktrees wou
 
 For everything else during implementation, **do not stop**. Rule by the spec, record the ruling, and continue. The PO can overturn it later.
 
+## One home per fact
+
+| Fact | Lives in |
+|---|---|
+| Rulings and design decisions | the change's `design.md` (committed) |
+| Current state, next candidates, PO to-dos | `docs/status.md`: current state only, no history, at most 20,000 bytes (CI warns above) |
+| History of past changes and rulings | `openspec/changes/archive/` (grep it, e.g. `grep -rn "Ruling:" openspec/changes/archive/`) |
+| Progress of the running change | the ledger `.harness/<change>/progress.md` (gitignored scratch) |
+
+Write a fact once and link to it from elsewhere; do not copy it.
+
 ## Ruling format
 
-Record each ruling in a committed file and in the Issue. The file is in the change's `openspec/changes/<name>/` (`tasks.md` or `design.md`); at archive, copy the rulings into `docs/changes.md`. The ledger `.harness/<change>/progress.md` is gitignored scratch: a ruling kept only there is lost.
+Record each ruling in the change's `design.md`, nowhere else: not in `tasks.md`, the ledger or the Issue body. The Issue links it (file and heading). A ruling kept only in the gitignored ledger is lost.
 
 ```
 ### <date> <title>
@@ -73,14 +86,12 @@ Record each ruling in a committed file and in the Issue. The file is in the chan
 
 ## Issue
 
-One Issue per change, titled with the change name. The body holds the goal, scope (in / out), the path `openspec/changes/<name>/`, and the completion criteria. Comment at these six milestones only — never per task:
+One Issue per change, titled with the change name. The body holds the goal, scope (in / out), the path `openspec/changes/<name>/`, and the completion criteria. Comments, never per task:
 
-1. PO approval of the design / proposal
-2. Implementation started
-3. Change of direction (reason and new direction)
-4. Blocker or question for the PO
-5. Final review result (`harness:execute`, final review)
-6. PR created
+- **Always, two:** implementation started; PR created (the PR, the final review verdict, the verdict per review unit, the number of Minor findings and the path of the final review report).
+- **Only when it happens:** a blocker or question for the PO; a change of direction (reason and new direction).
+
+Rulings are linked (`design.md` and the heading), not pasted.
 
 Pass long bodies with `--body-file <file>`; command-like text in a heredoc body can trip hooks and the auto-mode classifier. Before any `gh` write, confirm `gh api user --jq .login` is the repository owner named in `AGENTS.md`.
 

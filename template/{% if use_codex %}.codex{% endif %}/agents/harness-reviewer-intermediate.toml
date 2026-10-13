@@ -47,6 +47,7 @@ Write the report to the report path the controller gave you (without one: `.harn
 4. **Over-engineering** — what can be deleted. One line per finding:
    `<file>:L<line>: <delete|stdlib|native|yagni|shrink>: <what>. <replacement>.`
    End with `net: -<N> lines possible.`, or `Lean already. Ship.` when there is nothing to cut. Correctness, security and performance do not go here. A single smoke test or a self-checking assert is the minimum, never a deletion target.
+   Tests count too (the project's `docs/harness/testing.md` where it exists): a behavior tested at more than one layer, verbatim copy or CSS-declaration assertions, "removed text is absent" tests, per-feature copies of a cross-cutting check that an invariant could hold, and a diff that adds far more test lines than source lines.
 5. **Reasoning** — one or two technical sentences behind the verdict.
 
 Approved when there is no Critical or Important finding (an unmapped scenario is one); a report with only Minor and over-engineering findings is Approved. Needs fixes only with a Critical or Important finding. Write "Re-implementation recommended" when rewriting would be faster than fixing; the controller then starts a fresh implementer.

@@ -182,3 +182,10 @@ grep -rnE '^(<<<<<<<|>>>>>>>) ' . --exclude-dir=.git     # Copier writes conflic
 `copier update` asks the new question `agents` (default `[claude]`, so nothing changes for a Claude Code repository). Selecting `codex` or `copilot` renders that agent's files and changes `.gitignore` and `ci.yml` (the OpenSpec step and the context-budget step cover the selected agents). Then follow steps 5, 6 and 8 for the added agent. The plugin's `hooks.json` uses the string command form now; nothing to do in the product repository.
 
 Changes already in flight keep their `tasks.md`. A task without the new `Refs:` label makes the implementer ask; the controller answers with the section pointers instead of editing `tasks.md` (`harness:execute`, section 2).
+Records, archive and tests (also 0.5.0):
+
+1. **`docs/changes.md`** is no longer in the template, and `copier update` does not delete an existing one. Keep it as frozen history and stop appending: rulings now live only in each change's `design.md`, history in `openspec/changes/archive/`. When `AGENTS.md` conflicts, take the new index rows (archive instead of `docs/changes.md`, plus `docs/harness/testing.md`). Old `Proposals` sections in archived `tasks.md` files can stay.
+2. **`docs/status.md`** holds the current state only, at most 20,000 bytes. If it is larger, cut the history out of it (the archive has it).
+3. **Archive** moves into the feature PR (`harness:workflow`, lifecycle step 5). A change already merged but not archived is archived the old way, in its own PR.
+4. **`ci.yml`** gains three warning-only steps (change size budget, `docs/status.md` size, test-to-source ratio) and `fetch-depth: 2` on checkout. Keep them next to your own steps when it conflicts; tune them with their `env` values.
+5. **`docs/harness/testing.md`** is new: adapt its layer table to the stack. Changes designed from now on carry a test plan table and `### D<n>` decision headings in `design.md`.

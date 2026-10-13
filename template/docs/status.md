@@ -1,6 +1,8 @@
 # Current status
 
-Last updated: <date> (<event, e.g. "change X merged and archived">). Update this file after every archive.
+Last updated: <date> (<event, e.g. "change X archived">). Update this file in the archive commit of every change.
+
+This file holds the current state only, no history: replace lines, do not append. History is in `openspec/changes/archive/` (grep it), rulings in each change's `design.md`. Budget: 20,000 bytes (about 5k tokens), read at the start of every design and implementation session; CI warns above it.
 
 ## Phase
 
@@ -16,7 +18,7 @@ Last updated: <date> (<event, e.g. "change X merged and archived">). Update this
 
 ## Next candidates
 
-<!-- Ordered list of likely next changes and where their notes live (e.g. "Proposals" in an archived tasks.md). -->
+<!-- Ordered list of likely next changes, one line each, with a link to where their notes live (an Issue, an archived change). -->
 
 ## Harness versions
 
