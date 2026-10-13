@@ -113,6 +113,7 @@ expect l-copilot-string-patch '[ $rc = 0 ] && printf "%s" "$out" | jq -e ".addit
 
 M="$TMP_ROOT/ran"
 T="touch $M"
+unset HARNESS_STOP_TEST_CMD # cases set it explicitly
 stop '{}' -u HARNESS_TEST_CMD
 expect s-unset '[ $rc = 0 ] && [ -z "$out" ]'
 stop '{}' HARNESS_TEST_CMD=
@@ -146,6 +147,41 @@ stop '{"hook_event_name":"Stop","stop_reason":"end_turn","stop_hook_active":true
 expect s-copilot-active '[ $rc = 0 ] && [ -z "$out" ]'
 echo ok > "$R/src/good.ts"
 
+# A worktree registered under the root (.worktrees/<name>/, un-ignored) or another repository inside
+# it is another checkout's work: the main checkout's turn must not run the suite for it.
+W="$TMP_ROOT/wt"
+git init -q "$W" && echo ok > "$W/app.ts" && git -C "$W" add -A && git -C "$W" commit -q -m init
+git -C "$W" worktree add -q "$W/.worktrees/x" -b x
+echo red > "$W/.worktrees/x/app.ts" # an implementer mid-TDD in the nested worktree
+RMAIN=$R
+R=$W
+rm -f "$M"
+stop '{}' HARNESS_TEST_CMD="$T"
+expect s-nested-worktree '[ $rc = 0 ] && [ -z "$out" ] && [ ! -e "$M" ]'
+git init -q "$W/vendor/lib" && echo x > "$W/vendor/lib/x.ts"
+stop '{}' HARNESS_TEST_CMD="$T"
+expect s-nested-repo '[ $rc = 0 ] && [ ! -e "$M" ]'
+echo new > "$W/new.ts"
+stop '{}' HARNESS_TEST_CMD="$T"
+expect s-nested-plus-code '[ -e "$M" ]'
+rm -f "$M"
+# HARNESS_STOP_TEST_CMD (e.g. only the tests affected by the change) replaces HARNESS_TEST_CMD in this hook
+stop '{}' HARNESS_TEST_CMD=false HARNESS_STOP_TEST_CMD="$T"
+expect s-stop-cmd-wins '[ $rc = 0 ] && [ -e "$M" ] && [ -z "$out" ]'
+rm -f "$M"
+stop '{}' -u HARNESS_TEST_CMD HARNESS_STOP_TEST_CMD="$T"
+expect s-stop-cmd-alone '[ $rc = 0 ] && [ -e "$M" ]'
+rm -f "$M"
+stop '{}' -u HARNESS_STOP_TEST_CMD HARNESS_TEST_CMD="$T"
+expect s-stop-cmd-unset-falls-back '[ $rc = 0 ] && [ -e "$M" ]'
+rm -f "$M"
+stop '{}' HARNESS_STOP_TEST_CMD= HARNESS_TEST_CMD="$T"
+expect s-stop-cmd-empty-falls-back '[ $rc = 0 ] && [ -e "$M" ]'
+rm -f "$M"
+stop '{}' -u HARNESS_TEST_CMD HARNESS_STOP_TEST_CMD="echo quick; exit 4"
+expect s-stop-cmd-fail-blocks '[ "$(printf "%s" "$out" | jq -r .decision)" = block ] && printf "%s" "$out" | jq -r .reason | grep -qF "Tests failed (echo quick; exit 4, exit 4)"'
+R=$RMAIN
+
 # .harness/env.json supplies HARNESS_* for agents without a per-repository hook environment; the payload's cwd locates it
 mkdir -p "$R/.harness"
 printf '%s\n' "{\"HARNESS_LINT_CMD\":\"$LINTER\",\"HARNESS_TEST_CMD\":\"false\"}" > "$R/.harness/env.json"
@@ -159,6 +195,11 @@ expect e-empty-env-wins '[ $rc = 0 ] && [ -z "$out" ]'
 echo change >> "$R/src/good.ts"
 stop '{}' -u HARNESS_TEST_CMD
 expect e-test-from-file '[ $rc = 0 ] && printf "%s" "$out" | jq -e ".decision == \"block\"" >/dev/null'
+printf '%s\n' "{\"HARNESS_TEST_CMD\":\"false\",\"HARNESS_STOP_TEST_CMD\":\"$T\"}" > "$R/.harness/env.json"
+rm -f "$M"
+stop '{}' -u HARNESS_TEST_CMD -u HARNESS_STOP_TEST_CMD
+expect e-stop-test-from-file '[ $rc = 0 ] && [ -z "$out" ] && [ -e "$M" ]'
+rm -f "$M"
 git -C "$R" checkout -q -- src/good.ts
 rm -rf "$R/.harness"
 
@@ -295,6 +336,17 @@ ARTIFACT: report.md
 SUMMARY:
 - turn budget spent after spec compliance"
 expect sp-reviewer-partial '[ $rc = 0 ] && [ -z "$out" ]'
+# the intermediate reviewer has the reviewer's reply contract, VERDICT included
+stopj harness:reviewer-intermediate "$good"
+expect sp-intermediate-verdict '[ $rc = 0 ] && sentback "VERDICT:"'
+stopj harness:reviewer-intermediate "STATUS: ok
+VERDICT: Approved
+ARTIFACT: report.md
+SUMMARY:
+- Critical 0, Important 0, Minor 2"
+expect sp-intermediate-ok '[ $rc = 0 ] && [ -z "$out" ]'
+stopj harness:reviewer-intermediate "Looks good to me."
+expect sp-intermediate-status '[ $rc = 0 ] && sentback "STATUS:"'
 stopj harness:implementer "free text" '{"stop_hook_active":true}'
 expect sp-active '[ $rc = 0 ] && [ -z "$out" ]'
 stopj harness:implementer "free text" '{"stop_hook_active":null}'

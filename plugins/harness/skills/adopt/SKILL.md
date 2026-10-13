@@ -146,9 +146,9 @@ In a new interactive session on the default branch, per selected agent, check:
 
 | Agent | Check |
 |---|---|
-| Claude Code | `rm -rf ./harness-guard-probe` is refused with `BLOCKED by harness guard (rm-rf)`; `git push origin <default branch>` asks (`harness ask-gate (protected-push)`), decline it; `/plugin` shows `harness` enabled; the skill list shows `harness:design` and `harness:execute` and no `openspec-*` skill; `.claude/commands/opsx/` holds only `propose.md`, `archive.md`, `update.md` and `sync.md`; `/agents` lists `harness:implementer` and `harness:reviewer` |
+| Claude Code | `rm -rf ./harness-guard-probe` is refused with `BLOCKED by harness guard (rm-rf)`; `git push origin <default branch>` asks (`harness ask-gate (protected-push)`), decline it; `/plugin` shows `harness` enabled; the skill list shows `harness:design` and `harness:execute` and no `openspec-*` skill; `.claude/commands/opsx/` holds only `propose.md`, `archive.md`, `update.md` and `sync.md`; `/agents` lists `harness:implementer`, `harness:reviewer-intermediate` and `harness:reviewer` |
 | Codex CLI | the same `rm -rf` probe is refused with `BLOCKED by harness guard (rm-rf)` (if it runs, the hooks are not trusted yet); `git push origin <default branch>` prompts through `.codex/rules`, decline it (headless it is rejected); the skill list shows the five `harness:*` skills; the agents are `harness-implementer`, `harness-reviewer` and `harness-reviewer-intermediate` |
-| Copilot CLI | the same `rm -rf` probe is refused (the model sees `BLOCKED by harness guard (rm-rf)` when `COPILOT_CLI=1` is set, otherwise only that a hook denied it); `git push origin <default branch>` is denied or asks (`harness ask-gate (protected-push)`), decline it; the plugin list shows `harness`; the five skills show under bare names; the agents are `harness:implementer` and `harness:reviewer` |
+| Copilot CLI | the same `rm -rf` probe is refused (the model sees `BLOCKED by harness guard (rm-rf)` when `COPILOT_CLI=1` is set, otherwise only that a hook denied it); `git push origin <default branch>` is denied or asks (`harness ask-gate (protected-push)`), decline it; the plugin list shows `harness`; the five skills show under bare names; the agents are `harness:implementer`, `harness:reviewer-intermediate` and `harness:reviewer` |
 
 For all agents: `gh api repos/<owner>/<repo>/rulesets --jq '.[].name'` lists `default-branch`.
 
@@ -181,6 +181,7 @@ grep -rnE '^(<<<<<<<|>>>>>>>) ' . --exclude-dir=.git     # Copier writes conflic
 
 `copier update` asks the new question `agents` (default `[claude]`, so nothing changes for a Claude Code repository). Selecting `codex` or `copilot` renders that agent's files and changes `.gitignore` and `ci.yml` (the OpenSpec step and the context-budget step cover the selected agents). Then follow steps 5, 6 and 8 for the added agent. The plugin's `hooks.json` uses the string command form now; nothing to do in the product repository.
 
+Changes already in flight keep their `tasks.md`. A task without the new `Refs:` label makes the implementer ask; the controller answers with the section pointers instead of editing `tasks.md` (`harness:execute`, section 2).
 Records, archive and tests (also 0.5.0):
 
 1. **`docs/changes.md`** is no longer in the template, and `copier update` does not delete an existing one. Keep it as frozen history and stop appending: rulings now live only in each change's `design.md`, history in `openspec/changes/archive/`. When `AGENTS.md` conflicts, take the new index rows (archive instead of `docs/changes.md`, plus `docs/harness/testing.md`). Old `Proposals` sections in archived `tasks.md` files can stay.

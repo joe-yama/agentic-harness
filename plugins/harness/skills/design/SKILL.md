@@ -46,12 +46,13 @@ When the agreements are complete, run OpenSpec propose (see the table in `harnes
     ```
 
 - **tasks.md**, which is also the plan. Follow the shape in the project's `openspec/config.yaml` (`rules.tasks`); do not invent another. Per task `- [ ] N.M <what to do>`, indented below it:
+  - `Refs:` (mandatory) the Requirement names and the `design.md` decisions (`D<n>`, from headings `### D<n> <title>`) the task implements. The implementer and the task or batch reviewer read only the task, what `Refs:` names and the `Interface:` it uses; only the final review reads the whole change. Name everything the task needs.
   - `Files:` what is created, changed, tested.
   - `Interface:` names and types other tasks use (omit when none).
   - `Test first:` the test file that goes red first and what it checks (code tasks); for non-code tasks `Verify:` the command and the expected result.
-  - `Review:` `solo` or `batch <letter>`, and `Risk:` marks (`security`, `authz`, `data`, `migration`, `ui`, and any the project adds). Solo review is for risk-marked tasks; the rest are batched three or four at a time.
+  - `Review:` `solo` or `batch <letter>`, and `Risk:` marks (`security`, `authz`, `data`, `migration`, `ui`, and any the project adds). Solo review only for `security`, `authz`, `data` and `migration`; every other task, `ui` included, goes into a batch of four to six (the remainder may form a smaller batch). A change of three tasks or fewer may write `Review: final` on every task, risk marks included: the final review is its only review.
 
-  No code snippets: the implementer writes the code. Add a short mapping of each delta-spec scenario to the task that verifies it. End with an empty `Proposals` section for later findings.
+  No code snippets: the implementer writes the code. Add a short mapping of each delta-spec scenario to the task that verifies it. `tasks.md` holds the plan only: execution records go to the ledger, rulings to `design.md`, and there is no section for later findings.
 
 Check consistency before finishing: the change is within the size budget (count the `- [ ]` task lines, and the characters of `tasks.md` plus `design.md`, e.g. `wc -m`; split if over), every scenario has a test or a verify step and one row in the test plan, every interface used is declared by some task, and `openspec validate <name> --strict` passes.
 

@@ -13,7 +13,7 @@ harness_env() {
   f=$root/.harness/env.json
   [ -f "$f" ] || return 0
   # rule:env-file-read
-  for n in HARNESS_LINT_CMD HARNESS_LINT_PATTERN HARNESS_TEST_CMD HARNESS_DOC_PATTERN HARNESS_PROTECTED_BRANCHES; do
+  for n in HARNESS_LINT_CMD HARNESS_LINT_PATTERN HARNESS_TEST_CMD HARNESS_STOP_TEST_CMD HARNESS_DOC_PATTERN HARNESS_PROTECTED_BRANCHES; do
     eval "[ -n \"\${$n+x}\" ]" && continue # bash 3.2: no ${!n+x}; n comes from the fixed list above
     v=$(jq -r --arg n "$n" '.[$n] | strings' "$f" 2>/dev/null) || continue
     [ -n "$v" ] || continue
