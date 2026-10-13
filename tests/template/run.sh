@@ -288,6 +288,83 @@ check update-ref '[ "$(settings "$D1" ".extraKnownMarketplaces[\"agentic-harness
 check update-applied 'grep -q "<!-- updated -->" "$D1/CLAUDE.md"'
 check update-no-conflict '! grep -rlE "^(<<<<<<<|>>>>>>>) " "$D1" --exclude-dir=.git | grep -q .'
 
+# scripts/harness-metrics.sh renders executable and prints exact TSV for a fixture repository.
+MS="$D2/scripts/harness-metrics.sh"
+check metrics-rendered '[ -x "$MS" ] && cmp -s "$MS" "$repo/template/scripts/harness-metrics.sh" && [ -x "$DC/scripts/harness-metrics.sh" ] && [ -x "$DP/scripts/harness-metrics.sh" ]'
+check metrics-gitignore 'grep -qx ".worktrees/" "$D1/.gitignore" && grep -qx ".worktrees/" "$DC/.gitignore"'
+MF="$TMP_ROOT/metrics"
+git init -q "$MF"
+mkdir -p "$MF/scripts" "$MF/src" "$MF/tests" "$MF/docs" "$MF/.claude/rules" "$MF/.harness/feat-a/reports" \
+  "$MF/openspec/changes/feat-a" "$MF/openspec/changes/big" "$MF/openspec/changes/archive/2026-01-01-old"
+cp "$MS" "$MF/scripts/"
+printf '.harness/\n' > "$MF/.gitignore"
+seq 1 10 > "$MF/src/a.ts" && seq 1 6 > "$MF/src/b.py" && seq 1 4 > "$MF/src/日本.ts" # source: 20 lines (a quoted path would drop 4)
+seq 1 12 > "$MF/tests/test_b.py" && seq 1 12 > "$MF/src/a.test.ts" && seq 1 6 > "$MF/src/test_c.py" # tests: 30 lines
+seq 1 50 > "$MF/docs/guide.md" && seq 1 40 > "$MF/pnpm-lock.yaml" && echo '{}' > "$MF/package.json"
+printf '%01000d' 0 > "$MF/AGENTS.md" && printf '%0200d' 0 > "$MF/CLAUDE.md" && printf '%034d' 0 > "$MF/.claude/rules/x.md"
+printf 'Task 1: dispatched (BASE a1)\nTask 1: done a1..b2, Approved\nTask 2: dispatched (BASE b2)\nTask 3: dispatched (BASE c3)\n' > "$MF/.harness/feat-a/progress.md"
+for r in task-1-implementer batch-a-review batch-a-review-r1 batch-a-review-r2 task-3-review task-3-review-r3; do : > "$MF/.harness/feat-a/reports/$r.md"; done
+printf 'Issue: #1\n\n## 1. Work\n- [ ] 1.1 Model\n  - Review: solo\n  - Risk: data\n- [x] 1.2 List\n  - `Review:` batch a\n- [ ] 1.3 Form\n  - Review: batch a\n- [ ] 1.4 Page\n  - Review: batch a\n' > "$MF/openspec/changes/feat-a/tasks.md"
+printf '### D1 設計\n' > "$MF/openspec/changes/feat-a/design.md" # 10 characters, 14 bytes
+for i in $(seq 1 16); do printf -- '- [ ] 1.%d Step\n' "$i"; done > "$MF/openspec/changes/big/tasks.md"
+printf -- '- [ ] 1.1 Old\n  - Review: solo\n- [ ] 1.2 Old\n  - Review: batch b\n' > "$MF/openspec/changes/archive/2026-01-01-old/tasks.md"
+git -C "$MF" add -A && git -C "$MF" commit -q -m fixture
+FB="$TMP_ROOT/fakebin"
+mkdir -p "$FB/noauth" "$FB/gh" "$FB/nogh"
+printf '#!/bin/sh\nexit 1\n' > "$FB/noauth/gh"
+cat > "$FB/gh/gh" <<'SH'
+#!/bin/sh
+printf '%s\n' "$*" >> "$GH_LOG"
+case "$1 $2" in
+  "auth status") exit 0 ;;
+  "pr list") echo '[{"number":7,"headRefName":"feature/a"},{"number":8,"headRefName":"feature/b"}]' ;;
+  "run list")
+    case "$*" in
+      *feature/a*) echo '[{"startedAt":"2026-10-01T00:00:00Z","updatedAt":"2026-10-01T00:12:30Z"},{"startedAt":"2026-10-01T01:00:00Z","updatedAt":"2026-10-01T01:10:00Z"}]' ;;
+      *) echo '[{"startedAt":"2026-10-02T00:00:00Z","updatedAt":"2026-10-02T00:05:00Z"},{"startedAt":"0001-01-01T00:00:00Z","updatedAt":"2026-10-02T00:00:00Z"}]' ;;
+    esac ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$FB/noauth/gh" "$FB/gh/gh"
+for c in bash git jq awk sed grep sort uniq find basename cat wc; do ln -s "$(command -v "$c")" "$FB/nogh/$c"; done
+metrics() { # <PATH> [args]: runs the fixture's script from a subdirectory; sets rc, writes $TMP_ROOT/m.out
+  local p=$1
+  shift
+  (cd "$MF/src" && env PATH="$p" GH_LOG="$TMP_ROOT/gh.log" bash ../scripts/harness-metrics.sh "$@") > "$TMP_ROOT/m.out" 2> "$TMP_ROOT/m.err"
+  rc=$?
+}
+TAB=$(printf "\t")
+mrows() { # rows after the CI part, shared by the fixture runs
+  printf '%s\n' "dispatches_per_change${TAB}feat-a${TAB}6${TAB}20${TAB}ok" \
+    "fix_rounds_per_unit${TAB}feat-a/batch-a${TAB}2${TAB}2${TAB}ok" \
+    "fix_rounds_per_unit${TAB}feat-a/task-3${TAB}3${TAB}2${TAB}over" \
+    "test_source_ratio${TAB}repo${TAB}1.50${TAB}1.5${TAB}ok" \
+    "always_loaded_bytes${TAB}repo${TAB}1234${TAB}14400${TAB}ok" \
+    "solo_review_share${TAB}repo${TAB}33${TAB}40${TAB}ok" \
+    "change_tasks${TAB}big${TAB}16${TAB}15${TAB}over" \
+    "change_chars${TAB}big${TAB}$(wc -c < "$MF/openspec/changes/big/tasks.md" | tr -d ' ')${TAB}30000${TAB}ok" \
+    "change_tasks${TAB}feat-a${TAB}4${TAB}15${TAB}ok" \
+    "change_chars${TAB}feat-a${TAB}$(($(wc -c < "$MF/openspec/changes/feat-a/tasks.md") + 10))${TAB}30000${TAB}ok"
+}
+MH="metric${TAB}scope${TAB}value${TAB}threshold${TAB}status"
+metrics "$FB/noauth:$PATH"
+{ echo "$MH"; echo "# ci_minutes_per_pr skipped: gh is not authenticated"; mrows; } > "$TMP_ROOT/m.want"
+check metrics-noauth '[ $rc = 0 ] && cmp -s "$TMP_ROOT/m.want" "$TMP_ROOT/m.out"'
+metrics "$FB/nogh"
+{ echo "$MH"; echo "# ci_minutes_per_pr skipped: gh not found"; mrows; } > "$TMP_ROOT/m.want"
+check metrics-no-gh '[ $rc = 0 ] && cmp -s "$TMP_ROOT/m.want" "$TMP_ROOT/m.out" && [ ! -s "$TMP_ROOT/m.err" ]'
+metrics "$FB/gh:$PATH" --since 2026-09-01
+{ echo "$MH"; printf '%s\n' "ci_minutes_per_pr${TAB}#7${TAB}22.5${TAB}20${TAB}over" "ci_minutes_per_pr${TAB}#8${TAB}5.0${TAB}20${TAB}ok"; mrows; } > "$TMP_ROOT/m.want"
+check metrics-ci '[ $rc = 0 ] && cmp -s "$TMP_ROOT/m.want" "$TMP_ROOT/m.out" && grep -qF "pr list --state merged --limit 10 --json number,headRefName --search merged:>=2026-09-01" "$TMP_ROOT/gh.log" && grep -qF "run list --branch feature/b" "$TMP_ROOT/gh.log"'
+metrics "$FB/noauth:$PATH" --check
+check metrics-check-over '[ $rc = 1 ] && grep -q "over$" "$TMP_ROOT/m.out"'
+HARNESS_METRIC_FIX_ROUNDS=3 HARNESS_METRIC_CHANGE_TASKS=16 HARNESS_METRIC_CHANGE_CHARS=10 metrics "$FB/noauth:$PATH" --check
+check metrics-overrides '[ $rc = 1 ] && [ "$(grep "over$" "$TMP_ROOT/m.out" | cut -f1,4 | sort -u)" = "change_chars${TAB}10" ] && [ "$(grep -c "over$" "$TMP_ROOT/m.out")" = 2 ]'
+HARNESS_METRIC_FIX_ROUNDS=3 HARNESS_METRIC_CHANGE_TASKS=16 metrics "$FB/noauth:$PATH" --check
+check metrics-check-ok '[ $rc = 0 ] && ! grep -q "over$" "$TMP_ROOT/m.out"'
+metrics "$FB/noauth:$PATH" --bogus
+check metrics-usage '[ $rc = 2 ] && grep -q "usage:" "$TMP_ROOT/m.err"'
 # Review dispatch cost: the intermediate reviewer agent, task references, no Proposals section.
 check claude-dispatch-intermediate 'grep -qF "\`harness:reviewer-intermediate\`" "$D1/CLAUDE.md" && grep -qF "dispatches \`harness:reviewer-intermediate\`, whose frontmatter is \`sonnet\` / \`medium\`" "$D1/docs/harness/models.md"'
 check copilot-intermediate-medium 'grep -qE "^\| Intermediate review \| claude-sonnet-5\.5 \| medium \|$" "$DP/docs/harness/models.md"'
