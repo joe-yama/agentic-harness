@@ -50,6 +50,15 @@ check no-superpowers '! grep -rnI "superpowers:" plugins template'
 # adopt is included: its per-agent subsections keep Claude-only tokens in table rows.
 # Offending lines (path:line:text) print on stdout.
 check neutral-skills '! grep -rnE "subagent_type|/goal|claude -p|scratchpad|SendMessage|Claude Code builds|/opsx:" plugins/harness/skills plugins/harness/agents | grep -vE "^[^:]+:[0-9]+:\|"'
+# One home per rule: the ruling format lives in harness:workflow, the mutation-check scope in harness:mutation-check,
+# the PR-time Issue comment contents in harness:workflow, the stop-and-ask list in the template AGENTS.md.
+# Others point to the owner. Offending lines (path:line:text) print on stdout.
+check one-home-ruling '! grep -rnF "Cost if wrong" plugins/harness template | grep -v "^plugins/harness/skills/workflow/SKILL.md:"'
+check one-home-mutation '! grep -rnF "refusal tests for authorization" plugins/harness template | grep -v "^plugins/harness/skills/mutation-check/SKILL.md:"'
+check one-home-issue-comment '! grep -rnF "verdict per review unit" plugins/harness template | grep -v "^plugins/harness/skills/workflow/SKILL.md:"'
+check one-home-stop '! grep -rnE "rewriting pushed history|widens access" plugins/harness template | grep -v "^template/AGENTS.md.jinja:"'
+# The periodic retro runs the metrics script and archives stale lessons.
+check retro 'grep -qF "scripts/harness-metrics.sh --since" plugins/harness/skills/workflow/SKILL.md && grep -qF "docs/harness/lessons-archive.md" plugins/harness/skills/workflow/SKILL.md'
 if command -v claude >/dev/null 2>&1; then
   check validate-marketplace 'claude plugin validate . --strict >/dev/null 2>&1'
   check validate-plugin 'claude plugin validate plugins/harness --strict >/dev/null 2>&1'

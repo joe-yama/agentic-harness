@@ -41,7 +41,7 @@ jobs:
             echo "$bad"
             exit 1
           fi
-      # The three steps below only warn (::warning::); they never fail the job. Tune them with their env values.
+      # The four steps below only warn (::warning::); they never fail the job. Tune them with their env values.
       - name: Change size budget (warning only)
         env:
           HARNESS_CHANGE_MAX_TASKS: 15
@@ -66,6 +66,16 @@ jobs:
           echo "docs/status.md: $bytes bytes"
           if [ "$bytes" -gt "$HARNESS_STATUS_MAX_BYTES" ]; then
             echo "::warning file=docs/status.md::docs/status.md is $bytes bytes, over $HARNESS_STATUS_MAX_BYTES. It holds the current state only; history is in openspec/changes/archive/."
+          fi
+      - name: docs/harness/lessons.md size budget (warning only)
+        env:
+          HARNESS_LESSONS_MAX_BYTES: 8000
+        run: |
+          bytes=0
+          if [ -f docs/harness/lessons.md ]; then bytes=$(( $(wc -c < docs/harness/lessons.md) )); fi
+          echo "docs/harness/lessons.md: $bytes bytes"
+          if [ "$bytes" -gt "$HARNESS_LESSONS_MAX_BYTES" ]; then
+            echo "::warning file=docs/harness/lessons.md::docs/harness/lessons.md is $bytes bytes, over $HARNESS_LESSONS_MAX_BYTES. Turn lessons into checks, or move those older than 30 days to docs/harness/lessons-archive.md (harness:workflow, Periodic retro)."
           fi
       - name: Test-to-source ratio (warning only, pull requests)
         if: github.event_name == 'pull_request'

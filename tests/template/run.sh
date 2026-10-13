@@ -428,14 +428,28 @@ w = yaml.safe_load(open(sys.argv[1]))
 st = w["jobs"]["check"]["steps"]
 co = [x for x in st if x.get("uses", "").startswith("actions/checkout@")][0]["with"]
 r = [x for x in st if x.get("name", "").startswith("Test-to-source ratio")][0]
-names = ("Change size budget", "docs/status.md size", "Test-to-source ratio")
+names = ("Change size budget", "docs/status.md size", "docs/harness/lessons.md size", "Test-to-source ratio")
 ok = co.get("persist-credentials") is False and int(co.get("fetch-depth", 1)) >= 2
 ok = ok and r.get("if") == "github.event_name == '"'"'pull_request'"'"'" and r["env"]["PR_BODY"] == "${{ github.event.pull_request.body }}"
 ok = ok and all("${{" not in x.get("run", "") for x in st if x.get("name", "").startswith(names))
-ok = ok and sum(1 for x in st if x.get("name", "").startswith(names)) == 3
+ok = ok and sum(1 for x in st if x.get("name", "").startswith(names)) == 4
 sys.exit(0 if ok else 1)' "$1"; }
 for pair in "claude:$D2" "codex:$DC" "copilot:$DP" "all:$DA"; do
   check "warn-steps-${pair%%:*}" 'warn_steps_ok "${pair#*:}/.github/workflows/ci.yml"'
+done
+# Lessons lifecycle: dated lessons become a check or move to the archive after 30 days; 8,000-byte budget, warned by CI.
+check lessons-doc '( for w in "### <YYYY-MM-DD>" "30 days" "docs/harness/lessons-archive.md" "8,000 bytes" "harness:workflow"; do grep -qF "$w" "$D2/docs/harness/lessons.md" || exit 1; done )'
+check lessons-budget-ok 'step_run "$D2" "docs/harness/lessons.md size" : && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
+check lessons-budget-over 'step_run "$DP" "docs/harness/lessons.md size" "head -c 8001 /dev/zero | tr \"\0\" a >> docs/harness/lessons.md" && grep -qF "::warning" "$TMP_ROOT/step.log"'
+# One home per rule: the always-loaded files point to the owner instead of restating the mutation-check rule and the ruling format;
+# AGENTS.md holds the whole stop-and-ask list; the design.md heading rule sits in rules.design only.
+tasks_no_dn() { uvx --from copier@9.18.2 python -c 'import sys, yaml
+r = yaml.safe_load(open(sys.argv[1]))["rules"]
+sys.exit(0 if not any("### D<n>" in i for i in r["tasks"]) and any("### D<n>" in i for i in r["design"]) else 1)' "$1"; }
+for pair in "claude:$D2" "all:$DA"; do
+  check "one-home-${pair%%:*}" 'd=${pair#*:}; ! grep -qi "mutation" "$d/AGENTS.md" && [ "$(grep -c "mutation" "$d/.claude/rules/testing.md")" = 1 ] &&
+    ! grep -qF "Cost if wrong" "$d/AGENTS.md" "$d/openspec/config.yaml" && grep -qF "harness:workflow" "$d/openspec/config.yaml" &&
+    grep -qF "creating repositories" "$d/AGENTS.md" && grep -qF "widens access" "$d/AGENTS.md" && tasks_no_dn "$d/openspec/config.yaml"'
 done
 
 report template
