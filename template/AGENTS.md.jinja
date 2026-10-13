@@ -17,12 +17,13 @@ Every change goes: idea (1-4 sentences from the PO) → design (`harness:design`
 
 ## Stop and ask only for
 
-1. destructive or irreversible operations;
-2. security (secrets, credentials, permissions);
-3. side effects outside the working copy: pushing to `{{ default_branch }}`, publishing, releases, merging;
-4. a plan defect where every way forward is a guess.
+1. destructive or irreversible operations: deleting data or branches, rewriting pushed history, discarding uncommitted work;
+2. security: secrets, credentials, permissions, anything that widens access;
+3. adding or changing a dependency, lockfile-changing installs included;
+4. side effects outside the working copy: pushing to `{{ default_branch }}`, publishing, releases, merging, creating repositories; any `gh` write while `gh api user --jq .login` does not print `{{ github_owner }}` (check before every `gh` write);
+5. a plan defect where every way forward is a guess (the spec contradicts itself on the core behavior).
 
-For anything else during implementation, decide by the spec, record `Ruling / Reason / Cost if wrong` in the change's `design.md` (the Issue links it), and continue. The PO can overturn it.
+For anything else during implementation, decide by the spec, record a ruling in the change's `design.md` (format: `harness:workflow`; the Issue links it), and continue. The PO can overturn it.
 
 ## Definition of done
 
@@ -45,9 +46,7 @@ Write commits, Issues, PRs, OpenSpec artifacts and status docs in {{ 'Japanese' 
 ## Pitfalls
 
 - `{{ default_branch }}` is PR-only with the required status check `check` (the CI job name). Renaming that job blocks every merge until the ruleset is updated.
-- Before any `gh` write (issue, PR, release), confirm `gh api user --jq .login` prints `{{ github_owner }}`. If not, stop and ask the PO to switch accounts.
-- Local green is not done: defects that only CI, real data or real processes show are common. Record them in `docs/harness/lessons.md`.
-- A test written to guard a behavior must be shown to fail when that behavior is broken (mutation check) before it counts.
+- Defects that only CI, real data or real processes show are common. Record them in `docs/harness/lessons.md`.
 
 ## Index
 

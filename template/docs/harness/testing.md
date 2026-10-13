@@ -30,7 +30,7 @@ A rule that holds everywhere is tested once, as an invariant every feature passe
 - **Shared after-each check.** Example: fixtures seed known personal values, and one after-each hook asserts the logs contain none of them. A new feature is covered as soon as its tests run.
 - **Route × audience refusal table.** One table lists every read route and who may read it; one test walks the table, checks each refusal, and fails when the router has a read route the table does not list. A new route adds a row, not a test file.
 
-Prove each invariant once with `harness:mutation-check`; a new row needs no mutation check of its own.
+Proving an invariant: `harness:mutation-check` ("Where it goes in a change").
 
 ## Test-to-source ratio
 

@@ -2,6 +2,8 @@
 
 Last updated: <date> (<event, e.g. "change X archived">). Update this file in the archive commit of every change.
 
+Last retro: <YYYY-MM-DD> (the periodic retro of `harness:workflow` reads and sets this line).
+
 This file holds the current state only, no history: replace lines, do not append. History is in `openspec/changes/archive/` (grep it), rulings in each change's `design.md`. Budget: 20,000 bytes (about 5k tokens), read at the start of every design and implementation session; CI warns above it.
 
 ## Phase

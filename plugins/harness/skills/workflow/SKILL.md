@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: The per-change lifecycle of a PO-steered repository - design, OpenSpec proposal plus one GitHub Issue, change size budget, implementation with review, PR, archive and status update in the PR, where each record lives, one new session per stage. Use when starting, resuming or finishing any change, or when unsure whether to stop and ask the PO.
+description: The per-change lifecycle of a PO-steered repository - design, OpenSpec proposal plus one GitHub Issue, change size budget, implementation with review, PR, archive and status update in the PR, where each record lives, one new session per stage, and the periodic retro on the harness's own cost. Use when starting, resuming or finishing any change, and for the retro every 5 merged changes or monthly.
 ---
 
 # Change workflow
@@ -30,8 +30,6 @@ Codex and Copilot CLI load these skills from `.agents/skills` (`harness:adopt`, 
 
 Any stage may run in any agent the repository selected (`.copier-answers.yml` `agents`): for example the design session in Claude Code and `harness:execute` in Codex. Nothing else changes: the hand-off is still the committed change files and the ledger. The PR evidence names the agent and model of each stage.
 
-If a guardian test was written (a test meant to catch a specific regression), the change's `tasks.md` contains a task to prove it with `harness:mutation-check`.
-
 ## One new session per stage
 
 Each stage runs in a new session: design and proposal; implementation (a few tasks at a time); final review and PR. The archive commit belongs to the PR stage: the controller makes it if its session is still open, otherwise a short new session does, starting from the ledger. Only the separate archive option makes archive a stage of its own. Hand-offs happen only through committed files (`design.md`, `tasks.md`, delta specs) and the ledger `.harness/<change>/progress.md`, never through conversation memory. Pass the next session the spec and design as files, not as a summary: a summary drops what the next session then has to re-read. Details for the implementation stage are in `harness:execute`.
@@ -51,16 +49,9 @@ One change holds at most **15 tasks** and **30,000 characters** across `tasks.md
 
 Splitting need not multiply the work around a change: several small changes can share one PR train (stacked branches, merged in order), and archiving happens in the feature PR, so no archive PR is added. CI warns (step `Change size budget`) when an active change is over budget.
 
-## Stop and ask only for these
+## Stop and ask
 
-| # | Stop for | Examples |
-|---|---|---|
-| 1 | Destructive or irreversible operations | deleting data or branches, rewriting pushed history, discarding uncommitted work |
-| 2 | Security | secrets, credentials, permissions, anything that widens access |
-| 3 | Side effects outside the worktree | pushing to the default branch, publishing, releases, merging, creating repositories |
-| 4 | A plan defect where every way forward is a guess | the spec contradicts itself on the core behavior |
-
-For everything else during implementation, **do not stop**. Rule by the spec, record the ruling, and continue. The PO can overturn it later.
+Only for the cases in the project's `AGENTS.md` ("Stop and ask only for"), which every session loads. For everything else during implementation, **do not stop**: rule, record the ruling (format below), continue.
 
 ## One home per fact
 
@@ -88,12 +79,12 @@ Record each ruling in the change's `design.md`, nowhere else: not in `tasks.md`,
 
 One Issue per change, titled with the change name. The body holds the goal, scope (in / out), the path `openspec/changes/<name>/`, and the completion criteria. Comments, never per task:
 
-- **Always, two:** implementation started; PR created (the PR, the final review verdict, the verdict per review unit, the number of Minor findings and the path of the final review report).
+- **Always, two:** implementation started; PR created (the PR, the final review verdict, the verdict per review unit, the number of Minor findings, the path of the final review report, and whether a rebuild happened).
 - **Only when it happens:** a blocker or question for the PO; a change of direction (reason and new direction).
 
 Rulings are linked (`design.md` and the heading), not pasted.
 
-Pass long bodies with `--body-file <file>`; command-like text in a heredoc body can trip hooks and the auto-mode classifier. Before any `gh` write, confirm `gh api user --jq .login` is the repository owner named in `AGENTS.md`.
+Pass long Issue and PR bodies with `--body-file <file>`; command-like text in a heredoc body can trip hooks and the auto-mode classifier. Before any `gh` write, confirm `gh api user --jq .login` is the repository owner named in `AGENTS.md`.
 
 ## Definition of done
 
@@ -104,6 +95,17 @@ Report "done" only when all of these hold, with evidence:
 - `tasks.md` is updated;
 - everything is committed;
 - **the CI result is the final evidence.** Local green is not done; defects that only CI or real data shows are common.
+
+## Periodic retro
+
+Every 5 merged changes or once a month, whichever comes first, check what the harness itself costs:
+
+1. Read the line `Last retro: <YYYY-MM-DD>` in `docs/status.md`. The retro is due when a month has passed since then or 5 changes were archived after it (archive directories start with their date: `ls openspec/changes/archive/`).
+2. Run `scripts/harness-metrics.sh --since <that date>` where the period's ledgers (`.harness/`) still are. It prints one row per metric with its threshold; tune thresholds with the `HARNESS_METRIC_*` variables in its header. `--since` limits only the CI minutes; the other rows show the current state.
+3. For a metric that says `over`, propose **one** small harness change to the PO as an Issue: a rule, a check or a budget cut, with the metric row as the evidence. Nothing over, no Issue.
+4. Move each lesson that is still prose 30 days after its date from `docs/harness/lessons.md` to `docs/harness/lessons-archive.md`, and set `Last retro:` to today, on a `fix/` branch and PR.
+
+Record nothing else besides that line: no retro document and no metrics history.
 
 ## Models
 

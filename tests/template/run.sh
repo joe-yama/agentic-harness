@@ -428,14 +428,29 @@ w = yaml.safe_load(open(sys.argv[1]))
 st = w["jobs"]["check"]["steps"]
 co = [x for x in st if x.get("uses", "").startswith("actions/checkout@")][0]["with"]
 r = [x for x in st if x.get("name", "").startswith("Test-to-source ratio")][0]
-names = ("Change size budget", "docs/status.md size", "Test-to-source ratio")
+names = ("Change size budget", "docs/status.md size", "docs/harness/lessons.md size", "Test-to-source ratio")
 ok = co.get("persist-credentials") is False and int(co.get("fetch-depth", 1)) >= 2
 ok = ok and r.get("if") == "github.event_name == '"'"'pull_request'"'"'" and r["env"]["PR_BODY"] == "${{ github.event.pull_request.body }}"
 ok = ok and all("${{" not in x.get("run", "") for x in st if x.get("name", "").startswith(names))
-ok = ok and sum(1 for x in st if x.get("name", "").startswith(names)) == 3
+ok = ok and sum(1 for x in st if x.get("name", "").startswith(names)) == 4
 sys.exit(0 if ok else 1)' "$1"; }
 for pair in "claude:$D2" "codex:$DC" "copilot:$DP" "all:$DA"; do
   check "warn-steps-${pair%%:*}" 'warn_steps_ok "${pair#*:}/.github/workflows/ci.yml"'
+done
+# Lessons lifecycle: dated lessons become a check or move to the archive after 30 days; 8,000-byte budget, warned by CI.
+check lessons-doc '( for w in "### <YYYY-MM-DD>" "30 days" "docs/harness/lessons-archive.md" "8,000 bytes" "harness:workflow"; do grep -qF "$w" "$D2/docs/harness/lessons.md" || exit 1; done )'
+check lessons-budget-ok 'step_run "$D2" "docs/harness/lessons.md size" : && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
+check lessons-budget-over 'step_run "$DP" "docs/harness/lessons.md size" "head -c 8001 /dev/zero | tr \"\0\" a >> docs/harness/lessons.md" && grep -qF "::warning" "$TMP_ROOT/step.log"'
+check lessons-budget-absent 'step_run "$D2" "docs/harness/lessons.md size" "rm -f docs/harness/lessons.md" && ! grep -qF "::warning" "$TMP_ROOT/step.log"'
+# The periodic retro reads and sets this current-state line.
+check status-last-retro 'grep -qE "^Last retro: <YYYY-MM-DD>" "$D2/docs/status.md"'
+# Render-specific half of one home per rule (tests/manifest.sh greps the sources): the rendered stop-and-ask section
+# holds every stop, testing.md keeps one mutation-check line, and `### D<n>` appears under rules.design only.
+stops() { sed -n '/^## Stop and ask/,/^## Definition/p' "$1"; }
+dn_design_only() { awk '/^  tasks:/ { t = 1 } /### D<n>/ { if (t) bad = 1; else d = 1 } END { exit !(d && !bad) }' "$1"; }
+for pair in "claude:$D2" "all:$DA"; do
+  check "one-home-${pair%%:*}" 'd=${pair#*:}; ( for w in "rewriting pushed history" "widens access" "adding or changing a dependency" "creating repositories" "gh api user --jq .login" "octo" "every way forward is a guess"; do stops "$d/AGENTS.md" | grep -qF "$w" || exit 1; done ) &&
+    [ "$(grep -c "mutation" "$d/.claude/rules/testing.md")" = 1 ] && dn_design_only "$d/openspec/config.yaml"'
 done
 
 report template

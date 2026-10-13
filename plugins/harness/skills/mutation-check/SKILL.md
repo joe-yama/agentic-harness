@@ -41,4 +41,4 @@ Run the overlay line from the working tree root. `<install>` and `<test>` are th
 
 ## Where it goes in a change
 
-Scope: refusal tests for authorization and data access, security tests, and tests the reviewer doubts; nothing else. When a change adds a refusal or security test, its `tasks.md` gets one task: "prove <test> is a guardian with `harness:mutation-check`", with the mutation to apply. That task may be a check-only commit.
+Scope: refusal tests for authorization and data access, security tests, and tests the reviewer doubts; nothing else. When a change adds a refusal or security test, its `tasks.md` gets one task: "prove <test> is a guardian with `harness:mutation-check`", with the mutation to apply. That task may be a check-only commit. A new row in an invariant table that is already proven (`docs/harness/testing.md`, "Invariants over per-feature tests") needs none.
