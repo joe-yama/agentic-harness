@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # harness test-on-stop — Stop hook.
-# Runs HARNESS_TEST_CMD before Claude ends its turn when non-doc files have uncommitted
-# changes; on failure returns {"decision":"block"} so Claude keeps working.
+# Runs HARNESS_STOP_TEST_CMD, or HARNESS_TEST_CMD when that is unset or empty, before Claude ends
+# its turn when non-doc files have uncommitted changes; on failure returns {"decision":"block"} so
+# Claude keeps working. HARNESS_STOP_TEST_CMD is for a faster command than the full suite, such as
+# `vitest run --changed HEAD` or `pytest --testmon`: the hook pays it every turn, not every commit.
+# A worktree registered under the repository root (e.g. .worktrees/<name>/) and any other
+# repository inside it are another checkout's work and do not count as changes.
 # stop_hook_active (set after a previous block) ends the loop.
 # {"decision":"block"} rather than hookSpecificOutput.additionalContext: both keep the turn going
 # under the same stop_hook_active protection, but every Claude Code version honors decision:block,
@@ -23,8 +27,11 @@ cwd=$(printf '%s' "$input" | jq -r '.cwd // ""')
 . "$(dirname "$0")/lib/env.sh" 2>/dev/null # a missing file only means no values from .harness/env.json
 declare -F harness_env >/dev/null && harness_env "$cwd"
 # rule:stop-unset
-[ -n "${HARNESS_TEST_CMD:-}" ] || exit 0
+[ -n "${HARNESS_STOP_TEST_CMD:-}${HARNESS_TEST_CMD:-}" ] || exit 0
 # end:stop-unset
+# rule:stop-fast-cmd
+cmd=${HARNESS_STOP_TEST_CMD:-$HARNESS_TEST_CMD}
+# end:stop-fast-cmd
 root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || exit 0
 doc=${HARNESS_DOC_PATTERN:-'\.(md|txt)$|^docs/|^openspec/|^\.claude/'}
 # rule:stop-bad-pattern
@@ -43,16 +50,34 @@ changed=$(
     git -C "$root" ls-files --others --exclude-standard
   } | sort -u
 )
+# rule:stop-nested-checkout
+# git lists an untracked repository or worktree as "<dir>/" without descending into it; a registered
+# worktree is also dropped by its path (a gitlink staged by mistake shows as "<dir>").
+# The case patterns open with "(": bash 3.2 misreads a bare ")" inside $(...).
+nested=$(
+  git -C "$root" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | while IFS= read -r w; do
+    case "$w" in ("$root"/*) printf '%s/\n' "${w#"$root"/}" ;; esac
+  done
+  printf '%s\n' "$changed" | while IFS= read -r p; do
+    case "$p" in (*/) [ -e "$root/$p.git" ] && printf '%s\n' "$p" ;; esac
+  done
+)
+if [ -n "$nested" ]; then
+  changed=$(printf '%s\n' "$changed" | NESTED=$nested awk '
+    BEGIN { k = split(ENVIRON["NESTED"], n, "\n") }
+    { for (i = 1; i <= k; i++) if (n[i] != "" && (index($0, n[i]) == 1 || $0 "/" == n[i])) next; print }')
+fi
+# end:stop-nested-checkout
 # rule:stop-doc-only
 code=$(printf '%s\n' "$changed" | grep -v '^$' | grep -Ev -- "$doc" || true)
 [ -n "$code" ] || exit 0
 # end:stop-doc-only
 # rule:stop-run
-out=$(cd "$root" && bash -c "$HARNESS_TEST_CMD" 2>&1)
+out=$(cd "$root" && bash -c "$cmd" 2>&1)
 status=$?
 if [ "$status" -ne 0 ]; then
   reason=$(printf 'Tests failed (%s, exit %d). Fix the failures before finishing; do not skip, delete or weaken tests.\n%s' \
-    "$HARNESS_TEST_CMD" "$status" "$(printf '%s\n' "$out" | tail -30)")
+    "$cmd" "$status" "$(printf '%s\n' "$out" | tail -30)")
   jq -n --arg r "$reason" '{decision:"block",reason:$r}'
 fi
 # end:stop-run
