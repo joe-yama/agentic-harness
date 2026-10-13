@@ -12,10 +12,13 @@ One session turns an idea into a change under `openspec/changes/<name>/` that a 
 - `AGENTS.md`, `docs/status.md`, and the idea as the PO wrote it.
 - Every main spec the idea touches, **in full**: `openspec show <spec> --type spec`. Do not summarize or skim a spec; a delta spec's MODIFIED block replaces the whole requirement, so a requirement you did not read can be dropped silently.
 - `openspec list` for changes in progress that touch the same specs.
+- Past rulings in the area, when the idea touches something changed before: `grep -rn` in `openspec/changes/archive/` (there is no separate history file).
 
 ## 2. Choose the route
 
 Apply the small-change test from `harness:workflow`. A small change (only docs, agent settings (`.claude/`, `.codex/`, `.github/copilot/`) or styles, or at most 5 files without a new spec requirement) skips step 3 and goes straight to step 4 with a short change. Everything else takes the full route. When in doubt, take the full route.
+
+Check the size budget (`harness:workflow`, "Change size budget": at most 15 tasks and 30,000 characters across `tasks.md` and `design.md`). When the idea will not fit, propose to the PO, as the first question, a split into independently shippable changes, each one that passes CI and means something on its own, and design the first one in this session.
 
 ## 3. Ask
 
@@ -31,14 +34,16 @@ When the agreements are complete, run OpenSpec propose (see the table in `harnes
 
 - **proposal**: what and why, scope in and out.
 - **delta spec**: requirements as SHALL / SHALL NOT, each with at least one `#### Scenario:` using WHEN / THEN. The reviewer later maps every scenario to a test or a verification task, so write scenarios that a test can check.
-- **design.md**: only the decisions the implementation needs. Agreements already made are referenced in one line with their source, not copied. State who can see any stored or shown data when that matters. Rulings:
+- **design.md**: only the decisions the implementation needs, each under `### D<n> <title>` (D1, D2, …) so tasks can refer to it by number. Agreements already made are referenced in one line with their source, not copied. State who can see any stored or shown data when that matters.
+  - **Test plan** (mandatory): a table mapping each behavior (each delta-spec scenario, plus any invariant it relies on) to the **one** layer that tests it. Defaults, unless the project's `docs/harness/testing.md` says otherwise: E2E only for one happy path per feature across API, UI and DB; UI detail in component tests; visual detail in style lint or visual tests only. A second layer for the same behavior needs a reason in the table. A cross-cutting rule (no personal data in logs, every read route refuses the wrong audience) extends the project's existing invariant, not a new per-feature test.
+  - Rulings, here and nowhere else (the Issue links them):
 
-  ```
-  ### <date> <title>
-  - Ruling: <what was decided>
-  - Reason: <why, with the spec section or evidence>
-  - Cost if wrong: <what breaks and how it would be noticed>
-  ```
+    ```
+    ### <date> <title>
+    - Ruling: <what was decided>
+    - Reason: <why, with the spec section or evidence>
+    - Cost if wrong: <what breaks and how it would be noticed>
+    ```
 
 - **tasks.md**, which is also the plan. Follow the shape in the project's `openspec/config.yaml` (`rules.tasks`); do not invent another. Per task `- [ ] N.M <what to do>`, indented below it:
   - `Files:` what is created, changed, tested.
@@ -48,7 +53,7 @@ When the agreements are complete, run OpenSpec propose (see the table in `harnes
 
   No code snippets: the implementer writes the code. Add a short mapping of each delta-spec scenario to the task that verifies it. End with an empty `Proposals` section for later findings.
 
-Check consistency before finishing: every scenario has a test or a verify step, every interface used is declared by some task, and `openspec validate <name> --strict` passes.
+Check consistency before finishing: the change is within the size budget (count the `- [ ]` task lines, and the characters of `tasks.md` plus `design.md`, e.g. `wc -m`; split if over), every scenario has a test or a verify step and one row in the test plan, every interface used is declared by some task, and `openspec validate <name> --strict` passes.
 
 ## 5. Issue, then end
 

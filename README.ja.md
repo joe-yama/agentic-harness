@@ -1,6 +1,6 @@
 # agentic-harness
 
-[Claude Code](https://code.claude.com/docs)、[OpenAI Codex CLI](https://github.com/openai/codex)、[GitHub Copilot CLI](https://docs.github.com/copilot/concepts/agents/about-copilot-cli) 向けのプロダクト開発ハーネスです。人間の **PO** が舵を取り、エージェントが実行します。流れは設計の対話 → OpenSpec の change（spec、design、計画を兼ねる `tasks.md`）→ サブエージェントによるテスト先行の実装 → 別コンテキストでの敵対的レビュー → PR → PO の受け入れ、です。実際のプロジェクトで作り、測りながら育てたハーネスを一般化しました。エージェント・GitHub・サプライチェーンの現行の指針にも照らしています。既定は Claude Code で、Codex と Copilot CLI はリポジトリごとに選びます（[エージェント](#エージェント)）。
+[Claude Code](https://code.claude.com/docs)、[OpenAI Codex CLI](https://github.com/openai/codex)、[GitHub Copilot CLI](https://docs.github.com/copilot/concepts/agents/about-copilot-cli) 向けのプロダクト開発ハーネスです。人間の **PO** が舵を取り、エージェントが実行します。流れは設計の対話 → OpenSpec の change（spec、design、計画を兼ねる `tasks.md`）→ サブエージェントによるテスト先行の実装 → 別コンテキストでの敵対的レビュー → PR → PO の受け入れ → 同じ PR での archive、です。実際のプロジェクトで作り、測りながら育てたハーネスを一般化しました。エージェント・GitHub・サプライチェーンの現行の指針にも照らしています。既定は Claude Code で、Codex と Copilot CLI はリポジトリごとに選びます（[エージェント](#エージェント)）。
 
 > 英語版の [README.md](README.md) が正本です。
 
@@ -11,7 +11,7 @@
 | 経路 | 運ぶもの | 更新方法 |
 |---|---|---|
 | **プラグイン** `harness@agentic-harness`（`plugins/harness/`） | hooks: `guard`（無条件ブロック）、`ask-gate`（PO の確認に回す）、`lint-on-edit`、`test-on-stop`、`subagent-start` / `subagent-stop`。monitor: `watchdog`。サブエージェント: `harness:implementer`（Sonnet、effort medium）、`harness:reviewer`（Opus、effort high）（Claude Code の場合。ほかのエージェントのモデルは `docs/harness/models.md`）。スキル: `harness:workflow`、`harness:design`、`harness:execute`、`harness:mutation-check`、`harness:adopt` | `claude plugin update` |
-| **Copier テンプレート**（`copier.yml`、`template/`） | プラグインでは運べないもの: `AGENTS.md`、`CLAUDE.md`（`@AGENTS.md` + Claude 固有の差分）、`.claude/rules/`、`.claude/settings.json`（permissions・sandbox・`HARNESS_*` の env・プラグインの版の固定）、CI の job `check`、Dependabot、PR テンプレート、OpenSpec の設定、状態・台帳・教訓の各ドキュメント、ブランチの ruleset。Copier の質問 `agents`（`claude`・`codex`・`copilot`、既定は `claude`）で選んだエージェントごとに: Codex は `.codex/config.toml`・`.codex/rules/harness.rules`・`.codex/agents/harness-*.toml`、Copilot CLI は `.github/copilot/settings.json`・`.github/copilot-instructions.md`、両者に `.harness/env.json`（hook の設定）。`CLAUDE.md` と `.claude/settings.json` は `claude` を選んだときだけ描画する。`.claude/rules/` はどの選択でも描画する（Codex にはセッションの最初に読むよう指示する） | `copier update`（レビューできる PR になる） |
+| **Copier テンプレート**（`copier.yml`、`template/`） | プラグインでは運べないもの: `AGENTS.md`、`CLAUDE.md`（`@AGENTS.md` + Claude 固有の差分）、`.claude/rules/`、`.claude/settings.json`（permissions・sandbox・`HARNESS_*` の env・プラグインの版の固定）、CI の job `check`（change の大きさの予算、`docs/status.md` のサイズ、テストと本体の行数の比を警告だけで知らせるステップを含む）、Dependabot、PR テンプレート、OpenSpec の設定、状態・教訓・テスト設計の各ドキュメント、ブランチの ruleset。Copier の質問 `agents`（`claude`・`codex`・`copilot`、既定は `claude`）で選んだエージェントごとに: Codex は `.codex/config.toml`・`.codex/rules/harness.rules`・`.codex/agents/harness-*.toml`、Copilot CLI は `.github/copilot/settings.json`・`.github/copilot-instructions.md`、両者に `.harness/env.json`（hook の設定）。`CLAUDE.md` と `.claude/settings.json` は `claude` を選んだときだけ描画する。`.claude/rules/` はどの選択でも描画する（Codex にはセッションの最初に読むよう指示する） | `copier update`（レビューできる PR になる） |
 
 プラグインは別のプラグインに依存しません。OpenSpec は OpenSpec 自身の CLI から入れます。ハーネスが使うのは `/opsx:propose`、`/opsx:archive`、`/opsx:update`（と、`/opsx:archive` が内から呼ぶ `opsx/sync.md`）だけです。テンプレートの CI の job `check` は、`.claude/skills/openspec-*` やほかの `opsx` のコマンドがあると失敗します。`openspec update` が既定の profile でそれらを戻すためです。生成させないために、各自が OpenSpec のグローバルな profile を設定できます（リポジトリごとには持てません）: `openspec config set profile custom`、`openspec config set workflows '["propose","archive","update"]'`、`openspec config set delivery commands`。
 
@@ -126,6 +126,8 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
 - 別だったレビューのスキルは `harness:execute` に統合された
 - `ci.yml` が衝突したら新しいステップを残す
 - `docs/harness/models.md` が新しく来る
+
+0.5.0 ではテンプレートが `docs/changes.md` を描画しなくなり、`copier update` は既存のファイルを残します。凍結した履歴として残し、追記はやめてください（裁定は各 change の `design.md`、履歴は `openspec/changes/archive/` にあります）。archive は feature PR の中で行うようになり、`docs/harness/testing.md` が新しく来ます。手順は `harness:adopt` にあります。
 
 ## セキュリティ上の注意
 
