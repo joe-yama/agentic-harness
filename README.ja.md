@@ -11,7 +11,7 @@
 | 経路 | 運ぶもの | 更新方法 |
 |---|---|---|
 | **プラグイン** `harness@agentic-harness`（`plugins/harness/`） | hooks: `guard`（無条件ブロック）、`ask-gate`（PO の確認に回す）、`lint-on-edit`、`test-on-stop`、`subagent-start` / `subagent-stop`。monitor: `watchdog`。サブエージェント: `harness:implementer`（Sonnet、effort medium）、`harness:reviewer`（Opus、effort high）（Claude Code の場合。ほかのエージェントのモデルは `docs/harness/models.md`）。スキル: `harness:workflow`、`harness:design`、`harness:execute`、`harness:mutation-check`、`harness:adopt` | `claude plugin update` |
-| **Copier テンプレート**（`copier.yml`、`template/`） | プラグインでは運べないもの: `AGENTS.md`、`CLAUDE.md`（`@AGENTS.md` + Claude 固有の差分）、`.claude/rules/`、`.claude/settings.json`（permissions・sandbox・`HARNESS_*` の env・プラグインの版の固定）、CI の job `check`、Dependabot、PR テンプレート、OpenSpec の設定、状態・台帳・教訓の各ドキュメント、ブランチの ruleset。Copier の質問 `agents`（`claude`・`codex`・`copilot`、既定は `claude`）で選んだエージェントごとに: Codex は `.codex/config.toml`・`.codex/rules/harness.rules`・`.codex/agents/harness-*.toml`、Copilot CLI は `.github/copilot/settings.json`・`.github/copilot-instructions.md`、両者に `.harness/env.json`（hook の設定）。`CLAUDE.md` と `.claude/settings.json` は `claude` を選んだときだけ描画する。`.claude/rules/` はどの選択でも描画する（Codex にはセッションの最初に読むよう指示する） | `copier update`（レビューできる PR になる） |
+| **Copier テンプレート**（`copier.yml`、`template/`） | プラグインでは運べないもの: `AGENTS.md`、`CLAUDE.md`（`@AGENTS.md` + Claude 固有の差分）、`.claude/rules/`、`.claude/settings.json`（permissions・sandbox・`HARNESS_*` の env・プラグインの版の固定）、CI の job `check`、Dependabot、PR テンプレート、OpenSpec の設定、状態・台帳・教訓の各ドキュメント、ブランチの ruleset、`scripts/harness-metrics.sh`（ハーネス自身のコストを閾値つきの TSV で出す）。Copier の質問 `agents`（`claude`・`codex`・`copilot`、既定は `claude`）で選んだエージェントごとに: Codex は `.codex/config.toml`・`.codex/rules/harness.rules`・`.codex/agents/harness-*.toml`、Copilot CLI は `.github/copilot/settings.json`・`.github/copilot-instructions.md`、両者に `.harness/env.json`（hook の設定）。`CLAUDE.md` と `.claude/settings.json` は `claude` を選んだときだけ描画する。`.claude/rules/` はどの選択でも描画する（Codex にはセッションの最初に読むよう指示する） | `copier update`（レビューできる PR になる） |
 
 プラグインは別のプラグインに依存しません。OpenSpec は OpenSpec 自身の CLI から入れます。ハーネスが使うのは `/opsx:propose`、`/opsx:archive`、`/opsx:update`（と、`/opsx:archive` が内から呼ぶ `opsx/sync.md`）だけです。テンプレートの CI の job `check` は、`.claude/skills/openspec-*` やほかの `opsx` のコマンドがあると失敗します。`openspec update` が既定の profile でそれらを戻すためです。生成させないために、各自が OpenSpec のグローバルな profile を設定できます（リポジトリごとには持てません）: `openspec config set profile custom`、`openspec config set workflows '["propose","archive","update"]'`、`openspec config set delivery commands`。
 
@@ -24,7 +24,7 @@
 | `guard`（Bash・Monitor・ファイル操作ツールの PreToolUse） | 次をブロックする: 再帰 + 強制の `rm`、force push（`+refspec` と `-uf` を含む）、`git reset --hard` / `--merge`、`git clean -f`、ツリー全体の checkout / restore、`git branch -D`、`--no-verify` / `commit -n` / `--no-gpg-sign`、`.env` 系ファイル（`.env.example` は除く）、認証情報のディレクトリ、`curl … \| sh` |
 | `ask-gate`（Bash・Monitor の PreToolUse） | 次を PO の確認に回す: 保護ブランチへの push（保護ブランチ上での refspec 無しの push を含む）、リモートブランチの削除、`--all` / `--mirror` / `--prune`、`git worktree remove --force`、lockfile を変える install（pnpm・npm・yarn・bun・uv・pip・cargo） |
 | `lint-on-edit`（PostToolUse） | 編集したファイルごとに `HARNESS_LINT_CMD <file>` を実行し、失敗をその場で直させる |
-| `test-on-stop`（Stop） | ドキュメント以外が変わっていれば、ターンを終える前に `HARNESS_TEST_CMD` を実行する。失敗している間は作業を続けさせる |
+| `test-on-stop`（Stop） | ドキュメント以外が変わっていれば、ターンを終える前に `HARNESS_STOP_TEST_CMD`（未設定なら `HARNESS_TEST_CMD`）を実行する。失敗している間は作業を続けさせる。チェックアウトの中にある worktree やリポジトリ（`.worktrees/<name>/`）は変更に数えない |
 | `subagent-start` / `subagent-stop`（SubagentStart / SubagentStop） | watchdog のために、サブエージェントごとの記録（transcript のパス・開始・終了）をプラグインのデータディレクトリに残す。`subagent-stop` は、`harness:implementer` と `harness:reviewer` の返答がエージェントのファイルにある短いブロック（`STATUS`、reviewer の `VERDICT`、実在するレポートを指す `ARTIFACT`、8 行以内）でなければ一度だけ差し戻す。コントローラのコンテキストにはサブエージェント 1 つにつき数行だけが入り、レポートはファイルに残る |
 | `watchdog`（プラグインの monitor） | 対話セッションごとに並走し、実行中のサブエージェントが transcript を 15 分書いていない（`STALL`）か、2 時間動き続けている（`TIMEOUT`）ときだけ 1 行出す。それ以外は何も出さないので、サブエージェントを待つ間トークンを使わない |
 
@@ -89,6 +89,7 @@ claude plugin install harness@agentic-harness --scope project
 | `HARNESS_LINT_CMD` | 未設定（lint しない） | `lint-on-edit`。編集したファイルは最後の引数として渡す。コマンド文字列には埋め込まない |
 | `HARNESS_LINT_PATTERN` | ドキュメント以外の全ファイル | `lint-on-edit`。リポジトリからの相対パスに対する拡張正規表現 |
 | `HARNESS_TEST_CMD` | 未設定（テストしない） | `test-on-stop` |
+| `HARNESS_STOP_TEST_CMD` | `HARNESS_TEST_CMD` | `HARNESS_TEST_CMD` の代わりに `test-on-stop` が使う。毎ターンの終わりに走らせる速いコマンド（`vitest run --changed HEAD`、`pytest --testmon` など）で、CI は全体のテストのまま。テンプレートは書かないので、使うなら自分で足す。`.claude/settings.json` の `env` がこの変数を設定していなければ、`env` が `HARNESS_TEST_CMD` を設定していても、`.harness/env.json` の値が Claude Code にも効く |
 | `HARNESS_DOC_PATTERN` | `\.(md\|txt)$\|^docs/\|^openspec/\|^\.claude/` | lint もテストも起こさないパス |
 | `HARNESS_PROTECTED_BRANCHES` | `main` | `ask-gate` と、`HARNESS_ALLOW_LEASE_PUSH` の `guard`。空白区切り |
 | `HARNESS_WATCHDOG_IDLE` / `HARNESS_WATCHDOG_MAX` | `900` / `7200` | `watchdog`。`STALL` までの transcript 無更新の秒数と、`TIMEOUT` までのサブエージェント開始からの秒数（Claude Code のみ。`.harness/env.json` ではなくセッションの環境変数から読む） |
@@ -132,7 +133,7 @@ auto mode の Claude は `.claude/settings.json` を書けません。Claude が
 - **プラグインはあなたのユーザー権限で動きます。** インストールするタグの `plugins/harness/scripts/` を読んでください。hooks が必要とするのは `bash`・`jq`・`git` だけです。
 - `HARNESS_*_CMD` の値は、リポジトリにコミットされた設定から読み、`bash -c` で実行します。値の変更はコードの変更と同じように扱ってください。
 - Codex と Copilot CLI のプラグインの hooks も、あなたの権限で動きます。Codex が信頼を求めたときに hooks を確認してください。信頼したプロジェクトの設定と rules は、あなたとして実行されます。
-- `.harness/env.json` は Claude Code を含むすべてのエージェントの hooks が読みます（`.claude/settings.json` の `env` が設定していない `HARNESS_*` の変数）。その `HARNESS_LINT_CMD` と `HARNESS_TEST_CMD` は `bash -c` で実行されます。変更は `.claude/settings.json` の変更と同じように確認してください。guard がエージェントの編集を防ぎ、編集するのは PO です。
+- `.harness/env.json` は Claude Code を含むすべてのエージェントの hooks が読みます（`.claude/settings.json` の `env` が設定していない `HARNESS_*` の変数）。その `HARNESS_LINT_CMD`、`HARNESS_TEST_CMD`、`HARNESS_STOP_TEST_CMD` は `bash -c` で実行されます。変更は `.claude/settings.json` の変更と同じように確認してください。guard がエージェントの編集を防ぎ、編集するのは PO です。
 - 信頼していないリポジトリで `--bare` なしに `claude -p` を実行しないでください。headless モードでもコミット済みの hooks が動きます。
 - hooks はコマンドの文字列を見ているだけで、仕掛け線であってサンドボックスではありません。OS レベルの境界として、テンプレートは Claude Code の sandbox を有効にします（認証情報のディレクトリは読めず、ネットワークは GitHub とパッケージレジストリに限定）。既知の穴と誤検知は次のとおりです。
   - 引用文字列をコマンドとして検査するのは、`-c`（`sh -c '…'`、`bash -lc "…"`。間にオプションがあってもよい: `bash -c -- '…'`）と `eval` の直後、シェルへの here-string（`bash <<< '…'`）、`watch` と `ssh <host>` の引数だけ。`grep`・`wc`・`head` などの `-c` はフラグとして扱う。それ以外の引用文字列（コミットメッセージ、grep のパターン、Issue 本文）はデータとして扱い、二重引用符の中のコマンド置換もデータになる（`echo "$(rm -rf x)"` は通る）
