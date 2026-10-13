@@ -17,7 +17,7 @@ The `harness@agentic-harness` plugin supplies the hooks, subagents and skills be
 
 ## Subagents
 
-- Dispatch only `harness:implementer`, `harness:reviewer-intermediate` (task and batch reviews) and `harness:reviewer` (the final review), and always pass `model` per the role table in `docs/harness/models.md`. An omitted model inherits the session's.
+- Dispatch only `harness:implementer`, `harness:reviewer-intermediate` and `harness:reviewer` (final review); always pass `model` per the role table in `docs/harness/models.md`.
 - The context that implemented something never reviews it. During `harness:execute` the controller distributes, judges and records; it does not write code.
 - Agent definition changes take effect only in a new session. The symptom of a stale definition is `No such tool available`.
 

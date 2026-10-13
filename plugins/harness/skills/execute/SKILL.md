@@ -14,7 +14,7 @@ Models and effort for every role (implementation, intermediate review, final rev
 - Use a **new session**. Do not continue from the design session: its long context is stale for this work.
 - Work in a git worktree on `feature/<change-name>`. Before the first task, check whether `origin/<default branch>` moved since the change was proposed and merge it (parallel worktrees drift; a delta spec's MODIFIED block can silently drop requirements another change added).
 - Read the change directory **in full, as files**: proposal, design, every delta spec, `tasks.md`. Do not summarize them for yourself or for a subagent; a summary drops what later has to be re-read. This is the only full read before the final review: implementers and task or batch reviewers read slices (section 2).
-- Create or read the ledger `.harness/<change>/progress.md` (gitignored scratch). It holds the state a restart needs and every execution record: tasks dispatched (with BASE SHA) and completed (with commit range, review verdict and report paths), carry-overs to later tasks, mutation-check results, rebuilds and their reasons, open Critical and Important findings, the last pushed SHA, unanswered PO questions, operations that were refused, and the first file the next session should read. Minor findings are not copied here; they stay in the review reports. Rulings do not live here: put them in the change's `design.md` (committed) and on the Issue, in the `workflow` ruling format. `tasks.md` holds the plan only: during execution it changes only by its checkboxes.
+- Create or read the ledger `.harness/<change>/progress.md` (gitignored scratch). It holds the state a restart needs and every execution record: tasks dispatched (with BASE SHA) and completed (with commit range, review verdict and report paths), carry-overs to later tasks, mutation-check results, rebuilds and their reasons, open Critical and Important findings, the last pushed SHA, unanswered PO questions, operations that were refused, and the first file the next session should read. Minor findings are not copied here; they stay in the review reports. Rulings do not live here: they go to the change's `design.md` only (committed, in the `workflow` ruling format); an Issue comment links to them, never copies them. `tasks.md` holds the plan only: during execution it changes only by its checkboxes.
 
 ## 2. Dispatch
 
@@ -22,7 +22,7 @@ Models and effort for every role (implementation, intermediate review, final rev
 - **One implementer per worktree at a time.** They share the git index, build output and ports.
 - Note `Task N: dispatched (BASE <sha>)` in the ledger; on completion note the commit range, the review verdict and the report paths.
 - **Replies.** Every harness subagent writes its full report to the report path and replies with a short block: `STATUS: ok | partial | blocked | failed`, the reviewer's `VERDICT`, `ARTIFACT: <report path>` and at most three summary lines. Judge from the block; open the report only when the next step needs it (findings to verify, a question, a failure). `partial`: resume the same subagent with a follow-up (table in section 3; the cache rule in section 4 applies). `blocked`: answer its question as below, by a follow-up. `failed`: read the report, then fix the cause or rebuild (section 3).
-- If an implementer asks a question that the change files answer, answer from them. If the files do not answer it and every way forward is a guess, that is a plan defect: stop and ask the PO (see `harness:workflow`). Otherwise rule by the spec, record the ruling, continue.
+- If an implementer asks a question that the change files answer, answer from them. If the files do not answer it and every way forward is a guess, that is a plan defect: stop and ask the PO (see `harness:workflow`). Otherwise rule by the spec, record the ruling in `design.md`, continue.
 
 ## 3. Review
 
@@ -63,7 +63,7 @@ Codex: without `fork_turns: "none"` the child inherits the parent's context, and
 2. two fix rounds have passed without Approved;
 3. the reviewer wrote "Re-implementation recommended".
 
-Record the rebuild and its reason in the ledger and on the Issue (`tasks.md` holds the plan only).
+Record the rebuild and its reason in the ledger (`tasks.md` holds the plan only); the Issue comment at the PR reports it (section 5).
 
 ## 4. Waiting
 
