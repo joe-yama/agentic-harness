@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # harness subagent-stop — SubagentStop hook (Claude Code).
 # Marks the subagent's run record done (lib/runs.sh), when subagent-start.sh made one, so watchdog.sh
-# stops watching it. Then checks that harness:implementer and harness:reviewer end with the reply block
-# of their agent file: at most 8 lines,
+# stops watching it. Then checks that harness:implementer, harness:reviewer and harness:reviewer-intermediate
+# end with the reply block of their agent file: at most 8 lines,
 #   STATUS: ok|partial|blocked|failed      first line
-#   VERDICT: <verdict>                     reviewer, when STATUS is ok
+#   VERDICT: <verdict>                     either reviewer, when STATUS is ok
 #   ARTIFACT: <report path>                an existing file, absolute or relative to cwd
 # The full report lives in the artifact, so the parent session reads a few lines per subagent.
 # A violation returns {"decision":"block"} once: the subagent rewrites its reply and the parent receives
@@ -23,7 +23,7 @@ fi
 # end:stop-mark-done
 type=$(j '.agent_type | strings')
 # rule:contract-scope
-case "$type" in harness:implementer | harness:reviewer) ;; *) exit 0 ;; esac
+case "$type" in harness:implementer | harness:reviewer | harness:reviewer-intermediate) ;; *) exit 0 ;; esac
 # end:contract-scope
 # rule:contract-once
 [ "$(j .stop_hook_active)" = false ] || exit 0
@@ -39,7 +39,7 @@ status=$(printf '%s\n' "$msg" | head -n 1 | sed -nE 's/^STATUS: (ok|partial|bloc
 [ -n "$status" ] || problem="the first line is not STATUS: ok|partial|blocked|failed"
 # end:contract-status
 # rule:contract-verdict
-if [ -z "$problem" ] && [ "$type" = harness:reviewer ] && [ "$status" = ok ] &&
+if [ -z "$problem" ] && [ "$type" != harness:implementer ] && [ "$status" = ok ] &&
   ! printf '%s\n' "$msg" | grep -Eq '^VERDICT: (Approved|Needs fixes|Re-implementation recommended)$'; then
   problem="there is no VERDICT: Approved|Needs fixes|Re-implementation recommended line"
 fi

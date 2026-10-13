@@ -336,6 +336,17 @@ ARTIFACT: report.md
 SUMMARY:
 - turn budget spent after spec compliance"
 expect sp-reviewer-partial '[ $rc = 0 ] && [ -z "$out" ]'
+# the intermediate reviewer has the reviewer's reply contract, VERDICT included
+stopj harness:reviewer-intermediate "$good"
+expect sp-intermediate-verdict '[ $rc = 0 ] && sentback "VERDICT:"'
+stopj harness:reviewer-intermediate "STATUS: ok
+VERDICT: Approved
+ARTIFACT: report.md
+SUMMARY:
+- Critical 0, Important 0, Minor 2"
+expect sp-intermediate-ok '[ $rc = 0 ] && [ -z "$out" ]'
+stopj harness:reviewer-intermediate "Looks good to me."
+expect sp-intermediate-status '[ $rc = 0 ] && sentback "STATUS:"'
 stopj harness:implementer "free text" '{"stop_hook_active":true}'
 expect sp-active '[ $rc = 0 ] && [ -z "$out" ]'
 stopj harness:implementer "free text" '{"stop_hook_active":null}'
